@@ -1,0 +1,4 @@
+override:
+  style:
+    # allow package managers to install non-pinned versions
+    - DL3018  # apk

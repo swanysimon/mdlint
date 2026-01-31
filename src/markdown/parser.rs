@@ -116,6 +116,44 @@ impl<'a> MarkdownParser<'a> {
         code_lines
     }
 
+    /// Returns a set of line numbers that are inside code BLOCKS only (not inline code).
+    /// This is useful for rules that need to check list markers, URLs, etc. that might
+    /// legitimately appear on lines with inline code.
+    /// Lines are 1-indexed to match violation reporting.
+    pub fn get_code_block_line_numbers(&self) -> HashSet<usize> {
+        let mut code_lines = HashSet::new();
+        let mut in_code_block = false;
+
+        for (event, range) in self.parse_with_offsets() {
+            match event {
+                Event::Start(Tag::CodeBlock(_)) => {
+                    in_code_block = true;
+                    // Add all lines in this code block
+                    let start_line = self.offset_to_line(range.start);
+                    let end_line = self.offset_to_line(range.end);
+                    for line in start_line..=end_line {
+                        code_lines.insert(line);
+                    }
+                }
+                Event::End(TagEnd::CodeBlock) => {
+                    in_code_block = false;
+                }
+                _ => {
+                    // If we're in a code block, mark these lines too
+                    if in_code_block {
+                        let start_line = self.offset_to_line(range.start);
+                        let end_line = self.offset_to_line(range.end);
+                        for line in start_line..=end_line {
+                            code_lines.insert(line);
+                        }
+                    }
+                }
+            }
+        }
+
+        code_lines
+    }
+
     /// Returns a vector of byte ranges that are inside code (blocks or inline).
     /// This is more precise than `get_code_line_numbers()` for inline code.
     pub fn get_code_ranges(&self) -> Vec<Range<usize>> {

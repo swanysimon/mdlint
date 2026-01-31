@@ -46,6 +46,12 @@ impl Rule for MD024 {
                 Event::Text(text) if in_heading => {
                     current_heading_text.push_str(&text);
                 }
+                Event::Code(code) if in_heading => {
+                    // Include inline code in heading text
+                    current_heading_text.push('`');
+                    current_heading_text.push_str(&code);
+                    current_heading_text.push('`');
+                }
                 Event::End(TagEnd::Heading(_)) if in_heading => {
                     let text = current_heading_text.trim().to_string();
 
@@ -156,5 +162,36 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 1);
+    }
+
+    #[test]
+    fn test_headings_with_inline_code() {
+        // Headings with different inline code should not be duplicates
+        let content = "#### `mdlint check`\n\nSome text\n\n#### `mdlint format`";
+        let parser = MarkdownParser::new(content);
+        let rule = MD024;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "Different code headings should not be duplicates"
+        );
+    }
+
+    #[test]
+    fn test_duplicate_code_headings() {
+        // Headings with same inline code should be duplicates
+        let content = "#### `mdlint check`\n\nSome text\n\n#### `mdlint check`";
+        let parser = MarkdownParser::new(content);
+        let rule = MD024;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            1,
+            "Same code headings should be duplicates"
+        );
+        assert!(violations[0].message.contains("`mdlint check`"));
     }
 }

@@ -54,7 +54,12 @@ impl Rule for MD049 {
                     let is_strong = (i + 1 < chars.len() && chars[i + 1] == ch)
                         || (i > 0 && chars[i - 1] == ch);
 
-                    if !is_strong {
+                    // For `_`, apply CommonMark left-flanking rule: the opening `_` must not
+                    // be preceded by an alphanumeric character (spec section 6.2). This
+                    // prevents snake_case words from being treated as emphasis.
+                    let can_open = ch == '*' || i == 0 || !chars[i - 1].is_alphanumeric();
+
+                    if !is_strong && can_open {
                         // Find closing marker
                         for j in (i + 1)..chars.len() {
                             if chars[j] == ch {
@@ -62,7 +67,13 @@ impl Rule for MD049 {
                                 let close_is_strong = (j + 1 < chars.len() && chars[j + 1] == ch)
                                     || (j > 0 && chars[j - 1] == ch);
 
-                                if !close_is_strong {
+                                // For `_`, apply CommonMark right-flanking rule: the closing
+                                // `_` must not be followed by an alphanumeric character.
+                                let can_close = ch == '*'
+                                    || j + 1 >= chars.len()
+                                    || !chars[j + 1].is_alphanumeric();
+
+                                if !close_is_strong && can_close {
                                     // Skip if this emphasis is inside code
                                     if is_in_code(line_number, i) {
                                         i = j; // Skip to after closing
@@ -214,6 +225,31 @@ mod tests {
 
         // Should not flag underscores in inline code
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_snake_case_not_flagged() {
+        // Underscores inside words (snake_case) must not be treated as emphasis:
+        // CommonMark spec §6.2 says a `_` can only open emphasis when not preceded
+        // by an alphanumeric character.
+        let content = "Call offset_to_line, parse_with_offsets(), and heading_line_length.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD049;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_underscore_emphasis_in_punctuation_context() {
+        // `_italic_` after `(` should still be treated as emphasis.
+        let content = "See (_italic_) for details.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD049;
+        let config = serde_json::json!({ "style": "asterisk" });
+        let violations = rule.check(&parser, Some(&config));
+
+        assert_eq!(violations.len(), 2);
     }
 
     #[test]

@@ -43,6 +43,9 @@ impl Rule for MD030 {
 
         let mut violations = Vec::new();
 
+        // Get code block lines to skip (not inline code, which can appear in list items)
+        let code_lines = parser.get_code_block_line_numbers();
+
         // Use AST to identify lines that start with emphasis (to exclude them)
         let mut emphasis_start_lines = HashSet::new();
 
@@ -70,9 +73,14 @@ impl Rule for MD030 {
             }
         }
 
-        // Now check spacing using string matching, but skip emphasis lines
+        // Now check spacing using string matching, but skip emphasis lines and code blocks
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
+
+            // Skip if line is in a code block or inline code
+            if code_lines.contains(&line_number) {
+                continue;
+            }
 
             // Skip if line starts with emphasis (bold or italic)
             if emphasis_start_lines.contains(&line_number) {
@@ -83,6 +91,11 @@ impl Rule for MD030 {
 
             // Skip horizontal rules (3+ of same char: -, *, _)
             if is_horizontal_rule(trimmed) {
+                continue;
+            }
+
+            // Skip table separator lines (lines with only -, |, and spaces)
+            if is_table_separator(trimmed) {
                 continue;
             }
 
@@ -199,6 +212,25 @@ fn is_horizontal_rule(line: &str) -> bool {
     chars.iter().all(|&c| c == first_char)
 }
 
+/// Check if a line is a table separator (contains only -, |, and spaces)
+fn is_table_separator(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    // Must contain at least one pipe and three dashes
+    let has_pipe = trimmed.contains('|');
+    let dash_count = trimmed.chars().filter(|&c| c == '-').count();
+
+    if !has_pipe || dash_count < 3 {
+        return false;
+    }
+
+    // All characters must be -, |, or space
+    trimmed.chars().all(|c| c == '-' || c == '|' || c == ' ')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,6 +333,67 @@ mod tests {
             violations.len(),
             0,
             "Horizontal rules should not be treated as list markers"
+        );
+    }
+
+    #[test]
+    fn test_code_blocks_not_checked() {
+        // Code blocks should not trigger MD030 violations
+        let content = "# Heading\n\
+                       \n\
+                       ```\n\
+                       --config <CONFIG>\n\
+                       --fix\n\
+                       -h, --help\n\
+                       ```\n\
+                       \n\
+                       Normal text with `-h` inline code.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD030;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "Code blocks and inline code should not be checked for list markers"
+        );
+    }
+
+    #[test]
+    fn test_real_list_after_code_block() {
+        // Real list markers outside code blocks should still be checked
+        let content = "```\n\
+                       --config\n\
+                       ```\n\
+                       \n\
+                       *Item without space";
+        let parser = MarkdownParser::new(content);
+        let rule = MD030;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            1,
+            "Real list markers outside code blocks should be checked"
+        );
+        assert_eq!(violations[0].line, 5);
+    }
+
+    #[test]
+    fn test_table_separator_not_list() {
+        // Table separator lines should not trigger MD030 violations
+        let content = "Rule  | Description\n\
+                       ------|------------\n\
+                       MD001 | First rule\n\
+                       MD002 | Second rule";
+        let parser = MarkdownParser::new(content);
+        let rule = MD030;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "Table separator lines should not be treated as list markers"
         );
     }
 }

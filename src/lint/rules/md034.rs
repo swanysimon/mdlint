@@ -25,11 +25,14 @@ impl Rule for MD034 {
         // Regex to match URLs that aren't already in markdown link syntax
         let url_regex = Regex::new(r"(?:^|[^(\[<`])((https?|ftp)://[^\s)\]>]+)").unwrap();
 
+        // Get code lines to skip (both blocks and inline code can contain URLs)
+        let code_lines = parser.get_code_line_numbers();
+
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
 
-            // Skip code blocks (simple heuristic - lines starting with 4 spaces or tab)
-            if line.starts_with("    ") || line.starts_with('\t') {
+            // Skip if line is in a code block or inline code
+            if code_lines.contains(&line_number) {
                 continue;
             }
 
@@ -99,5 +102,25 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 2);
+    }
+
+    #[test]
+    fn test_url_in_code_block() {
+        let content = "```shell\ncurl -LO https://example.com/file.tar.gz\n```";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0, "URLs in code blocks should be ignored");
+    }
+
+    #[test]
+    fn test_url_in_inline_code() {
+        let content = "Run `curl https://example.com` to download";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0, "URLs in inline code should be ignored");
     }
 }

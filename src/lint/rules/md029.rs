@@ -30,11 +30,22 @@ impl Rule for MD029 {
         let mut consecutive_blank_lines = 0;
         let mut seen_non_one = false; // Track if we've seen any number other than 1
 
+        // Get code block lines to skip (not inline code, which can appear in list items)
+        let code_lines = parser.get_code_block_line_numbers();
+
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
+
+            // Skip if line is in a code block or inline code
+            // Reset consecutive blank lines when encountering code blocks
+            if code_lines.contains(&line_number) {
+                consecutive_blank_lines = 0;
+                continue;
+            }
+
             let trimmed = line.trim_start();
 
-            // Track blank lines
+            // Track blank lines (only count actual blank lines, not code blocks)
             if line.trim().is_empty() {
                 consecutive_blank_lines += 1;
                 // Only reset after 2+ consecutive blank lines
@@ -182,5 +193,19 @@ mod tests {
 
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].line, 2);
+    }
+
+    #[test]
+    fn test_list_with_backticks() {
+        // Test numbered list where items contain backticks
+        let content = "1. Command-line options (`--config`)\n\
+                       2. Local directory config (`mdlint.toml` in current dir)\n\
+                       3. Parent directory configs (walking up to root)\n\
+                       4. Default configuration";
+        let parser = MarkdownParser::new(content);
+        let rule = MD029;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0, "List with backticks should be valid");
     }
 }

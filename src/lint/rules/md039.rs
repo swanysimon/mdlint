@@ -23,7 +23,8 @@ impl Rule for MD039 {
         let mut violations = Vec::new();
 
         // Regex to detect spaces inside link text: [ text](url) or [text ](url)
-        let pattern = Regex::new(r"\[( .+?|.+? )\]\([^\)]+\)").unwrap();
+        // Use [^\]]+ to avoid matching across ] boundaries (e.g. task list checkboxes like [ ])
+        let pattern = Regex::new(r"\[( [^\]]+|[^\]]+ )\]\([^\)]+\)").unwrap();
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
@@ -108,5 +109,15 @@ mod tests {
 
         // Should report 2 violations: one for leading space, one for trailing
         assert_eq!(violations.len(), 2);
+    }
+
+    #[test]
+    fn test_task_list_checkbox_not_flagged() {
+        let content = "* [ ] Unchecked item with a [real link](https://example.com)";
+        let parser = MarkdownParser::new(content);
+        let rule = MD039;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
     }
 }

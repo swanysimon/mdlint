@@ -14,13 +14,13 @@ as AI coding agents become more and more popular, the need for well-structured M
 
 ## Features
 
-- **Speed**: written in Rust for performance
-- **Portable**: single, small, 0-dependency, cross-platform (Linux x86_64 or ARM64, macOS Intel or Apple Silicon,
+* **Opinionated**: formats your Markdown files in a consistent, reliable way
+* **Fast**: written in Rust for performance
+* **Portable**: single, small, 0-dependency, cross-platform (Linux x86_64 or ARM64, macOS Intel or Apple Silicon,
   and Windows) binary
-- **Opinionated**: formats your Markdown files in a consistent, reliable way
-- **54 Built-in Rules**: uses rules from [markdownlint](https://github.com/DavidAnson/markdownlint) for a collection
+* **54 Built-in Rules**: uses rules from [markdownlint](https://github.com/DavidAnson/markdownlint) for a collection
   of best practices in your Markdown files
-- **Git Support**: Respects `.gitignore` files by default
+* **Git Support**: Respects `.gitignore` files by default
 
 ## Installation
 
@@ -55,8 +55,11 @@ cargo install markdownlint-rs
 ### From Docker
 
 ```shell
-# run in the current directory
-docker run --rm -v "$PWD:/workspace" ghcr.io/swanysimon/markdownlint-rs:latest --fix
+# check files in the current directory
+docker run --rm -v "$PWD:/workspace" ghcr.io/swanysimon/markdownlint-rs:latest check
+
+# format files in the current directory
+docker run --rm -v "$PWD:/workspace" ghcr.io/swanysimon/markdownlint-rs:latest format
 ```
 
 The Docker image supports both `linux/amd64` and `linux/arm64` platforms.
@@ -74,216 +77,268 @@ sudo cp target/release/mdlint /usr/local/bin/
 
 ### Basic Usage
 
-Lint specific, or all, Markdown files in the current directory:
+**Check** Markdown files for issues:
 
 ```shell
-# lint specific files or Markdown files in a directory
-mdlint README.md docs/
+# check all Markdown files (auto-detected)
+mdlint check
 
-# lint all Markdown files
-mdlint
+# check specific files or directories
+mdlint check README.md docs/
+
+# check and apply auto-fixes
+mdlint check --fix
 ```
 
-Fix all auto-fixable issues:
+**Format** Markdown files (opinionated, fixes everything):
 
 ```shell
-mdlint --fix
-```
+# format all Markdown files
+mdlint format
 
-## Everything below this line is potentially outdated
+# verify formatting without modifying files
+mdlint format --check
+
+# format specific files or directories
+mdlint format README.md docs/
+```
 
 ### Command-Line Options
 
-```
-mdlint [OPTIONS] [PATTERNS]...
+#### `mdlint check`
+
+Lint Markdown files and report issues.
+
+```text
+Usage: mdlint check [OPTIONS] [PATTERNS]...
 
 Arguments:
-  [PATTERNS]...  Glob patterns for files to lint (defaults to current directory)
+  [PATTERNS]...          File patterns to check (auto-detected if omitted)
 
 Options:
-      --config <PATH>     Path to configuration file
-      --fix               Apply fixes to files
-      --no-globs          Ignore globs from configuration
-      --format <FORMAT>   Output format: default or json [default: default]
-      --no-color          Disable color output
-  -h, --help              Print help
-  -V, --version           Print version
+      --config <CONFIG>  Path to configuration file
+      --fix              Apply auto-fixes where possible
+      --format <FORMAT>  Output format: default or json [default: default]
+      --no-color         Disable color output
+  -h, --help             Print help
+```
+
+#### `mdlint format`
+
+Format Markdown files with opinionated fixes.
+
+```text
+Usage: mdlint format [OPTIONS] [PATTERNS]...
+
+Arguments:
+  [PATTERNS]...          File patterns to format (auto-detected if omitted)
+
+Options:
+      --check            Only verify formatting, don't modify files
+      --config <CONFIG>  Path to configuration file
+      --no-color         Disable color output
+  -h, --help             Print help
 ```
 
 ### Examples
 
-**Lint with custom config file:**
+**Check with auto-fix:**
 
 ```bash
-mdlint --config .markdownlint.json
+mdlint check --fix
 ```
 
-**Output as JSON:**
+**Check with custom config file:**
 
 ```bash
-mdlint --format json
+mdlint check --config mdlint.toml
 ```
 
-**Lint specific glob patterns:**
+**Check with JSON output:**
 
 ```bash
-mdlint "**/*.md" "!node_modules/**"
+mdlint check --format json
 ```
 
-**Fix issues automatically:**
+**Check specific files:**
 
 ```bash
-mdlint --fix docs/
+mdlint check README.md CONTRIBUTING.md docs/
+```
+
+**Format all files:**
+
+```bash
+mdlint format
+```
+
+**Verify formatting in CI:**
+
+```bash
+mdlint format --check
 ```
 
 **Disable color output (for CI):**
 
 ```bash
-mdlint --no-color
+mdlint check --no-color
 ```
 
 ## Configuration
 
-markdownlint-rs discovers configuration files automatically by searching up from the current directory:
+markdownlint-rs uses TOML configuration files, similar to how ruff uses `ruff.toml`.
+The tool automatically discovers configuration files by searching up from the current directory.
 
 ### Configuration File Locations
 
 The tool searches for these files in order (first found wins per directory level):
 
-1. `.markdownlint-cli2.jsonc`
-2. `.markdownlint-cli2.yaml`
-3. `.markdownlint-cli2.json`
-4. `.markdownlint.jsonc`
-5. `.markdownlint.json`
-6. `.markdownlint.yaml`
-7. `package.json` (in `markdownlint-cli2` key)
+1. `mdlint.toml`
+2. `.mdlint.toml`
 
 ### Configuration File Format
 
-**JSONC/JSON** (`.markdownlint-cli2.jsonc`):
+Create a `mdlint.toml` file in your project root:
 
-```jsonc
-{
-  // Rule configuration
-  "config": {
-    "default": true,              // Enable all rules by default
-    "MD013": false,               // Disable line length rule
-    "MD003": { "style": "atx" }   // Configure heading style
-  },
+```toml
+# Enable all rules by default
+default_enabled = true
 
-  // File selection
-  "globs": ["**/*.md"],
-  "ignores": ["node_modules/**", "dist/**"],
+# Respect .gitignore files when discovering files
+gitignore = true
 
-  // Options
-  "fix": false,
-  "gitignore": true,
-  "noInlineConfig": false
-}
+# Disable inline configuration comments
+no_inline_config = false
+
+# Rule-specific configuration
+[rules.MD013]
+line_length = 120
+heading_line_length = 80
+code_blocks = false
+
+[rules.MD003]
+style = "atx"
+
+[rules.MD004]
+style = "asterisk"
+
+[rules.MD007]
+indent = 2
+
+# Disable specific rules
+[rules.MD034]
+enabled = false
 ```
 
-**YAML** (`.markdownlint-cli2.yaml`):
+### Configuration Options
 
-```yaml
-config:
-  default: true
-  MD013: false
-  MD003:
-    style: atx
+#### Global Options
 
-globs:
-  - "**/*.md"
-ignores:
-  - "node_modules/**"
-  - "dist/**"
+* `default_enabled` (boolean): Enable all rules by default. When `true`, rules are enabled unless explicitly disabled.
+  Default: `false`
+* `gitignore` (boolean): Respect `.gitignore` files when discovering markdown files. Default: `true`
+* `no_inline_config` (boolean): Disable inline configuration via HTML comments. Default: `false`
+* `custom_rules` (array): Paths to custom rule modules (future feature). Default: `[]`
+* `front_matter` (string): Pattern for front matter detection. Default: auto-detects YAML (`---`) and TOML (`+++`)
 
-fix: false
-gitignore: true
-```
+#### Rule Configuration
 
-### Configuration Hierarchies
+Rules can be configured in three ways:
+
+1. **Enable/Disable a rule:**
+
+   ```toml
+   [rules.MD013]
+   enabled = false
+   ```
+
+2. **Configure rule parameters:**
+
+   ```toml
+   [rules.MD013]
+   line_length = 100
+   code_blocks = false
+   ```
+
+3. **Use both (parameters implicitly enable the rule):**
+
+   ```toml
+   [rules.MD003]
+   style = "atx"
+   ```
+
+### Configuration Hierarchy
 
 Configurations are discovered by walking up the directory tree. When multiple configs are found, they are merged with
 the following precedence (highest to lowest):
 
-1. Command-line options (`--config`, `--fix`, etc.)
-2. Local directory config (`.markdownlint-cli2.jsonc` in current dir)
+1. Command-line options (`--config`)
+2. Local directory config (`mdlint.toml` in current dir)
 3. Parent directory configs (walking up to root)
 4. Default configuration
 
-Arrays (like `globs` and `ignores`) are **extended**, not replaced.
-
-### Rule Configuration
-
-Each rule can be configured in multiple ways:
-
-```jsonc
-{
-  "config": {
-    "MD001": true,                    // Enable rule
-    "MD002": false,                   // Disable rule
-    "MD003": { "style": "atx" },      // Configure with options
-    "MD007": { "indent": 4 },         // Set specific parameters
-    "default": true                   // Enable all rules by default
-  }
-}
-```
+Later configs override earlier ones for scalar values. When a rule is configured in multiple places, the most specific
+configuration wins.
 
 See the [markdownlint rules documentation](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) for
 details on each rule and its configuration options.
 
 ## Exit Codes
 
-- **0**: Success - no linting errors found
-- **1**: Linting errors found
-- **2**: Runtime error (invalid config, file not found, etc.)
+* **0**: Success - no linting errors found (or files successfully formatted with `format`)
+* **1**: Linting errors found (or formatting issues found with `format --check`)
+* **2**: Runtime error (invalid config, file not found, etc.)
 
 Use exit codes in CI/CD pipelines:
 
 ```bash
-mdlint || exit 1  # Fail build on linting errors
+# Fail build on linting errors
+mdlint check || exit 1
+
+# Fail build if files need formatting
+mdlint format --check || exit 1
 ```
 
 ## Supported Rules
 
 markdownlint-rs implements 54 rules compatible with markdownlint:
 
-| Rule  | Description                                                                                               | Fixable |
-|-------|-----------------------------------------------------------------------------------------------------------|---------|
-| MD001 | Heading levels should only increment by one level at a time                                               | ❌       |
-| MD003 | Heading style                                                                                             | ❌       |
-| MD004 | Unordered list style                                                                                      | ❌       |
-| MD005 | Inconsistent indentation for list items at the same level                                                 | ❌       |
-| MD007 | Unordered list indentation                                                                                | ❌       |
-| MD009 | Trailing spaces                                                                                           | ✅       |
-| MD010 | Hard tabs                                                                                                 | ✅       |
-| MD011 | Reversed link syntax                                                                                      | ❌       |
-| MD012 | Multiple consecutive blank lines                                                                          | ✅       |
-| MD013 | Line length                                                                                               | ❌       |
-| MD018 | No space after hash on atx style heading                                                                  | ✅       |
-| MD019 | Multiple spaces after hash on atx style heading                                                           | ✅       |
-| MD022 | Headings should be surrounded by blank lines                                                              | ✅       |
-| MD023 | Headings must start at the beginning of the line                                                          | ✅       |
-| MD025 | Multiple top-level headings in the same document                                                          | ❌       |
-| ...   | See [markdownlint rules](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) for full list | ...     |
+Rule  | Description                                                      | Fixable
+------|------------------------------------------------------------------|--------
+MD001 | Heading levels should only increment by one level at a time      | ❌
+MD003 | Heading style                                                    | ❌
+MD004 | Unordered list style                                             | ❌
+MD005 | Inconsistent indentation for list items at the same level        | ❌
+MD007 | Unordered list indentation                                       | ❌
+MD009 | Trailing spaces                                                  | ✅
+MD010 | Hard tabs                                                        | ✅
+MD011 | Reversed link syntax                                             | ❌
+MD012 | Multiple consecutive blank lines                                 | ✅
+MD013 | Line length                                                      | ❌
+MD018 | No space after hash on atx style heading                         | ✅
+MD019 | Multiple spaces after hash on atx style heading                  | ✅
+MD022 | Headings should be surrounded by blank lines                     | ✅
+MD023 | Headings must start at the beginning of the line                 | ✅
+MD025 | Multiple top-level headings in the same document                 | ❌
+...   | See [docs](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) | ...
 
 ## Differences from markdownlint-cli2
 
 While markdownlint-rs aims for compatibility, there are some intentional differences:
 
-- **No JavaScript custom rules**: Use Rust API instead (future feature)
-- **No markdown-it plugins**: Uses CommonMark-compliant parser with standard extensions
-- **Faster execution**: Compiled binary vs Node.js runtime
-- **Single binary**: No npm/node dependencies required
+* **No JavaScript custom rules**: Use Rust API instead (future feature)
+* **No markdown-it plugins**: Uses CommonMark-compliant parser with standard extensions
+* **Faster execution**: Compiled binary vs Node.js runtime
+* **Single binary**: No npm/node dependencies required
 
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
-- Development setup
-- Code quality standards
-- How to add new rules
-- Release process
+* Development setup
+* Code quality standards
+* How to add new rules
+* Release process
 
 ## License
 
@@ -291,13 +346,13 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [markdownlint](https://github.com/DavidAnson/markdownlint) by David Anson - Original rule definitions
-- [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2) - Configuration format and behavior
-- [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) - Markdown parsing
+* [markdownlint](https://github.com/DavidAnson/markdownlint) by David Anson - Original rule definitions
+* [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2) - Configuration format and behavior
+* [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) - Markdown parsing
 
 ## Resources
 
-- [Documentation](https://github.com/swanysimon/markdownlint-rs/tree/main/.github)
-- [Issue Tracker](https://github.com/swanysimon/markdownlint-rs/issues)
-- [Changelog](https://github.com/swanysimon/markdownlint-rs/releases)
-- [markdownlint Rules Reference](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)
+* [Documentation](https://github.com/swanysimon/markdownlint-rs/tree/main/.github)
+* [Issue Tracker](https://github.com/swanysimon/markdownlint-rs/issues)
+* [Changelog](https://github.com/swanysimon/markdownlint-rs/releases)
+* [markdownlint Rules Reference](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)

@@ -1,69 +1,61 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
+    /// Rule configuration: rule name -> config
     #[serde(default)]
-    pub config: HashMap<String, RuleConfig>,
+    pub rules: HashMap<String, RuleConfig>,
 
+    /// Enable all rules by default
+    #[serde(default)]
+    pub default_enabled: bool,
+
+    /// Custom rule paths (for future extension)
     #[serde(default)]
     pub custom_rules: Vec<String>,
 
-    #[serde(default)]
-    pub fix: bool,
-
-    #[serde(default)]
-    pub front_matter: Option<String>,
-
+    /// Respect .gitignore files when discovering files
     #[serde(default = "default_gitignore")]
     pub gitignore: bool,
 
+    /// Front matter pattern (YAML --- or TOML +++)
     #[serde(default)]
-    pub globs: Vec<String>,
+    pub front_matter: Option<String>,
 
-    #[serde(default)]
-    pub ignores: Vec<String>,
-
-    #[serde(default)]
-    pub markdown_it_plugins: Vec<String>,
-
-    #[serde(default)]
-    pub no_banner: bool,
-
-    #[serde(default)]
-    pub no_progress: bool,
-
+    /// Disable inline configuration comments
     #[serde(default)]
     pub no_inline_config: bool,
-
-    #[serde(default)]
-    pub output_formatters: Vec<FormatterConfig>,
 }
 
 fn default_gitignore() -> bool {
     true
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            rules: HashMap::new(),
+            default_enabled: false,
+            custom_rules: Vec::new(),
+            gitignore: default_gitignore(),
+            front_matter: None,
+            no_inline_config: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum RuleConfig {
     Enabled(bool),
-    Config(HashMap<String, serde_json::Value>),
+    Config(HashMap<String, toml::Value>),
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct FormatterConfig {
-    pub name: String,
-    #[serde(default)]
-    pub options: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputFormat {
-    Default,
-    Json,
-    Junit,
-    Sarif,
-    GitHub,
+// Legacy field mappings for backward compatibility with old config structure
+impl Config {
+    /// Legacy accessor for config field (now called rules)
+    pub fn config(&self) -> &HashMap<String, RuleConfig> {
+        &self.rules
+    }
 }

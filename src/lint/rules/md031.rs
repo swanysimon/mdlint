@@ -67,8 +67,8 @@ impl Rule for MD031 {
                             "Fenced code blocks should be surrounded by blank lines (missing before)"
                                 .to_string(),
                         fix: Some(Fix {
-                            line_start: line_idx,
-                            line_end: line_idx,
+                            line_start: start_line,
+                            line_end: start_line,
                             column_start: None,
                             column_end: None,
                             replacement: format!("\n{}", lines[line_idx]),
@@ -95,8 +95,8 @@ impl Rule for MD031 {
                             "Fenced code blocks should be surrounded by blank lines (missing after)"
                                 .to_string(),
                         fix: Some(Fix {
-                            line_start: line_idx + 1,
-                            line_end: line_idx + 1,
+                            line_start: end_line,
+                            line_end: end_line,
                             column_start: None,
                             column_end: None,
                             replacement: format!("{}\n", lines[line_idx]),
@@ -159,5 +159,48 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0); // First line exempt from "before" check
+    }
+
+    #[test]
+    fn test_numbered_list_with_code_block() {
+        // Test that code blocks in numbered lists get proper fixes
+        let content = "1. **Enable/Disable a rule:**\n   ```toml\n   [rules.MD013]\n   enabled = false\n   ```\n\n2. **Next item**";
+        let parser = MarkdownParser::new(content);
+        let rule = MD031;
+        let violations = rule.check(&parser, None);
+
+        // Should detect missing blank line before code block
+        assert!(!violations.is_empty());
+        assert!(violations.iter().any(|v| v.message.contains("before")));
+
+        // Check that fix has correct line numbers
+        if let Some(fix) = &violations[0].fix {
+            // The code block starts at line 2, so fix should target line 2
+            assert_eq!(fix.line_start, 2);
+            assert_eq!(fix.line_end, 2);
+            // Replacement should be newline + original line content
+            assert!(fix.replacement.starts_with('\n'));
+        }
+    }
+
+    #[test]
+    fn test_fix_creates_blank_line() {
+        use crate::fix::Fixer;
+
+        let content = "Text\n```\ncode\n```\nMore";
+        let parser = MarkdownParser::new(content);
+        let rule = MD031;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 2); // Missing before and after
+
+        // Apply fixes
+        let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
+        let fixer = Fixer::new();
+        let fixed = fixer.apply_fixes_to_content(content, &fixes).unwrap();
+
+        // Verify blank lines were added
+        let expected = "Text\n\n```\ncode\n```\n\nMore";
+        assert_eq!(fixed, expected);
     }
 }

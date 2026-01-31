@@ -6,15 +6,20 @@ Thank you for your interest in contributing to markdownlint-rs!
 
 1. **Install Rust**: Use [rustup](https://rustup.rs/) to install Rust
 2. **Clone the repository**:
+
    ```bash
    git clone https://github.com/swanysimon/markdownlint-rs.git
    cd markdownlint-rs
    ```
+
 3. **Build the project**:
+
    ```bash
    cargo build
    ```
+
 4. **Run tests**:
+
    ```bash
    cargo test
    ```
@@ -33,8 +38,6 @@ cargo clippy --all-targets --all-features -- -D warnings
 # Run tests
 cargo test --all-features
 
-# Run compatibility tests (requires Docker)
-cargo test --test compatibility
 ```
 
 ## Pull Request Process
@@ -48,11 +51,13 @@ cargo test --test compatibility
 
 ## Release Process
 
-Releases are managed using [`cargo-release`](https://github.com/crate-ci/cargo-release) and automated via GitHub Actions.
+Releases are managed using [`cargo-release`](https://github.com/crate-ci/cargo-release) and automated via GitHub
+Actions.
 
 ### Prerequisites
 
 Install cargo-release:
+
 ```bash
 cargo install cargo-release
 ```
@@ -74,6 +79,7 @@ cargo release patch --execute
 ```
 
 This will:
+
 1. ✅ Verify working directory is clean
 2. ✅ Run tests
 3. ✅ Bump version in `Cargo.toml`
@@ -82,8 +88,9 @@ This will:
 6. ✅ Push commit and tag to GitHub
 
 Once the tag is pushed, GitHub Actions automatically:
+
 1. ✅ Verifies tag matches Cargo.toml version
-2. ✅ Runs all CI checks (tests, clippy, fmt, build, compatibility)
+2. ✅ Runs all CI checks (tests, clippy, fmt, build)
 3. ✅ Creates GitHub release with release notes
 4. ✅ Builds binaries for all platforms (Linux x86/ARM, macOS x86/ARM, Windows)
 5. ✅ Generates SHA256 checksums for all binaries
@@ -113,37 +120,40 @@ The GitHub Actions workflow will take over from here.
 ### Version Verification
 
 The release workflow includes automatic version verification:
-- If the git tag doesn't match the version in `Cargo.toml`, the release will fail
-- This prevents accidental mismatches between tags and package versions
-- Example: Tag `v0.2.0` requires `version = "0.2.0"` in Cargo.toml
+
+* If the git tag doesn't match the version in `Cargo.toml`, the release will fail
+* This prevents accidental mismatches between tags and package versions
+* Example: Tag `v0.2.0` requires `version = "0.2.0"` in Cargo.toml
 
 ### Release Checklist
 
 Before creating a release:
 
-- [ ] All tests pass locally: `cargo test --all-features`
-- [ ] Code is formatted: `cargo fmt`
-- [ ] No clippy warnings: `cargo clippy --all-targets --all-features`
-- [ ] Compatibility tests pass: `cargo test --test compatibility`
-- [ ] CHANGELOG.md is updated (if you maintain one)
-- [ ] Version follows [SemVer](https://semver.org/) conventions:
-  - **MAJOR**: Incompatible API changes
-  - **MINOR**: New backwards-compatible functionality
-  - **PATCH**: Backwards-compatible bug fixes
+* [ ] All tests pass locally: `cargo test --all-features`
+* [ ] Code is formatted: `cargo fmt`
+* [ ] No clippy warnings: `cargo clippy --all-targets --all-features`
+* [ ] CHANGELOG.md is updated (if you maintain one)
+* [ ] Version follows [SemVer](https://semver.org/) conventions:
+  * **MAJOR**: Incompatible API changes
+  * **MINOR**: New backwards-compatible functionality
+  * **PATCH**: Backwards-compatible bug fixes
 
 ### Troubleshooting Releases
 
-**"Tag version doesn't match Cargo.toml"**
-- Make sure you updated the version in `Cargo.toml` before creating the tag
-- Use `cargo-release` to avoid this issue
+#### Tag version doesn't match Cargo.toml
 
-**"CI checks failed"**
-- The release is blocked if any quality checks fail
-- Fix the issues and create a new tag
+* Make sure you updated the version in `Cargo.toml` before creating the tag
+* Use `cargo-release` to avoid this issue
 
-**"Release already exists"**
-- The workflow is idempotent - it will reuse existing releases
-- This is normal if you push multiple tags for the same commit
+#### CI checks failed
+
+* The release is blocked if any quality checks fail
+* Fix the issues and create a new tag
+
+#### Release already exists
+
+* The workflow is idempotent - it will reuse existing releases
+* This is normal if you push multiple tags for the same commit
 
 ## Adding New Linting Rules
 
@@ -151,6 +161,7 @@ To add a new linting rule:
 
 1. **Create the rule file**: `src/lint/rules/mdXXX.rs`
 2. **Implement the Rule trait**:
+
    ```rust
    pub struct MDXXX;
 
@@ -163,6 +174,7 @@ To add a new linting rule:
        }
    }
    ```
+
 3. **Register the rule**: Add it to `create_default_registry()` in `src/lint/rule.rs`
 4. **Write tests**: Add comprehensive tests in the same file
 5. **Update documentation**: Document the rule's behavior

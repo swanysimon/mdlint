@@ -1,8 +1,10 @@
 use clap::Parser;
-use markdownlint_rs::config::{Config, ConfigLoader, merge_many_configs};
+use markdownlint_rs::args::{Cli, TerminalColor};
+use markdownlint_rs::config::loader::{ConfigLoader, find_all_configs};
+use markdownlint_rs::config::{Config, merge_many_configs};
 use markdownlint_rs::error::Result;
 use markdownlint_rs::fix::Fixer;
-use markdownlint_rs::format::{DefaultFormatter, Formatter, JsonFormatter};
+use markdownlint_rs::format::{DefaultFormatter, Formatter};
 use markdownlint_rs::glob::FileWalker;
 use markdownlint_rs::lint::{LintEngine, LintResult};
 use std::env;
@@ -10,36 +12,6 @@ use std::fs;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::process;
-
-#[derive(Parser, Debug)]
-#[command(
-    name = "markdownlint-rs",
-    version,
-    about = "A fast, flexible, configuration-based command-line interface for linting Markdown files"
-)]
-struct Cli {
-    #[arg(help = "Glob patterns for files to lint (defaults to current directory)")]
-    patterns: Vec<String>,
-
-    #[arg(long, help = "Path to configuration file")]
-    config: Option<String>,
-
-    #[arg(long, help = "Apply fixes to files")]
-    fix: bool,
-
-    #[arg(long, help = "Ignore globs from configuration")]
-    no_globs: bool,
-
-    #[arg(
-        long,
-        help = "Output format: default or json",
-        default_value = "default"
-    )]
-    format: String,
-
-    #[arg(long, help = "Disable color output")]
-    no_color: bool,
-}
 
 fn main() {
     process::exit(
@@ -51,78 +23,84 @@ fn main() {
 
 fn run() -> Result<bool> {
     let cli = Cli::parse();
-    let config = load_config(&cli)?;
+    let config = load_config(&cli.configuration())?;
+    let files = find_files(&cli.files(), &cli.exclude, cli.should_respect_ignore())?;
+    let fix = cli.should_fix();
 
-    let files = find_files(&cli, &config)?;
+    println!("{:?}", &cli);
+
     if files.is_empty() {
         eprintln!("No markdown files found");
         return Ok(false);
     }
 
-    let lint_result = lint_files(config, &files)?;
-    if cli.fix && lint_result.has_errors() {
+    // TODO: fix and output as you go to not hold everything in memory
+    let lint_result = lint_files(config.clone(), &files)?;
+    if fix && lint_result.has_errors() {
         apply_fixes(&lint_result)?;
     }
 
-    let use_color = !cli.no_color && io::stdout().is_terminal();
-    let formatter: Box<dyn Formatter> = match cli.format.as_str() {
-        "json" => Box::new(JsonFormatter::new(true)),
-        _ => Box::new(DefaultFormatter::new(use_color)),
-    };
-
-    let output = formatter.format(&lint_result);
+    let use_color = should_use_color(&cli.color);
+    let output = DefaultFormatter::new(use_color).format(&lint_result);
     print!("{}", output);
 
     Ok(lint_result.has_errors())
 }
 
-fn load_config(cli: &Cli) -> Result<Config> {
-    if let Some(config_path) = &cli.config {
-        let path = PathBuf::from(config_path);
-        return ConfigLoader::load_from_file(&path);
+fn load_config(configuration: &ConfigLoader) -> Result<Config> {
+    match configuration {
+        ConfigLoader::Detect => {
+            // Find all configs in the hierarchy and merge them
+            let configs = find_all_configs(&env::current_dir()?)?;
+            if configs.is_empty() {
+                return Ok(Config::default());
+            }
+            let config_list: Vec<Config> = configs.into_iter().map(|(_, cfg)| cfg).collect();
+            Ok(merge_many_configs(config_list))
+        }
+        _ => configuration.load(),
     }
-
-    let configs = ConfigLoader::find_all_configs(&env::current_dir()?)?;
-    if configs.is_empty() {
-        return Ok(Config::default());
-    }
-
-    let config_list: Vec<Config> = configs.into_iter().map(|(_, cfg)| cfg).collect();
-    Ok(merge_many_configs(config_list))
 }
 
-fn find_files(cli: &Cli, config: &Config) -> Result<Vec<PathBuf>> {
-    if cli.patterns.is_empty() {
-        let walker = FileWalker::new(config.gitignore);
-        return walker.find_markdown_files(&env::current_dir()?);
-    }
-
+fn find_files(
+    paths: &[PathBuf],
+    excludes: &[PathBuf],
+    respect_ignore: bool,
+) -> Result<Vec<PathBuf>> {
     let mut all_files = Vec::new();
     let mut add_to_file = |path: PathBuf| {
-        if !all_files.contains(&path) {
+        if !all_files.contains(&path) && !is_excluded(&path, excludes) {
             all_files.push(path);
         }
     };
 
-    for pattern in &cli.patterns {
-        let path = PathBuf::from(pattern);
+    for path in paths {
         if path.is_dir() {
-            let walker = FileWalker::new(config.gitignore);
+            let walker = FileWalker::new(respect_ignore);
             walker
-                .find_markdown_files(&path)?
+                .find_markdown_files(path)?
                 .into_iter()
                 .for_each(&mut add_to_file);
         } else if path.is_file() {
-            add_to_file(path);
+            add_to_file(path.clone());
         } else {
-            eprintln!("Warning: Path not found: {}", pattern);
+            eprintln!("Warning: Path not found: {}", path.display());
         }
     }
 
     Ok(all_files)
 }
 
-fn lint_files(config: Config, files: &Vec<PathBuf>) -> Result<LintResult> {
+fn is_excluded(path: &PathBuf, excludes: &[PathBuf]) -> bool {
+    for exclude in excludes {
+        if path.starts_with(exclude) || path == exclude {
+            return true;
+        }
+    }
+    false
+}
+
+fn lint_files(config: Config, files: &[PathBuf]) -> Result<LintResult> {
     let engine = LintEngine::new(config.clone());
 
     let mut lint_result = LintResult::new();
@@ -135,6 +113,14 @@ fn lint_files(config: Config, files: &Vec<PathBuf>) -> Result<LintResult> {
         }
     }
     Ok(lint_result)
+}
+
+fn should_use_color(color: &TerminalColor) -> bool {
+    match color {
+        TerminalColor::Always => true,
+        TerminalColor::Never => false,
+        TerminalColor::Auto => io::stdout().is_terminal(),
+    }
 }
 
 fn apply_fixes(lint_result: &LintResult) -> Result<()> {
