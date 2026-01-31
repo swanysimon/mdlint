@@ -26,16 +26,25 @@ impl Rule for MD031 {
         // Find fenced code block boundaries
         let mut code_block_starts = Vec::new();
         let mut code_block_ends = Vec::new();
+        let mut in_fenced_block = false;
 
         for (event, range) in parser.parse_with_offsets() {
             match event {
                 Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(_))) => {
                     let line = parser.offset_to_line(range.start);
                     code_block_starts.push(line);
+                    in_fenced_block = true;
+                }
+                Event::Start(Tag::CodeBlock(CodeBlockKind::Indented)) => {
+                    // Track that we're in an indented block, but don't record it
+                    in_fenced_block = false;
                 }
                 Event::End(TagEnd::CodeBlock) => {
-                    let line = parser.offset_to_line(range.end);
-                    code_block_ends.push(line);
+                    if in_fenced_block {
+                        let line = parser.offset_to_line(range.end);
+                        code_block_ends.push(line);
+                        in_fenced_block = false;
+                    }
                 }
                 _ => {}
             }

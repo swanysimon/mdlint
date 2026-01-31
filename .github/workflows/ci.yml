@@ -13,4 +13,3 @@ jobs:
   lint:
     name: Lint and test
     uses: ./.github/workflows/lint.yml
-
