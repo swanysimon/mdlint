@@ -4,41 +4,38 @@ Thank you for your interest in contributing to markdownlint-rs!
 
 ## Development Setup
 
-1. **Install Rust**: Use [rustup](https://rustup.rs/) to install Rust
-2. **Clone the repository**:
+The only prerequisites are [mise](https://mise.jdx.dev/) and [Rust](https://rustup.rs/). Optionally,
+Docker is needed for Dockerfile linting. mise manages every other tool automatically.
+
+1. **Install mise**: Follow the [mise installation guide](https://mise.jdx.dev/getting-started.html)
+2. **Install Rust**: Use [rustup](https://rustup.rs/)
+3. **Clone the repository and install tools**:
 
    ```bash
    git clone https://github.com/swanysimon/markdownlint-rs.git
    cd markdownlint-rs
+   mise install   # installs prek, tombi, hadolint
    ```
 
-3. **Build the project**:
+4. **Build the project**:
 
    ```bash
    cargo build
    ```
 
-4. **Run tests**:
-
-   ```bash
-   cargo test
-   ```
-
 ## Code Quality Standards
 
-Before submitting a pull request, ensure your code passes all quality checks:
+All quality checks are managed by [prek](https://github.com/your-org/prek) and defined in `prek.toml`.
+To run all checks locally (the same checks CI runs):
 
 ```bash
-# Format code
-cargo fmt
-
-# Run linter
-cargo clippy --all-targets --all-features -- -D warnings
-
-# Run tests
-cargo test --all-features
-
+prek run -a
 ```
+
+This runs in order: TOML formatting (`tombi`), Rust formatting (`cargo fmt`), Clippy with auto-fix,
+tests (`cargo test`), mdlint dogfooding, and Dockerfile linting (`hadolint`).
+
+Before submitting a pull request, `prek run -a` must pass cleanly.
 
 ## Pull Request Process
 
@@ -129,9 +126,7 @@ The release workflow includes automatic version verification:
 
 Before creating a release:
 
-* [ ] All tests pass locally: `cargo test --all-features`
-* [ ] Code is formatted: `cargo fmt`
-* [ ] No clippy warnings: `cargo clippy --all-targets --all-features`
+* [ ] All checks pass locally: `prek run -a`
 * [ ] CHANGELOG.md is updated (if you maintain one)
 * [ ] Version follows [SemVer](https://semver.org/) conventions:
   * **MAJOR**: Incompatible API changes

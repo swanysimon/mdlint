@@ -62,9 +62,11 @@ src/
 
 ### Code Quality
 
-* Clippy as errors: `clippy --all-targets --all-features -- -D warnings`
+* All checks run via `prek run -a` (defined in `prek.toml`), managed by `mise` (`mise.toml`)
+* `prek run -a` runs: tombi TOML fmt/check → rustfmt → clippy (with `--fix`) → cargo test → mdlint
+  dogfood → hadolint Dockerfile check
+* Clippy runs as errors: `-D warnings`; clippy autofix applied before tests by prek
 * Common fixes: `unwrap_or()` over manual `is_some()`, iterators over range loops, `!is_empty()`
-* Run `cargo clippy --fix --allow-dirty --allow-staged` to auto-fix many warnings
 
 ### Testing Strategy
 
