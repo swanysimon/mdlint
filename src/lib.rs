@@ -3,6 +3,7 @@ pub mod config;
 pub mod error;
 pub mod fix;
 pub mod format;
+pub mod formatter;
 pub mod glob;
 pub mod lint;
 pub mod logger;

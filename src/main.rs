@@ -5,6 +5,7 @@ use markdownlint_rs::config::{Config, merge_many_configs};
 use markdownlint_rs::error::Result;
 use markdownlint_rs::fix::Fixer;
 use markdownlint_rs::format::{DefaultFormatter, Formatter, JsonFormatter};
+use markdownlint_rs::formatter;
 use markdownlint_rs::glob::FileWalker;
 use markdownlint_rs::lint::{LintEngine, LintResult};
 use std::env;
@@ -63,12 +64,27 @@ fn run_format(args: &FormatArgs, _config: Config) -> Result<bool> {
         return Ok(false);
     }
 
-    // TODO: implement formatter
-    eprintln!(
-        "mdlint format: not yet implemented ({} file(s) found)",
-        files.len()
-    );
-    Ok(false)
+    let mut any_changed = false;
+
+    for path in &files {
+        let original = fs::read_to_string(path)?;
+        let formatted = formatter::format(&original);
+
+        if formatted == original {
+            continue;
+        }
+
+        any_changed = true;
+
+        if args.check {
+            eprintln!("Would reformat: {}", path.display());
+        } else {
+            fs::write(path, &formatted)?;
+            eprintln!("Reformatted: {}", path.display());
+        }
+    }
+
+    Ok(any_changed)
 }
 
 fn load_config(cli: &Cli) -> Result<Config> {
