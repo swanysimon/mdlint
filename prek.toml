@@ -1,0 +1,67 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "rustfmt",
+    name = "format Rust",
+    entry = "cargo fmt -- --files-with-diff",
+    language = "system",
+    types = ["rust"],
+    priority = 1
+  },
+  {
+    id = "clippy",
+    name = "lint Rust",
+    entry = "cargo clippy --fix --allow-dirty -- -D warnings",
+    language = "system",
+    pass_filenames = false,
+    types = ["rust"],
+    priority = 2
+  },
+  {
+    id = "test",
+    name = "test Rust code",
+    entry = "cargo test",
+    language = "system",
+    pass_filenames = false,
+    types = ["rust"],
+    priority = 100
+  },
+  {
+    id = "mdlint",
+    name = "lint and format Markdown (dogfooding)",
+    entry = "cargo run --",
+    language = "system",
+    types_or = ["markdown"],
+    priority = 10
+  },
+  {
+    id = "hadolint",
+    name = "lint Docker",
+    entry = "hadolint",
+    language = "system",
+    files = "Dockerfile$",
+    priority = 1
+  }
+]
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  {
+    id = "check-toml",
+    priority = 1
+  },
+  {
+    id = "check-yaml",
+    priority = 1
+  },
+  {
+    id = "trailing-whitespace",
+    priority = 2
+  }
+]
