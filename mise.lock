@@ -8,10 +8,10 @@ backend = "aqua:hadolint/hadolint"
 "platforms.windows-x64" = { checksum = "sha256:8e0ee174f88edb14f207a68430c7a53c2883ed509cdbde9a3a26fffa140fa5e4", url = "https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-windows-x86_64.exe"}
 
 [[tools.prek]]
-version = "0.2.30"
+version = "0.3.4"
 backend = "aqua:j178/prek"
-"platforms.linux-arm64" = { checksum = "sha256:04f595a54a99d415eb9df3ad58b3049501c551e109401f82929c8f507e79ec28", url = "https://github.com/j178/prek/releases/download/v0.2.30/prek-aarch64-unknown-linux-musl.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:d3c05588f997a5ce82dc0882695214d93b7f7dc8669c9712649702bc8f9afd55", url = "https://github.com/j178/prek/releases/download/v0.2.30/prek-x86_64-unknown-linux-musl.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:63a7dcc45678a50039da620d585f0f74a3d9b3ca0f4e023e0f26762de2ab68cf", url = "https://github.com/j178/prek/releases/download/v0.2.30/prek-aarch64-apple-darwin.tar.gz"}
-"platforms.macos-x64" = { checksum = "sha256:bf3a752f5e43c70c406e06f4e8999379ca6e708886dada499c5bd34d03e61eb9", url = "https://github.com/j178/prek/releases/download/v0.2.30/prek-x86_64-apple-darwin.tar.gz"}
-"platforms.windows-x64" = { checksum = "sha256:84c1850bdfe69e7653497d9a5146b7bf920699e6d7e4f799bc70220e60b612f7", url = "https://github.com/j178/prek/releases/download/v0.2.30/prek-x86_64-pc-windows-msvc.zip"}
+"platforms.linux-arm64" = { checksum = "sha256:610df84f084300f084bf9ea572da9d1909607cf5f930aa78e29b68f408568d2c", url = "https://github.com/j178/prek/releases/download/v0.3.4/prek-aarch64-unknown-linux-musl.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:05466ec070a4f3324e800b396e049db3c6e80345c6ab0f4812cf56fc52ce066e", url = "https://github.com/j178/prek/releases/download/v0.3.4/prek-x86_64-unknown-linux-musl.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:f0a416139eaf8753deb603993314077a3916099d23de67287086a21349151ef0", url = "https://github.com/j178/prek/releases/download/v0.3.4/prek-aarch64-apple-darwin.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:60a8d093012bcd40e8fec348450d75d8f5b09d85529f11fc5d606b84273b7978", url = "https://github.com/j178/prek/releases/download/v0.3.4/prek-x86_64-apple-darwin.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:21c6e119d58443a696bd585946a6fac8fa0b918a2d975f623157c3f72994a2f3", url = "https://github.com/j178/prek/releases/download/v0.3.4/prek-x86_64-pc-windows-msvc.zip"}
