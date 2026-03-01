@@ -14,12 +14,12 @@ Run `mdlint format` and stop thinking about it.
 
 ## Features
 
-* **Formatter first**: `mdlint format` rewrites files to a canonical style — no configuration required
-* **Linter second**: `mdlint check` reports violations; most are auto-fixable by the formatter
-* **Fast**: written in Rust for performance
-* **Portable**: single, small, 0-dependency, cross-platform binary (Linux x86_64 or ARM64, macOS Intel or
+- **Formatter first**: `mdlint format` rewrites files to a canonical style — no configuration required
+- **Linter second**: `mdlint check` reports violations; most are auto-fixable by the formatter
+- **Fast**: written in Rust for performance
+- **Portable**: single, small, 0-dependency, cross-platform binary (Linux x86_64 or ARM64, macOS Intel or
   Apple Silicon, Windows)
-* **Git-aware**: respects `.gitignore` files by default
+- **Git-aware**: respects `.gitignore` files by default
 
 ## Installation
 
@@ -233,12 +233,12 @@ enabled = false
 
 #### Global Options
 
-* `default_enabled` (boolean): Enable all rules by default. When `true`, rules are enabled unless explicitly disabled.
+- `default_enabled` (boolean): Enable all rules by default. When `true`, rules are enabled unless explicitly disabled.
   Default: `false`
-* `gitignore` (boolean): Respect `.gitignore` files when discovering markdown files. Default: `true`
-* `no_inline_config` (boolean): Disable inline configuration via HTML comments. Default: `false`
-* `custom_rules` (array): Paths to custom rule modules (future feature). Default: `[]`
-* `front_matter` (string): Pattern for front matter detection. Default: auto-detects YAML (`---`) and TOML (`+++`)
+- `gitignore` (boolean): Respect `.gitignore` files when discovering markdown files. Default: `true`
+- `no_inline_config` (boolean): Disable inline configuration via HTML comments. Default: `false`
+- `custom_rules` (array): Paths to custom rule modules (future feature). Default: `[]`
+- `front_matter` (string): Pattern for front matter detection. Default: auto-detects YAML (`---`) and TOML (`+++`)
 
 #### Rule Configuration
 
@@ -284,9 +284,9 @@ details on each rule and its configuration options.
 
 ## Exit Codes
 
-* **0**: Success - no linting errors found (or files successfully formatted with `format`)
-* **1**: Linting errors found (or formatting issues found with `format --check`)
-* **2**: Runtime error (invalid config, file not found, etc.)
+- **0**: Success - no linting errors found (or files successfully formatted with `format`)
+- **1**: Linting errors found (or formatting issues found with `format --check`)
+- **2**: Runtime error (invalid config, file not found, etc.)
 
 Use exit codes in CI/CD pipelines:
 
@@ -335,13 +335,13 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-* [markdownlint](https://github.com/DavidAnson/markdownlint) by David Anson — original rule definitions
-* [mdformat](https://github.com/hukkin/mdformat) — inspiration for the formatter-first approach
-* [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) — Markdown parsing
+- [markdownlint](https://github.com/DavidAnson/markdownlint) by David Anson — original rule definitions
+- [mdformat](https://github.com/hukkin/mdformat) — inspiration for the formatter-first approach
+- [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) — Markdown parsing
 
 ## Resources
 
-* [Documentation](https://github.com/swanysimon/markdownlint-rs/tree/main/.github)
-* [Issue Tracker](https://github.com/swanysimon/markdownlint-rs/issues)
-* [Changelog](https://github.com/swanysimon/markdownlint-rs/releases)
-* [markdownlint Rules Reference](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)
+- [Documentation](https://github.com/swanysimon/markdownlint-rs/tree/main/.github)
+- [Issue Tracker](https://github.com/swanysimon/markdownlint-rs/issues)
+- [Changelog](https://github.com/swanysimon/markdownlint-rs/releases)
+- [markdownlint Rules Reference](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)

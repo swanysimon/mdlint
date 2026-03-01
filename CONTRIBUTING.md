@@ -118,37 +118,37 @@ The GitHub Actions workflow will take over from here.
 
 The release workflow includes automatic version verification:
 
-* If the git tag doesn't match the version in `Cargo.toml`, the release will fail
-* This prevents accidental mismatches between tags and package versions
-* Example: Tag `v0.2.0` requires `version = "0.2.0"` in Cargo.toml
+- If the git tag doesn't match the version in `Cargo.toml`, the release will fail
+- This prevents accidental mismatches between tags and package versions
+- Example: Tag `v0.2.0` requires `version = "0.2.0"` in Cargo.toml
 
 ### Release Checklist
 
 Before creating a release:
 
-* [ ] All checks pass locally: `prek run -a`
-* [ ] CHANGELOG.md is updated (if you maintain one)
-* [ ] Version follows [SemVer](https://semver.org/) conventions:
-  * **MAJOR**: Incompatible API changes
-  * **MINOR**: New backwards-compatible functionality
-  * **PATCH**: Backwards-compatible bug fixes
+- [ ] All checks pass locally: `prek run -a`
+- [ ] CHANGELOG.md is updated (if you maintain one)
+- [ ] Version follows [SemVer](https://semver.org/) conventions:
+  - **MAJOR**: Incompatible API changes
+  - **MINOR**: New backwards-compatible functionality
+  - **PATCH**: Backwards-compatible bug fixes
 
 ### Troubleshooting Releases
 
 #### Tag version doesn't match Cargo.toml
 
-* Make sure you updated the version in `Cargo.toml` before creating the tag
-* Use `cargo-release` to avoid this issue
+- Make sure you updated the version in `Cargo.toml` before creating the tag
+- Use `cargo-release` to avoid this issue
 
 #### CI checks failed
 
-* The release is blocked if any quality checks fail
-* Fix the issues and create a new tag
+- The release is blocked if any quality checks fail
+- Fix the issues and create a new tag
 
 #### Release already exists
 
-* The workflow is idempotent - it will reuse existing releases
-* This is normal if you push multiple tags for the same commit
+- The workflow is idempotent - it will reuse existing releases
+- This is normal if you push multiple tags for the same commit
 
 ## Adding New Rules
 

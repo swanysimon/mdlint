@@ -60,7 +60,7 @@ priority = 4
 [[repos.hooks]]
 id = "mdlint"
 name = "check Markdown (dogfood)"
-entry = "cargo run mdlint --"
+entry = "cargo run -- check --exclude FORMAT_SPEC.md"
 language = "system"
 pass_filenames = false
 types = ["rust"]

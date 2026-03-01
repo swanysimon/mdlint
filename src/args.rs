@@ -2,7 +2,7 @@ use crate::config::loader::ConfigLoader;
 use crate::logger::log_level::LogLevel;
 use clap::builder::Styles;
 use clap::builder::styling::{AnsiColor, Effects};
-use clap::{Parser, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::fmt::Display;
 use std::path::PathBuf;
 
@@ -17,122 +17,138 @@ const STYLES: Styles = Styles::styled()
     author,
     name = "mdlint",
     version,
-    about = "A fast, flexible, configuration-based command-line interface for linting Markdown files",
+    about = "An opinionated Markdown formatter and linter",
     after_help = "For help with a specific command, see: `mdlint help <command>`",
     styles = STYLES,
 )]
 pub struct Cli {
-    // file selection
-    #[clap(
-        value_name = "FILES",
-        help = "List of files or directories to check, or `-` to read from stdin"
-    )]
-    pub files: Vec<PathBuf>,
-    #[arg(
-        long,
-        help = "List of files and/or directories to omit from analysis, including those passed directly to mdlint",
-        help_heading = "File selection"
-    )]
-    pub exclude: Vec<PathBuf>,
-    #[arg(
-        long,
-        default_value_t = true,
-        help = "Respect file exclusions via ignore files like `.gitignore`. Use `--no-respect-ignore` to disable",
-        help_heading = "File selection",
-        conflicts_with = "no_respect_ignore"
-    )]
-    pub respect_ignore: bool,
-    #[arg(long, hide = true, conflicts_with = "respect_ignore")]
-    no_respect_ignore: bool,
+    #[command(subcommand)]
+    pub command: Command,
 
-    // to fix or not to fix
     #[arg(
         long,
-        default_value_t = true,
-        help = "Apply fixes to resolve violations. Use `--no-fix` to disable",
-        conflicts_with = "no_fix"
-    )]
-    pub fix: bool,
-    #[arg(long, hide = true, conflicts_with = "fix")]
-    pub no_fix: bool,
-
-    // rule selection
-    #[arg(
-        long,
-        value_delimiter = ',',
-        value_name = "RULE_CODE",
-        help = "Comma-separated list of rule codes to enable (or ALL, to enable all rules)",
-        help_heading = "Rule selection"
-    )]
-    pub select: Vec<String>,
-    #[arg(
-        long,
-        value_delimiter = ',',
-        value_name = "RULE_CODE",
-        help = "Comma-separated list of rule codes to disable",
-        help_heading = "Rule selection"
-    )]
-    pub ignore: Vec<String>,
-
-    // config file overrides
-    #[arg(
-        long,
+        global = true,
         help = "Path to TOML configuration file (`mdlint.toml`)",
-        help_heading = "Configuration options",
-        overrides_with = "no_config",
-        global = true
+        help_heading = "Configuration",
+        overrides_with = "no_config"
     )]
     pub config: Option<PathBuf>,
+
     #[arg(
         long,
+        global = true,
         help = "Ignore all configuration files",
-        help_heading = "Configuration options",
-        overrides_with = "config",
-        global = true
+        help_heading = "Configuration",
+        overrides_with = "config"
     )]
     pub no_config: bool,
 
-    // verbosity
     #[arg(
         short,
         long,
+        global = true,
         help = "Enable verbose logging",
         help_heading = "Log levels",
-        conflicts_with_all = ["quiet", "silent"],
-        global = true
+        conflicts_with_all = ["quiet", "silent"]
     )]
     pub verbose: bool,
+
     #[arg(
         short,
         long,
+        global = true,
         help = "Print diagnostics, nothing else",
         help_heading = "Log levels",
-        conflicts_with_all = ["verbose", "silent"],
-        global = true
+        conflicts_with_all = ["verbose", "silent"]
     )]
     pub quiet: bool,
+
     #[arg(
         short,
         long,
-        help = "Disable all logging. Exit code will still be 1 when detecting diagnostics or 2 when other issues occur",
+        global = true,
+        help = "Disable all logging (exit code still reflects result)",
         help_heading = "Log levels",
-        conflicts_with_all = ["verbose", "quiet"],
-        global = true
+        conflicts_with_all = ["verbose", "quiet"]
     )]
     pub silent: bool,
 
-    // color or not
     #[arg(
         long,
+        global = true,
         default_value_t = TerminalColor::Auto,
         hide_default_value = true,
-        help = "Whether to use terminal colors or not",
+        help = "Control colors in output"
     )]
     pub color: TerminalColor,
 }
 
-impl Cli {
-    /// Get the list of files to process. Returns ["."] if no files specified.
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Lint Markdown files and report issues.
+    Check(CheckArgs),
+    /// Format Markdown files with opinionated style.
+    Format(FormatArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct CheckArgs {
+    #[arg(
+        value_name = "FILES",
+        help = "Files or directories to check (defaults to current directory)"
+    )]
+    pub files: Vec<PathBuf>,
+
+    #[arg(
+        long,
+        help = "Files and directories to exclude from analysis",
+        help_heading = "File selection"
+    )]
+    pub exclude: Vec<PathBuf>,
+
+    #[arg(
+        long,
+        default_value_t = true,
+        help = "Respect `.gitignore` and similar exclusion files. Use `--no-respect-ignore` to disable",
+        help_heading = "File selection",
+        conflicts_with = "no_respect_ignore"
+    )]
+    pub respect_ignore: bool,
+
+    #[arg(long, hide = true, conflicts_with = "respect_ignore")]
+    pub no_respect_ignore: bool,
+
+    #[arg(long, help = "Apply auto-fixes where possible")]
+    pub fix: bool,
+
+    #[arg(
+        long,
+        value_name = "FORMAT",
+        default_value_t = OutputFormat::Default,
+        help = "Output format"
+    )]
+    pub output_format: OutputFormat,
+
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_name = "RULE_CODE",
+        help = "Comma-separated list of rules to enable (or `ALL`)",
+        help_heading = "Rule selection"
+    )]
+    pub select: Vec<String>,
+
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_name = "RULE_CODE",
+        help = "Comma-separated list of rules to disable",
+        help_heading = "Rule selection"
+    )]
+    pub ignore: Vec<String>,
+}
+
+impl CheckArgs {
     pub fn files(&self) -> Vec<PathBuf> {
         if self.files.is_empty() {
             vec![PathBuf::from(".")]
@@ -141,29 +157,65 @@ impl Cli {
         }
     }
 
-    pub fn should_fix(&self) -> bool {
-        !self.no_fix
+    pub fn should_respect_ignore(&self) -> bool {
+        !self.no_respect_ignore
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct FormatArgs {
+    #[arg(
+        value_name = "FILES",
+        help = "Files or directories to format (defaults to current directory)"
+    )]
+    pub files: Vec<PathBuf>,
+
+    #[arg(
+        long,
+        help = "Files and directories to exclude from formatting",
+        help_heading = "File selection"
+    )]
+    pub exclude: Vec<PathBuf>,
+
+    #[arg(
+        long,
+        default_value_t = true,
+        help = "Respect `.gitignore` and similar exclusion files. Use `--no-respect-ignore` to disable",
+        help_heading = "File selection",
+        conflicts_with = "no_respect_ignore"
+    )]
+    pub respect_ignore: bool,
+
+    #[arg(long, hide = true, conflicts_with = "respect_ignore")]
+    pub no_respect_ignore: bool,
+
+    #[arg(
+        long,
+        help = "Check formatting without modifying files (exits with 1 if any file would change)"
+    )]
+    pub check: bool,
+}
+
+impl FormatArgs {
+    pub fn files(&self) -> Vec<PathBuf> {
+        if self.files.is_empty() {
+            vec![PathBuf::from(".")]
+        } else {
+            self.files.clone()
+        }
     }
 
     pub fn should_respect_ignore(&self) -> bool {
         !self.no_respect_ignore
     }
-
-    pub fn log_level(&self) -> LogLevel {
-        LogLevel::from(self)
-    }
-
-    pub fn configuration(&self) -> ConfigLoader {
-        ConfigLoader::from(self)
-    }
 }
 
 impl From<&Cli> for ConfigLoader {
-    fn from(args: &Cli) -> Self {
-        if args.no_config {
+    fn from(cli: &Cli) -> Self {
+        if cli.no_config {
             Self::None
-        } else if let Some(config_file) = &args.config {
-            Self::File(PathBuf::from(config_file))
+        } else if let Some(config_file) = &cli.config {
+            Self::File(config_file.clone())
         } else {
             Self::Detect
         }
@@ -171,15 +223,31 @@ impl From<&Cli> for ConfigLoader {
 }
 
 impl From<&Cli> for LogLevel {
-    fn from(args: &Cli) -> Self {
-        if args.silent {
+    fn from(cli: &Cli) -> Self {
+        if cli.silent {
             Self::Silent
-        } else if args.quiet {
+        } else if cli.quiet {
             Self::Quiet
-        } else if args.verbose {
+        } else if cli.verbose {
             Self::Verbose
         } else {
             Self::Default
+        }
+    }
+}
+
+#[derive(ValueEnum, Debug, Default, Clone)]
+pub enum OutputFormat {
+    #[default]
+    Default,
+    Json,
+}
+
+impl Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputFormat::Default => write!(f, "default"),
+            OutputFormat::Json => write!(f, "json"),
         }
     }
 }
@@ -194,11 +262,10 @@ pub enum TerminalColor {
 
 impl Display for TerminalColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str = match self {
-            TerminalColor::Auto => "auto".to_string(),
-            TerminalColor::Always => "always".to_string(),
-            TerminalColor::Never => "never".to_string(),
-        };
-        write!(f, "{}", str)
+        match self {
+            TerminalColor::Auto => write!(f, "auto"),
+            TerminalColor::Always => write!(f, "always"),
+            TerminalColor::Never => write!(f, "never"),
+        }
     }
 }
