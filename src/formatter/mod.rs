@@ -498,4 +498,123 @@ mod tests {
     fn test_strikethrough() {
         assert_eq!(format("~~struck~~"), "~~struck~~\n");
     }
+
+    // --- Canonicalization ---
+
+    // Headings: setext → ATX
+    #[test]
+    fn test_setext_h1_to_atx() {
+        assert_eq!(format("Heading 1\n========="), "# Heading 1\n");
+    }
+
+    #[test]
+    fn test_setext_h2_to_atx() {
+        assert_eq!(format("Heading 2\n---------"), "## Heading 2\n");
+    }
+
+    // Headings: closed ATX → open ATX
+    #[test]
+    fn test_closed_atx_stripped() {
+        assert_eq!(format("## Heading ##"), "## Heading\n");
+        assert_eq!(format("# Title #"), "# Title\n");
+    }
+
+    // Headings: multiple spaces after `#` collapsed to one
+    #[test]
+    fn test_multiple_spaces_after_hash_collapsed() {
+        assert_eq!(format("#  Heading"), "# Heading\n");
+        assert_eq!(format("##   Wide"), "## Wide\n");
+    }
+
+    // Blank lines: multiple consecutive blank lines collapsed to one
+    #[test]
+    fn test_multiple_blank_lines_collapsed() {
+        assert_eq!(format("First.\n\n\n\nSecond."), "First.\n\nSecond.\n");
+    }
+
+    // List markers: * and + → -
+    #[test]
+    fn test_asterisk_list_to_dash() {
+        assert_eq!(format("* Item 1\n* Item 2"), "- Item 1\n- Item 2\n");
+    }
+
+    #[test]
+    fn test_plus_list_to_dash() {
+        assert_eq!(format("+ Item 1\n+ Item 2"), "- Item 1\n- Item 2\n");
+    }
+
+    // Emphasis: _ / __ → * / **
+    #[test]
+    fn test_underscore_italic_to_asterisk() {
+        assert_eq!(format("_italic_"), "*italic*\n");
+    }
+
+    #[test]
+    fn test_double_underscore_bold_to_asterisk() {
+        assert_eq!(format("__bold__"), "**bold**\n");
+    }
+
+    // Code fences: ~~~ → ```
+    #[test]
+    fn test_tilde_fence_to_backtick() {
+        assert_eq!(format("~~~rust\ncode\n~~~"), "```rust\ncode\n```\n");
+    }
+
+    #[test]
+    fn test_tilde_fence_no_lang() {
+        assert_eq!(format("~~~\ncode\n~~~"), "```\ncode\n```\n");
+    }
+
+    // Horizontal rules: all styles → ---
+    #[test]
+    fn test_all_hr_styles_to_dashes() {
+        assert_eq!(format("***"), "---\n");
+        assert_eq!(format("___"), "---\n");
+        assert_eq!(format("* * *"), "---\n");
+        assert_eq!(format("- - -"), "---\n");
+        assert_eq!(format("_ _ _"), "---\n");
+    }
+
+    // Idempotency: format(format(x)) == format(x)
+    #[test]
+    fn test_idempotent_paragraph() {
+        let once = format("Hello, world.");
+        let twice = format(&once);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_idempotent_headings() {
+        let once = format("# H1\n\n## H2");
+        let twice = format(&once);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_idempotent_list_tight() {
+        let once = format("* a\n* b\n* c");
+        let twice = format(&once);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_idempotent_list_loose() {
+        let once = format("- a\n\n- b\n\n- c");
+        let twice = format(&once);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_idempotent_code_block() {
+        let once = format("~~~python\nx = 1\n~~~");
+        let twice = format(&once);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_idempotent_setext() {
+        let once = format("Title\n=====\n\nSome text.");
+        let twice = format(&once);
+        assert_eq!(once, twice);
+    }
 }
