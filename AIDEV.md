@@ -97,11 +97,11 @@ formatter should also be marked fixable.
   rules, verify: (1) the rule file exists in `src/lint/rules/`, (2) it is registered in
   `create_default_registry()`, (3) it has at least one passing test. Fix any gaps found.
 
-- [ ] Mark all formatter-enforceable rules as fixable (return `true` from `fixable()`) and ensure their
+- [x] Mark all formatter-enforceable rules as fixable (return `true` from `fixable()`) and ensure their
   fix logic is consistent with what the formatter does — no divergence between `--fix` and
   `mdlint format`.
 
-- [ ] Fix the task list checkbox detection bug: `[ ]` in link position is being detected as a link.
+- [x] Fix the task list checkbox detection bug: `[ ]` in link position is being detected as a link.
   It should be recognized as a GFM task list checkbox and excluded from link-related rules (MD011, etc.).
 
 - [x] Fix code block exclusion bugs: MD003, MD004, MD018, MD019, MD023, MD032, MD035 do not

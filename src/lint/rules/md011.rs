@@ -48,8 +48,8 @@ impl Rule for MD011 {
         }
 
         // Pattern for reversed link syntax: (text)[url]
-        // Match opening paren, non-empty content, closing paren, opening bracket, content, closing bracket
-        let re = Regex::new(r"\([^)]+\)\[[^\]]+\]").unwrap();
+        // Capture the bracket content so we can exclude GFM task list checkboxes ([ ], [x], [X])
+        let re = Regex::new(r"\([^)]+\)\[([^\]]+)\]").unwrap();
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
@@ -59,7 +59,13 @@ impl Rule for MD011 {
                 continue;
             }
 
-            for m in re.find_iter(line) {
+            for caps in re.captures_iter(line) {
+                // Skip GFM task list checkboxes: [ ] and [x]/[X]
+                let bracket_content = &caps[1];
+                if matches!(bracket_content, " " | "x" | "X") {
+                    continue;
+                }
+                let m = caps.get(0).unwrap();
                 violations.push(Violation {
                     line: line_number,
                     column: Some(m.start() + 1),
@@ -128,6 +134,17 @@ mod tests {
     #[test]
     fn test_no_false_positives() {
         let content = "Some (parentheses) and [brackets] but not links.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD011;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_task_list_checkbox_not_flagged() {
+        // (text)[ ] should not be flagged — the [ ] is a GFM task list checkbox
+        let content = "- [ ] Task item\n- [x] Done task\n- (description)[ ] another task\n";
         let parser = MarkdownParser::new(content);
         let rule = MD011;
         let violations = rule.check(&parser, None);

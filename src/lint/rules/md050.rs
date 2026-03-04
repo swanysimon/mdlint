@@ -1,6 +1,6 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
-use crate::types::Violation;
+use crate::types::{Fix, Violation};
 use serde_json::Value;
 
 pub struct MD050;
@@ -55,9 +55,20 @@ impl Rule for MD050 {
                                         "underscore"
                                     };
 
+                                    let make_fix = |col: usize, target: &str| Fix {
+                                        line_start: line_number,
+                                        line_end: line_number,
+                                        column_start: Some(col),
+                                        column_end: Some(col + 1),
+                                        replacement: target.to_string(),
+                                        description: "Replace strong marker".to_string(),
+                                    };
+
                                     if style == "consistent" {
                                         if let Some(first) = first_style {
                                             if current_style != first {
+                                                let expected_marker =
+                                                    if first == "asterisk" { "**" } else { "__" };
                                                 // Report violation for both opening and closing markers
                                                 violations.push(Violation {
                                                     line: line_number,
@@ -65,10 +76,9 @@ impl Rule for MD050 {
                                                     rule: self.name().to_string(),
                                                     message: format!(
                                                         "Strong style should be consistent: expected '{}', found '{}'",
-                                                        if first == "asterisk" { "**" } else { "__" },
-                                                        two_char
+                                                        expected_marker, two_char
                                                     ),
-                                                    fix: None,
+                                                    fix: Some(make_fix(i + 1, expected_marker)),
                                                 });
                                                 violations.push(Violation {
                                                     line: line_number,
@@ -76,10 +86,9 @@ impl Rule for MD050 {
                                                     rule: self.name().to_string(),
                                                     message: format!(
                                                         "Strong style should be consistent: expected '{}', found '{}'",
-                                                        if first == "asterisk" { "**" } else { "__" },
-                                                        close_two
+                                                        expected_marker, close_two
                                                     ),
-                                                    fix: None,
+                                                    fix: Some(make_fix(j + 1, expected_marker)),
                                                 });
                                             }
                                         } else {
@@ -98,7 +107,7 @@ impl Rule for MD050 {
                                                     "Strong style should be '{}', found '{}'",
                                                     expected_marker, two_char
                                                 ),
-                                                fix: None,
+                                                fix: Some(make_fix(i + 1, expected_marker)),
                                             });
                                             violations.push(Violation {
                                                 line: line_number,
@@ -108,7 +117,7 @@ impl Rule for MD050 {
                                                     "Strong style should be '{}', found '{}'",
                                                     expected_marker, close_two
                                                 ),
-                                                fix: None,
+                                                fix: Some(make_fix(j + 1, expected_marker)),
                                             });
                                         }
                                     }
@@ -134,7 +143,7 @@ impl Rule for MD050 {
     }
 
     fn fixable(&self) -> bool {
-        false
+        true
     }
 }
 

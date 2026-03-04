@@ -1,6 +1,6 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
-use crate::types::Violation;
+use crate::types::{Fix, Violation};
 use serde_json::Value;
 
 pub struct MD004;
@@ -64,27 +64,47 @@ impl Rule for MD004 {
                     };
 
                     if current_marker != required_marker {
+                        let indent_len = line.len() - trimmed.len();
+                        let replacement =
+                            format!("{}- {}", &line[..indent_len], &trimmed[2..]);
                         violations.push(Violation {
                             line: line_number,
-                            column: Some(line.len() - trimmed.len() + 1),
+                            column: Some(indent_len + 1),
                             rule: self.name().to_string(),
                             message: format!("List marker style should be {:?}", required_marker),
-                            fix: None,
+                            fix: Some(Fix {
+                                line_start: line_number,
+                                line_end: line_number,
+                                column_start: None,
+                                column_end: None,
+                                replacement,
+                                description: "Replace list marker with dash".to_string(),
+                            }),
                         });
                     }
                 } else {
                     // No config: ensure consistency
                     if let Some(first) = first_marker {
                         if current_marker != first {
+                            let indent_len = line.len() - trimmed.len();
+                            let replacement =
+                                format!("{}- {}", &line[..indent_len], &trimmed[2..]);
                             violations.push(Violation {
                                 line: line_number,
-                                column: Some(line.len() - trimmed.len() + 1),
+                                column: Some(indent_len + 1),
                                 rule: self.name().to_string(),
                                 message: format!(
                                     "List marker style should be consistent (expected {:?}, found {:?})",
                                     first, current_marker
                                 ),
-                                fix: None,
+                                fix: Some(Fix {
+                                    line_start: line_number,
+                                    line_end: line_number,
+                                    column_start: None,
+                                    column_end: None,
+                                    replacement,
+                                    description: "Replace list marker with dash".to_string(),
+                                }),
                             });
                         }
                     } else {
@@ -98,7 +118,7 @@ impl Rule for MD004 {
     }
 
     fn fixable(&self) -> bool {
-        false
+        true
     }
 }
 

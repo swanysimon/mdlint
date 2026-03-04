@@ -1,6 +1,6 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
-use crate::types::Violation;
+use crate::types::{Fix, Violation};
 use serde_json::Value;
 
 pub struct MD049;
@@ -81,10 +81,18 @@ impl Rule for MD049 {
                                     }
 
                                     // Track style and report violations for both opening and closing
+                                    let make_fix = |col: usize, target: char| Fix {
+                                        line_start: line_number,
+                                        line_end: line_number,
+                                        column_start: Some(col),
+                                        column_end: Some(col),
+                                        replacement: target.to_string(),
+                                        description: "Replace emphasis marker".to_string(),
+                                    };
+
                                     if style == "consistent" {
                                         if let Some(first) = first_style {
                                             if ch != first {
-                                                // Report violation for opening marker
                                                 violations.push(Violation {
                                                     line: line_number,
                                                     column: Some(i + 1),
@@ -93,9 +101,8 @@ impl Rule for MD049 {
                                                         "Emphasis style should be consistent: expected '{}', found '{}'",
                                                         first, ch
                                                     ),
-                                                    fix: None,
+                                                    fix: Some(make_fix(i + 1, first)),
                                                 });
-                                                // Report violation for closing marker
                                                 violations.push(Violation {
                                                     line: line_number,
                                                     column: Some(j + 1),
@@ -104,7 +111,7 @@ impl Rule for MD049 {
                                                         "Emphasis style should be consistent: expected '{}', found '{}'",
                                                         first, ch
                                                     ),
-                                                    fix: None,
+                                                    fix: Some(make_fix(j + 1, first)),
                                                 });
                                             }
                                         } else {
@@ -113,7 +120,6 @@ impl Rule for MD049 {
                                     } else {
                                         let expected = if style == "asterisk" { '*' } else { '_' };
                                         if ch != expected {
-                                            // Report violation for opening marker
                                             violations.push(Violation {
                                                 line: line_number,
                                                 column: Some(i + 1),
@@ -122,9 +128,8 @@ impl Rule for MD049 {
                                                     "Emphasis style should be '{}', found '{}'",
                                                     expected, ch
                                                 ),
-                                                fix: None,
+                                                fix: Some(make_fix(i + 1, expected)),
                                             });
-                                            // Report violation for closing marker
                                             violations.push(Violation {
                                                 line: line_number,
                                                 column: Some(j + 1),
@@ -133,7 +138,7 @@ impl Rule for MD049 {
                                                     "Emphasis style should be '{}', found '{}'",
                                                     expected, ch
                                                 ),
-                                                fix: None,
+                                                fix: Some(make_fix(j + 1, expected)),
                                             });
                                         }
                                     }
@@ -154,7 +159,7 @@ impl Rule for MD049 {
     }
 
     fn fixable(&self) -> bool {
-        false
+        true
     }
 }
 

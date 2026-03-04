@@ -1,6 +1,6 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
-use crate::types::Violation;
+use crate::types::{Fix, Violation};
 use serde_json::Value;
 
 pub struct MD035;
@@ -51,7 +51,15 @@ impl Rule for MD035 {
                                     "Horizontal rule style should be consistent: expected {}, found {}",
                                     first_style, current_style
                                 ),
-                                fix: None,
+                                fix: Some(Fix {
+                                    line_start: line_number,
+                                    line_end: line_number,
+                                    column_start: None,
+                                    column_end: None,
+                                    replacement: "---".to_string(),
+                                    description: "Replace with canonical horizontal rule"
+                                        .to_string(),
+                                }),
                             });
                         }
                     } else {
@@ -66,7 +74,14 @@ impl Rule for MD035 {
                             "Horizontal rule style should be '{}', found '{}'",
                             style, current_style
                         ),
-                        fix: None,
+                        fix: Some(Fix {
+                            line_start: line_number,
+                            line_end: line_number,
+                            column_start: None,
+                            column_end: None,
+                            replacement: style.to_string(),
+                            description: "Replace with required horizontal rule style".to_string(),
+                        }),
                     });
                 }
             }
@@ -76,7 +91,7 @@ impl Rule for MD035 {
     }
 
     fn fixable(&self) -> bool {
-        false
+        true
     }
 }
 
