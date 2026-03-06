@@ -149,16 +149,17 @@ formatter should also be marked fixable.
 
 ## Priority 5: CLI Polish
 
-- [ ] Add color support to check output using the `anstream` crate. Colors for: error/warning severity,
-  rule names, file paths. Respect the `NO_COLOR` environment variable and the `--no-color` flag.
+- [x] Add color support to check output. Colors already implemented via ANSI codes; added `NO_COLOR`
+  env var respect (https://no-color.org/). `--color auto/always/never` flag already existed.
 
-- [ ] Add summary statistics to check output: "X files checked, Y errors found across Z files" at the
-  end of a run.
+- [x] Add summary statistics to check output: "Found X error(s) in Y file(s) (Z checked)" shown at end
+  of every run, including the total files checked (not just files with violations).
 
-- [ ] Add a `--verbose` flag that prints the name of each file as it is processed.
+- [x] Add a `--verbose` flag that prints the name of each file as it is processed (`--verbose` already
+  existed in args; wired it up to print "Checking: <path>" to stderr before each file).
 
-- [ ] Improve error messages with structured context: file path, line number, column, and the offending
-  text snippet highlighted.
+- [x] Improve error messages with structured context: show the offending source line and a caret
+  indicator under the column position beneath each violation.
 
 ---
 

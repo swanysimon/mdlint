@@ -28,12 +28,17 @@ fn run() -> Result<bool> {
     let use_color = should_use_color(&cli.color);
 
     match &cli.command {
-        Command::Check(args) => run_check(args, config, use_color),
+        Command::Check(args) => run_check(args, config, use_color, cli.verbose),
         Command::Format(args) => run_format(args, config),
     }
 }
 
-fn run_check(args: &CheckArgs, config: Config, use_color: bool) -> Result<bool> {
+fn run_check(
+    args: &CheckArgs,
+    config: Config,
+    use_color: bool,
+    verbose: bool,
+) -> Result<bool> {
     let files = find_files(&args.files(), &args.exclude, args.should_respect_ignore())?;
 
     if files.is_empty() {
@@ -41,7 +46,7 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool) -> Result<bool> 
         return Ok(false);
     }
 
-    let lint_result = lint_files(config, &files)?;
+    let lint_result = lint_files(config, &files, verbose)?;
 
     if args.fix && lint_result.has_errors() {
         apply_fixes(&lint_result)?;
@@ -142,15 +147,22 @@ fn is_excluded(path: &PathBuf, excludes: &[PathBuf]) -> bool {
     })
 }
 
-fn lint_files(config: Config, files: &[PathBuf]) -> Result<LintResult> {
+fn lint_files(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
     let engine = LintEngine::new(config);
     let mut lint_result = LintResult::new();
 
     for file_path in files {
+        if verbose {
+            eprintln!("Checking: {}", file_path.display());
+        }
         let content = fs::read_to_string(file_path)?;
         let violations = engine.lint_content(&content)?;
-        if !violations.is_empty() {
-            lint_result.add_file_result(file_path.clone(), violations);
+        if violations.is_empty() {
+            lint_result.record_clean_file();
+        } else {
+            let source_lines: Vec<String> =
+                content.lines().map(str::to_string).collect();
+            lint_result.add_file_result(file_path.clone(), violations, source_lines);
         }
     }
 
@@ -161,7 +173,13 @@ fn should_use_color(color: &TerminalColor) -> bool {
     match color {
         TerminalColor::Always => true,
         TerminalColor::Never => false,
-        TerminalColor::Auto => io::stdout().is_terminal(),
+        TerminalColor::Auto => {
+            // Respect the NO_COLOR convention (https://no-color.org/)
+            if env::var_os("NO_COLOR").is_some() {
+                return false;
+            }
+            io::stdout().is_terminal()
+        }
     }
 }
 

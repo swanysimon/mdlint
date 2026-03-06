@@ -104,6 +104,7 @@ mod tests {
                 message: "Test message".to_string(),
                 fix: None,
             }],
+            vec![],
         );
 
         let output = formatter.format(&result);
@@ -129,6 +130,7 @@ mod tests {
                 message: "Test".to_string(),
                 fix: None,
             }],
+            vec![],
         );
 
         let output = formatter.format(&result);
@@ -158,6 +160,7 @@ mod tests {
                     description: "Remove trailing spaces".to_string(),
                 }),
             }],
+            vec![],
         );
 
         let output = formatter.format(&result);
