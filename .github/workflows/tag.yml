@@ -135,11 +135,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: |
+            ghcr.io/${{ github.repository }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/mdlint
           tags: |
             type=semver,pattern={{version}}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
             type=raw,value=${{ matrix.platform == 'linux/amd64' && 'latest-amd64' || 'latest-arm64' }}
@@ -170,35 +179,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Extract version
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Create and push multi-platform manifest
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          IMAGE_REPO="ghcr.io/${{ github.repository }}"
+          GHCR_REPO="ghcr.io/${{ github.repository }}"
+          DH_REPO="docker.io/${DOCKERHUB_USERNAME}/mdlint"
           VERSION="${{ steps.version.outputs.version }}"
-
-          # Create manifest for version tags
-          docker buildx imagetools create \
-            --tag "${IMAGE_REPO}:${VERSION}" \
-            --tag "${IMAGE_REPO}:latest" \
-            "${IMAGE_REPO}:${VERSION}-amd64" \
-            "${IMAGE_REPO}:${VERSION}-arm64"
-
-          # Also update major.minor and major tags
           MAJOR_MINOR=$(echo "${VERSION}" | cut -d. -f1-2)
           MAJOR=$(echo "${VERSION}" | cut -d. -f1)
 
-          docker buildx imagetools create \
-            --tag "${IMAGE_REPO}:${MAJOR_MINOR}" \
-            "${IMAGE_REPO}:${VERSION}-amd64" \
-            "${IMAGE_REPO}:${VERSION}-arm64"
+          for REPO in "${GHCR_REPO}" "${DH_REPO}"; do
+            docker buildx imagetools create \
+              --tag "${REPO}:${VERSION}" \
+              --tag "${REPO}:latest" \
+              "${GHCR_REPO}:${VERSION}-amd64" \
+              "${GHCR_REPO}:${VERSION}-arm64"
 
-          docker buildx imagetools create \
-            --tag "${IMAGE_REPO}:${MAJOR}" \
-            "${IMAGE_REPO}:${VERSION}-amd64" \
-            "${IMAGE_REPO}:${VERSION}-arm64"
+            docker buildx imagetools create \
+              --tag "${REPO}:${MAJOR_MINOR}" \
+              "${GHCR_REPO}:${VERSION}-amd64" \
+              "${GHCR_REPO}:${VERSION}-arm64"
+
+            docker buildx imagetools create \
+              --tag "${REPO}:${MAJOR}" \
+              "${GHCR_REPO}:${VERSION}-amd64" \
+              "${GHCR_REPO}:${VERSION}-arm64"
+          done
 
   publish-crates-io:
     name: Publish to crates.io
