@@ -1,6 +1,6 @@
 [package]
 name = "markdownlint-rs"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 authors = ["Simon Swanson"]
 description = "A fast, flexible, configuration-based command-line interface for linting Markdown/CommonMark files"
