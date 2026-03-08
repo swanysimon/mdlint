@@ -21,7 +21,7 @@ RUN cargo build --release --target "$(cat /rust-target)" \
     && mv "target/$(cat /rust-target)/release/mdlint" /mdlint
 
 # Runtime stage
-FROM alpine:3.19
+FROM alpine:3.21
 
 RUN addgroup -g 1000 markdownlint \
     && adduser -D -u 1000 -G markdownlint markdownlint
