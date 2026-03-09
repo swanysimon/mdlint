@@ -100,9 +100,11 @@ text. This is what makes mdlint a formatter rather than a linter with `--fix`.
 The `check` command is the secondary workflow. Rules report violations; violations enforceable by the
 formatter should also be marked fixable.
 
-- [ ] Audit all existing rule implementations against the markdownlint reference. For each of the 54
+- [x] Audit all existing rule implementations against the markdownlint reference. For each of the 54
   rules, verify: (1) the rule file exists in `src/lint/rules/`, (2) it is registered in
   `create_default_registry()`, (3) it has at least one passing test. Fix any gaps found.
+  Result: all 54 rules implemented (MD001–MD060, excluding deprecated MD002/MD006/MD008/MD015–MD017/MD057),
+  all registered except deprecated MD006, all have tests.
 
 - [x] Mark all formatter-enforceable rules as fixable (return `true` from `fixable()`) and ensure their
   fix logic is consistent with what the formatter does — no divergence between `--fix` and
@@ -179,8 +181,9 @@ formatter should also be marked fixable.
 - [ ] Write a Homebrew formula in a tap repository so macOS and Linux users can install with
   `brew install`.
 
-- [ ] Add pre-commit hook configuration examples to the documentation so teams can run
-  `mdlint format --check` as a git pre-commit hook.
+- [x] Add pre-commit hook configuration examples to the documentation so teams can run
+  `mdlint format --check` as a git pre-commit hook. README covers native git hooks,
+  pre-commit framework, and GitHub Actions.
 
 - [ ] Consider an npm wrapper package so Node.js projects can add mdlint as a devDependency and use it
   without a separate Rust toolchain installation.
