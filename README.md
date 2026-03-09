@@ -250,6 +250,7 @@ description of what it does. The global options are summarised below.
 - `exclude` (array): Paths to exclude from file discovery; merged with any `--exclude` CLI flags. Default: `[]`
 - `custom_rules` (array): Paths to custom rule modules (future feature). Default: `[]`
 - `front_matter` (string): Pattern for front matter detection. Default: auto-detects YAML (`---`) and TOML (`+++`)
+- `fix` (boolean): When `true`, `mdlint check` automatically applies all auto-fixable violations, equivalent to passing `--fix` on the command line. Default: `true`
 
 #### Rule Configuration
 

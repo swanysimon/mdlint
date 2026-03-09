@@ -35,6 +35,7 @@ fn run() -> Result<bool> {
 
 fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
+    let should_fix = args.fix || config.fix;
     let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
 
     if files.is_empty() {
@@ -44,7 +45,7 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
 
     let lint_result = lint_files(config, &files, verbose)?;
 
-    if args.fix && lint_result.has_errors() {
+    if should_fix && lint_result.has_errors() {
         apply_fixes(&lint_result)?;
     }
 

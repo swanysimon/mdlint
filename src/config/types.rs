@@ -30,6 +30,10 @@ pub struct Config {
     /// Paths and glob patterns to exclude from file discovery
     #[serde(default)]
     pub exclude: Vec<String>,
+
+    /// Apply auto-fixes automatically when running `mdlint check`
+    #[serde(default = "default_fix")]
+    pub fix: bool,
 }
 
 fn default_default_enabled() -> bool {
@@ -37,6 +41,10 @@ fn default_default_enabled() -> bool {
 }
 
 fn default_gitignore() -> bool {
+    true
+}
+
+fn default_fix() -> bool {
     true
 }
 
@@ -50,6 +58,7 @@ impl Default for Config {
             front_matter: None,
             no_inline_config: false,
             exclude: Vec::new(),
+            fix: true,
         }
     }
 }

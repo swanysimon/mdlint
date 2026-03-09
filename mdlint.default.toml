@@ -25,6 +25,10 @@ gitignore = true
 # Useful for enforcing rules with no per-file escape hatches.
 no_inline_config = false
 
+# When true (default), `mdlint check` automatically applies all auto-fixable
+# violations, equivalent to passing --fix on the command line.
+fix = true
+
 # front_matter = "---"   # Uncomment to fix the front-matter delimiter to YAML
 #                        # only. By default mdlint auto-detects both "---"
 #                        # (YAML) and "+++" (TOML).
