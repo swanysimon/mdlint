@@ -99,12 +99,13 @@ Always use `-` (dash). Never `*` or `+`.
 
 ### Ordered List Markers (MD029)
 
-Always use `1.` style (every item labeled `1.`). The renderer handles the actual numbering.
+Always use sequential numbering starting from `1.`. Items are renumbered regardless of
+what numbers appear in the source — non-contiguous or repeated numbers are corrected.
 
 ```markdown
 1. First item
-1. Second item
-1. Third item
+2. Second item
+3. Third item
 ```
 
 ### List Indentation (MD007)

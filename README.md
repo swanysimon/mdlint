@@ -262,7 +262,7 @@ Rules can be configured in three ways:
 enabled = false
 ```
 
-2. **Configure rule parameters:**
+1. **Configure rule parameters:**
 
 ```toml
 [rules.MD013]
@@ -270,7 +270,7 @@ line_length = 100
 code_blocks = false
 ```
 
-3. **Use both (parameters implicitly enable the rule):**
+1. **Use both (parameters implicitly enable the rule):**
 
 ```toml
 [rules.MD003]

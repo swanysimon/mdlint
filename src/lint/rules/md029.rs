@@ -1,6 +1,7 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
+use pulldown_cmark::{Event, Tag, TagEnd};
 use serde_json::Value;
 
 pub struct MD029;
@@ -22,108 +23,72 @@ impl Rule for MD029 {
         let style = config
             .and_then(|c| c.get("style"))
             .and_then(|v| v.as_str())
-            .unwrap_or("one");
+            .unwrap_or("ordered");
 
         let mut violations = Vec::new();
-        let mut expected_num = 1;
-        let mut in_ordered_list = false;
-        let mut consecutive_blank_lines = 0;
-        let mut seen_non_one = false; // Track if we've seen any number other than 1
+        // Stack: None = unordered list, Some((expected_next, seen_non_one)) = ordered list.
+        // Using AST events rather than raw line scanning ensures that code blocks, headings,
+        // and other block-level elements correctly break list continuity.
+        let mut list_stack: Vec<Option<(usize, bool)>> = Vec::new();
 
-        // Get code block lines to skip (not inline code, which can appear in list items)
-        let code_lines = parser.get_code_block_line_numbers();
-
-        for (line_num, line) in parser.lines().iter().enumerate() {
-            let line_number = line_num + 1;
-
-            // Skip if line is in a code block or inline code
-            // Reset consecutive blank lines when encountering code blocks
-            if code_lines.contains(&line_number) {
-                consecutive_blank_lines = 0;
-                continue;
-            }
-
-            let trimmed = line.trim_start();
-
-            // Track blank lines (only count actual blank lines, not code blocks)
-            if line.trim().is_empty() {
-                consecutive_blank_lines += 1;
-                // Only reset after 2+ consecutive blank lines
-                if consecutive_blank_lines >= 2 {
-                    in_ordered_list = false;
-                    expected_num = 1;
-                    seen_non_one = false;
-                }
-                continue;
-            } else {
-                consecutive_blank_lines = 0;
-            }
-
-            // Check if this is an ordered list item
-            if let Some(dot_pos) = trimmed.find('.') {
-                let prefix = &trimmed[..dot_pos];
-                if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_digit()) {
-                    if let Ok(num) = prefix.parse::<usize>() {
-                        if !in_ordered_list {
-                            in_ordered_list = true;
-                            expected_num = 1;
-                            seen_non_one = false;
-                        }
-
-                        // Track if we've seen a non-1 number in this list
-                        if num != 1 {
-                            seen_non_one = true;
-                        }
-
-                        let is_valid = match style {
-                            "one" => num == 1,
-                            "ordered" => num == expected_num,
-                            _ => {
-                                // "one_or_ordered": if we've seen non-1, must be sequential
-                                // otherwise, allow either 1 or expected
-                                if seen_non_one {
-                                    num == expected_num
-                                } else {
-                                    num == 1 || num == expected_num
-                                }
-                            }
-                        };
-
-                        if !is_valid {
-                            let should_be = match style {
-                                "one" => 1,
-                                _ => expected_num,
-                            };
-                            violations.push(Violation {
-                                line: line_number,
-                                column: Some(line.len() - trimmed.len() + 1),
-                                rule: self.name().to_string(),
-                                message: format!(
-                                    "Ordered list item prefix: expected {}, found {}",
-                                    should_be, num
-                                ),
-                                fix: None,
-                            });
-                        }
-
-                        // Increment expected based on what we EXPECTED, not what we saw
-                        // This ensures violations continue to be detected
-                        expected_num += 1;
+        for (event, range) in parser.parse_with_offsets() {
+            match event {
+                Event::Start(Tag::List(start)) => {
+                    if start.is_some() {
+                        // Ordered list. The formatter canonicalises all ordered lists to
+                        // start at 1, so we always expect the first item to be 1.
+                        list_stack.push(Some((1, false)));
+                    } else {
+                        list_stack.push(None);
                     }
-                } else {
-                    // Line has a dot but isn't a list item
-                    in_ordered_list = false;
-                    expected_num = 1;
-                    seen_non_one = false;
                 }
-            } else if !trimmed.starts_with("*")
-                && !trimmed.starts_with("+")
-                && !trimmed.starts_with("-")
-            {
-                // Non-list line that's not blank
-                in_ordered_list = false;
-                expected_num = 1;
-                seen_non_one = false;
+                Event::End(TagEnd::List(_)) => {
+                    list_stack.pop();
+                }
+                Event::Start(Tag::Item) => {
+                    if let Some(Some((expected, seen_non_one))) = list_stack.last_mut() {
+                        let line_num = parser.offset_to_line(range.start);
+                        if let Some(line) = parser.get_line(line_num)
+                            && let Some(num) = parse_item_number(line.trim_start())
+                        {
+                            if num != 1 {
+                                *seen_non_one = true;
+                            }
+
+                            let is_valid = match style {
+                                "one" => num == 1,
+                                "ordered" => num == *expected,
+                                _ => {
+                                    // "one_or_ordered": if we've seen non-1, require sequential;
+                                    // otherwise allow either all-ones or sequential.
+                                    if *seen_non_one {
+                                        num == *expected
+                                    } else {
+                                        num == 1 || num == *expected
+                                    }
+                                }
+                            };
+
+                            if !is_valid {
+                                let should_be = if style == "one" { 1 } else { *expected };
+                                let indent = line.len() - line.trim_start().len();
+                                violations.push(Violation {
+                                    line: line_num,
+                                    column: Some(indent + 1),
+                                    rule: self.name().to_string(),
+                                    message: format!(
+                                        "Ordered list item prefix: expected {}, found {}",
+                                        should_be, num
+                                    ),
+                                    fix: None,
+                                });
+                            }
+
+                            *expected += 1;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -131,7 +96,22 @@ impl Rule for MD029 {
     }
 
     fn fixable(&self) -> bool {
-        false
+        true
+    }
+}
+
+/// Extract the leading integer from an ordered list item line (after stripping indentation).
+/// Returns `Some(n)` for `"3. text"` or `"3) text"`, `None` otherwise.
+fn parse_item_number(trimmed: &str) -> Option<usize> {
+    let digits: String = trimmed.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let rest = &trimmed[digits.len()..];
+    if rest.starts_with(['.', ')']) {
+        digits.parse().ok()
+    } else {
+        None
     }
 }
 
@@ -157,7 +137,10 @@ mod tests {
         let rule = MD029;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 0); // Default "one" style: all items labeled 1
+        // Default "ordered": items 2 and 3 should be 2 and 3, not 1
+        assert_eq!(violations.len(), 2);
+        assert_eq!(violations[0].line, 2);
+        assert_eq!(violations[1].line, 3);
     }
 
     #[test]
@@ -209,5 +192,18 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0, "List with backticks should be valid");
+    }
+
+    #[test]
+    fn test_code_block_breaks_list() {
+        // An unindented code block breaks CommonMark list continuity.
+        // Each numbered item is its own single-item list starting at 1.
+        let content = "1. First item\n\n```\ncode\n```\n\n1. Second item\n\n```\ncode\n```\n\n1. Third item\n";
+        let parser = MarkdownParser::new(content);
+        let rule = MD029;
+        let violations = rule.check(&parser, None);
+
+        // Each `1.` is the first item of a fresh list — no violations.
+        assert_eq!(violations.len(), 0);
     }
 }

@@ -6,6 +6,3 @@ exclude = [
   "FORMAT_SPEC.md",
   "tests/fixtures",
 ]
-
-[rules.MD029]
-style = "ordered"

@@ -116,11 +116,11 @@ punctuation = ".,;:!"
 
 # MD029 — Ordered list item prefix
 # style: the required numbering style.
+#   "ordered"        — items numbered sequentially (1. 2. 3.) — enforced by `mdlint format`
 #   "one"            — every item labeled 1.
-#   "ordered"        — items numbered sequentially (1. 2. 3.)
 #   "one_or_ordered" — either style is accepted, but must be consistent
 [rules.MD029]
-style = "one"
+style = "ordered"
 
 # MD030 — Spaces after list markers
 # ul_single: spaces after a bullet marker when the list item is a single line.

@@ -207,7 +207,8 @@ impl FormatterState {
                     }
                 }
                 self.list_depth += 1;
-                self.list_starts.push(start);
+                // Ordered lists always start at 1 in canonical form (MD029).
+                self.list_starts.push(start.map(|_| 1u64));
             }
             Tag::Item => {
                 // For loose lists, End(Paragraph) sets needs_blank = true.
@@ -696,6 +697,29 @@ mod tests {
         let input = "1. First\n2. Second\n3. Third";
         let output = format(input);
         assert_eq!(output, "1. First\n2. Second\n3. Third\n");
+    }
+
+    #[test]
+    fn test_ordered_list_all_ones_renumbered() {
+        // "one" style (1. / 1. / 1.) is canonicalized to sequential.
+        let input = "1. First\n1. Second\n1. Third";
+        let output = format(input);
+        assert_eq!(output, "1. First\n2. Second\n3. Third\n");
+    }
+
+    #[test]
+    fn test_ordered_list_non_one_start_renumbered() {
+        // Lists starting at a number other than 1 are renumbered from 1.
+        let input = "3. First\n5. Second\n9. Third";
+        let output = format(input);
+        assert_eq!(output, "1. First\n2. Second\n3. Third\n");
+    }
+
+    #[test]
+    fn test_ordered_list_idempotent() {
+        let once = format("1. First\n1. Second\n1. Third");
+        let twice = format(&once);
+        assert_eq!(once, twice);
     }
 
     #[test]

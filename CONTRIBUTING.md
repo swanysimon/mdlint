@@ -19,7 +19,7 @@ cd mdlint
 mise install   # installs prek, tombi, hadolint
 ```
 
-4. **Build the project**:
+1. **Build the project**:
 
 ```bash
 cargo build
@@ -176,11 +176,11 @@ impl Rule for MDXXX {
 }
 ```
 
-3. **Register the rule**: Add it to `create_default_registry()` in `src/lint/rules/mod.rs`
+1. **Register the rule**: Add it to `create_default_registry()` in `src/lint/rules/mod.rs`
 
-4. **Write tests**: Add comprehensive tests in the same file
+2. **Write tests**: Add comprehensive tests in the same file
 
-5. **Mark fixable**: If `mdlint format` can fix this violation, return `true` from `fixable()`
+3. **Mark fixable**: If `mdlint format` can fix this violation, return `true` from `fixable()`
 
 ### Adding a formatting behavior
 
