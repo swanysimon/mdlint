@@ -13,7 +13,7 @@ jobs:
     name: Publish npm platform package (${{ matrix.package_name }})
     if: ${{ inputs.release != '' }}
     runs-on: ubuntu-latest
-    environment: npm
+    environment: pypi
     permissions:
       contents: write
       id-token: write
@@ -112,7 +112,7 @@ jobs:
     if: ${{ inputs.release != '' }}
     needs: publish-platform
     runs-on: ubuntu-latest
-    environment: npm
+    environment: pypi
     permissions:
       id-token: write
     defaults:

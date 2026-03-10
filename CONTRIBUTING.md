@@ -97,7 +97,7 @@ Once the tag is pushed, GitHub Actions automatically:
 4. Builds binaries for all platforms (Linux x86/ARM, macOS x86/ARM, Windows)
 5. Generates SHA256 checksums for all binaries
 6. Uploads binaries to GitHub release
-7. Publishes to crates.io (requires `CARGO_REGISTRY_TOKEN` secret)
+7. Publishes to crates.io via trusted publishing (no token required)
 
 #### Option 2: Manual Release
 

@@ -175,8 +175,8 @@ formatter should also be marked fixable.
 
 ## Priority 6: Distribution
 
-- [x] Publish first release to crates.io by setting the `CARGO_REGISTRY_TOKEN` GitHub Actions secret
-  and running `cargo release patch --execute`.
+- [x] Publish first release to crates.io via trusted publishing (no token required); run
+  `cargo release patch --execute` to trigger.
 
 - [ ] Write a Homebrew formula in a tap repository so macOS and Linux users can install with
   `brew install`.

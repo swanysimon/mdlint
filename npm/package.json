@@ -1,6 +1,6 @@
 {
   "name": "markdownlint-rs",
-  "version": "0.3.5",
+  "version": "0.3.7",
   "description": "Opinionated Markdown formatter and linter",
   "keywords": [
     "markdown",
@@ -32,10 +32,10 @@
     "arm64"
   ],
   "optionalDependencies": {
-    "markdownlint-rs-linux-x64": "0.3.3",
-    "markdownlint-rs-linux-arm64": "0.3.3",
-    "markdownlint-rs-darwin-x64": "0.3.3",
-    "markdownlint-rs-darwin-arm64": "0.3.3",
-    "markdownlint-rs-win32-x64": "0.3.3"
+    "markdownlint-rs-linux-x64": "0.3.7",
+    "markdownlint-rs-linux-arm64": "0.3.7",
+    "markdownlint-rs-darwin-x64": "0.3.7",
+    "markdownlint-rs-darwin-arm64": "0.3.7",
+    "markdownlint-rs-win32-x64": "0.3.7"
   }
 }

@@ -178,6 +178,7 @@ jobs:
     name: Publish to crates.io
     needs: draft-release
     runs-on: ubuntu-latest
+    environment: pypi
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -188,9 +189,7 @@ jobs:
           cache-key: "publish"
 
       - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --token "${CARGO_REGISTRY_TOKEN}"
+        run: cargo publish
 
   publish-python:
     needs: build
