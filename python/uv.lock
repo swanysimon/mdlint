@@ -3,6 +3,6 @@ revision = 3
 requires-python = ">=3.8"
 
 [[package]]
-name = "mdlint"
-version = "0.0.0+ci"
+name = "markdownlint-rs"
+version = "0.3.8"
 source = { editable = "." }
