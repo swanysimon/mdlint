@@ -77,9 +77,6 @@ jobs:
             --repo "${{ github.repository }}"
           chmod +x "mdlint/${{ matrix.binary }}"
 
-      - name: Set package version
-        run: uv version "${{ inputs.release }}"
-
       - name: Build wheel
         env:
           MDLINT_PLATFORM_TAG: ${{ matrix.platform_tag }}

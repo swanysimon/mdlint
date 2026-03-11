@@ -100,8 +100,18 @@ src/
 ### Release Process
 
 - `cargo-release`: `cargo release patch --execute` bumps version, commits, tags, pushes
-- Tag version must match `Cargo.toml` version — verified in CI before running tests
-- Five platforms: Linux x86_64 (glibc + musl), Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64
+- `release.toml` uses `pre-release-replacements` to keep manifests in sync:
+  `Cargo.toml` (by cargo-release), `npm/package.json`, `python/pyproject.toml`.
+  No version-setting commands are needed in CI.
+- Tag version must match all manifests — verified in CI (`tag.yml`) before anything publishes
+- Seven binary platforms: Linux x86_64/aarch64 (glibc + musl), macOS x86_64/aarch64, Windows x86_64
+
+### npm Publishing
+
+- Single package (`markdownlint-rs`) bundles all 7 platform binaries in `npm/bin/`
+- `bin/mdlint.js` detects platform at runtime; uses `/proc/self/maps` to distinguish glibc vs musl on Linux
+- Binaries are downloaded from the GitHub release and placed in `npm/bin/` during CI publish
+- When adding a new platform, update `publish-npm.yml` (download + mv step) and `publish-python.yml` matrix
 
 ## References
 

@@ -1,13 +1,17 @@
+# release.toml — cargo-release configuration
+#
+# When `cargo release` runs, it bumps the version in Cargo.toml and then applies
+# the replacements below to keep all package manifests in sync. No version-setting
+# commands are needed in CI — by the time a tag is pushed, every manifest already
+# contains the correct version.
+
+# Main npm package version
 [[pre-release-replacements]]
 file = "npm/package.json"
 search = '"version": "[^"]*"'
 replace = '"version": "{{version}}"'
 
-[[pre-release-replacements]]
-file = "npm/package.json"
-search = '("markdownlint-rs-[^"]+": )"[^"]*"'
-replace = '$1"{{version}}"'
-
+# Python package version
 [[pre-release-replacements]]
 file = "python/pyproject.toml"
 search = 'version = "[^"]*"'

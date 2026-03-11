@@ -1,6 +1,6 @@
 {
   "name": "markdownlint-rs",
-  "version": "0.3.8",
+  "version": "0.0.1",
   "description": "Opinionated Markdown formatter and linter",
   "keywords": [
     "markdown",
@@ -12,30 +12,17 @@
   "bugs": "https://github.com/swanysimon/mdlint/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/swanysimon/mdlint.git",
+    "url": "git+https://github.com/swanysimon/mdlint.git",
     "directory": "npm"
   },
   "license": "Unlicense",
   "bin": {
     "mdlint": "bin/mdlint.js"
   },
+  "files": [
+    "bin/"
+  ],
   "engines": {
     "node": ">=14"
-  },
-  "os": [
-    "linux",
-    "darwin",
-    "win32"
-  ],
-  "cpu": [
-    "x64",
-    "arm64"
-  ],
-  "optionalDependencies": {
-    "markdownlint-rs-linux-x64": "0.3.8",
-    "markdownlint-rs-linux-arm64": "0.3.8",
-    "markdownlint-rs-darwin-x64": "0.3.8",
-    "markdownlint-rs-darwin-arm64": "0.3.8",
-    "markdownlint-rs-win32-x64": "0.3.8"
   }
 }

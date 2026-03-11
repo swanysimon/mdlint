@@ -64,11 +64,24 @@ Install cargo-release:
 cargo install cargo-release
 ```
 
+### Version Sync
+
+All package manifests must have matching versions at release time:
+
+- `Cargo.toml` — bumped by `cargo-release`
+- `npm/package.json` — synced via `release.toml`
+- `python/pyproject.toml` — synced via `release.toml`
+
+`release.toml` contains `[[pre-release-replacements]]` entries that update all of these automatically
+when `cargo release` runs. **No version-setting commands are needed in CI.**
+
+The `tag.yml` workflow verifies that all three manifests match the git tag before anything publishes.
+
 ### Creating a Release
 
 #### Option 1: Using cargo-release (Recommended)
 
-cargo-release automates the entire process:
+cargo-release automates version bumping across all manifests:
 
 ```bash
 # Dry run to see what will happen
@@ -84,48 +97,60 @@ This will:
 
 1. Verify working directory is clean
 2. Run tests
-3. Bump version in `Cargo.toml`
+3. Bump version in `Cargo.toml` and apply all `release.toml` replacements (npm + Python manifests)
 4. Create a commit: "Release X.Y.Z"
 5. Create a git tag: `vX.Y.Z`
 6. Push commit and tag to GitHub
 
 Once the tag is pushed, GitHub Actions automatically:
 
-1. Verifies tag matches Cargo.toml version
+1. Verifies tag matches all manifest versions (`Cargo.toml`, `npm/package.json`, `python/pyproject.toml`)
 2. Runs all CI checks (tests, clippy, fmt, build)
-3. Creates GitHub release with release notes
-4. Builds binaries for all platforms (Linux x86/ARM, macOS x86/ARM, Windows)
+3. Creates a draft GitHub release with release notes
+4. Builds binaries for all 7 platforms (Linux x86_64/aarch64 glibc+musl, macOS x86_64/aarch64, Windows x86_64)
 5. Generates SHA256 checksums for all binaries
 6. Uploads binaries to GitHub release
 7. Publishes to crates.io via trusted publishing (no token required)
+8. Publishes Python wheels to PyPI via trusted publishing (no token required)
+9. Publishes single npm package (all binaries bundled) to npm via trusted publishing (no token required)
+10. Publishes the draft release
 
 #### Option 2: Manual Release
 
-If you prefer manual control:
+If you prefer manual control, you must update all manifests yourself:
 
 ```bash
-# 1. Update version in Cargo.toml
-vim Cargo.toml  # Change version = "0.1.0" to "0.1.1"
+# 1. Update versions in all manifests
+vim Cargo.toml             # Change version = "0.1.0" to "0.1.1"
+vim npm/package.json       # Update "version"
+vim python/pyproject.toml  # Update version
 
-# 2. Commit the version change
-git add Cargo.toml
+# 2. Commit and tag
+git add Cargo.toml npm/package.json python/pyproject.toml
 git commit -m "Release 0.1.1"
-
-# 3. Create and push the tag
 git tag v0.1.1
 git push origin main
 git push origin v0.1.1
 ```
 
-The GitHub Actions workflow will take over from here.
+Use `cargo release` instead — it handles all of this automatically via `release.toml`.
 
 ### Version Verification
 
-The release workflow includes automatic version verification:
+The release workflow (`tag.yml`) automatically verifies all manifest versions before proceeding:
 
-- If the git tag doesn't match the version in `Cargo.toml`, the release will fail
-- This prevents accidental mismatches between tags and package versions
-- Example: Tag `v0.2.0` requires `version = "0.2.0"` in Cargo.toml
+- `Cargo.toml`, `npm/package.json`, and `python/pyproject.toml` must all match the git tag
+- If any version doesn't match, the release fails before creating a draft release
+- Example: Tag `v0.2.0` requires `version = "0.2.0"` in all three manifests
+
+### Adding a New Platform
+
+When adding a new binary platform, update both of these in sync:
+
+1. **`.github/workflows/publish-npm.yml`** — add the binary to the download and `mv` steps
+2. **`.github/workflows/publish-python.yml`** — add a matrix entry with `asset`, `binary`, and `platform_tag`
+
+Also add the new target to `build-binaries.yml` so the binary is built and uploaded to the release.
 
 ### Release Checklist
 
@@ -139,10 +164,11 @@ Before creating a release:
 
 ### Troubleshooting Releases
 
-#### Tag version doesn't match Cargo.toml
+#### Tag version doesn't match manifests
 
-- Make sure you updated the version in `Cargo.toml` before creating the tag
-- Use `cargo-release` to avoid this issue
+- `cargo-release` updates all manifests automatically via `release.toml` — use it
+- If releasing manually, ensure `Cargo.toml`, `npm/package.json`, `python/pyproject.toml`,
+  and all `npm/packages/*/package.json` files all have the same version as the tag
 
 #### CI checks failed
 
@@ -151,8 +177,8 @@ Before creating a release:
 
 #### Release already exists
 
-- The workflow is idempotent - it will reuse existing releases
-- This is normal if you push multiple tags for the same commit
+- The workflow checks for an existing release before creating one and fails if found
+- Delete the existing release and tag, then re-push
 
 ## Adding New Rules
 

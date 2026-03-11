@@ -9,88 +9,12 @@ on:
         type: string
 
 jobs:
-  publish-platform:
-    name: Publish npm platform package (${{ matrix.directory }})
+  publish:
+    name: Publish npm package
     runs-on: ubuntu-latest
     environment: npm
     permissions:
-      contents: write
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux x64
-          - asset: mdlint-linux-x86_64
-            binary: mdlint
-            directory: linux-x64
-
-          # Linux x64 (musl - static binary)
-          - asset: mdlint-linux-x86_64-musl
-            binary: mdlint
-            directory: linux-x64-musl
-
-          # Linux arm64
-          - asset: mdlint-linux-aarch64
-            binary: mdlint
-            directory: linux-arm64
-
-          # Linux arm64 (musl - static binary)
-          - asset: mdlint-linux-aarch64-musl
-            binary: mdlint
-            directory: linux-arm64-musl
-
-          # macOS x64
-          - asset: mdlint-macos-x86_64
-            binary: mdlint
-            directory: darwin-x64
-
-          # macOS arm64 (Apple Silicon)
-          - asset: mdlint-macos-aarch64
-            binary: mdlint
-            directory: darwin-arm64
-
-          # Windows x64
-          - asset: mdlint-windows-x86_64.exe
-            binary: mdlint.exe
-            directory: win32-x64
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          sparse-checkout: npm
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Download binary from release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download '${{ inputs.release }}' \
-            --pattern '${{ matrix.asset }}' \
-            --output 'npm/packages/${{ matrix.directory }}/${{ matrix.binary }}' \
-            --repo '${{ github.repository }}'
-          chmod +x 'npm/packages/${{ matrix.directory }}/${{ matrix.binary }}'
-
-      - name: Publish platform package
-        env:
-          RELEASE: ${{ inputs.release }}
-        working-directory: npm/packages/${{ matrix.directory }}
-        run: |
-          npm version "${RELEASE#v}" --no-git-tag-version
-          npm publish --access public --provenance
-
-  publish-main:
-    name: Publish main npm package
-    needs: publish-platform
-    runs-on: ubuntu-latest
-    environment: npm
-    permissions:
+      contents: read
       id-token: write
     defaults:
       run:
@@ -107,17 +31,30 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Set package version
+      - name: Download binaries from release
         env:
-          RELEASE: ${{ inputs.release }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${RELEASE#v}"
-          npm version "$VERSION" --no-git-tag-version
-          npm pkg set optionalDependencies.markdownlint-rs-linux-x64="$VERSION"
-          npm pkg set optionalDependencies.markdownlint-rs-linux-arm64="$VERSION"
-          npm pkg set optionalDependencies.markdownlint-rs-darwin-x64="$VERSION"
-          npm pkg set optionalDependencies.markdownlint-rs-darwin-arm64="$VERSION"
-          npm pkg set optionalDependencies.markdownlint-rs-win32-x64="$VERSION"
+          gh release download '${{ inputs.release }}' \
+            --pattern 'mdlint-linux-x86_64' \
+            --pattern 'mdlint-linux-x86_64-musl' \
+            --pattern 'mdlint-linux-aarch64' \
+            --pattern 'mdlint-linux-aarch64-musl' \
+            --pattern 'mdlint-macos-x86_64' \
+            --pattern 'mdlint-macos-aarch64' \
+            --pattern 'mdlint-windows-x86_64.exe' \
+            --dir /tmp/binaries \
+            --repo '${{ github.repository }}'
+
+          mv /tmp/binaries/mdlint-linux-x86_64      bin/mdlint-linux-x64
+          mv /tmp/binaries/mdlint-linux-x86_64-musl  bin/mdlint-linux-x64-musl
+          mv /tmp/binaries/mdlint-linux-aarch64      bin/mdlint-linux-arm64
+          mv /tmp/binaries/mdlint-linux-aarch64-musl bin/mdlint-linux-arm64-musl
+          mv /tmp/binaries/mdlint-macos-x86_64       bin/mdlint-darwin-x64
+          mv /tmp/binaries/mdlint-macos-aarch64      bin/mdlint-darwin-arm64
+          mv /tmp/binaries/mdlint-windows-x86_64.exe bin/mdlint-win32-x64.exe
+
+          chmod +x bin/mdlint-linux-* bin/mdlint-darwin-*
 
       - name: Publish to npm
         run: npm publish --access public --provenance

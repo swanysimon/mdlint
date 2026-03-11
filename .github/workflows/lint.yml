@@ -44,12 +44,6 @@ jobs:
       - name: Check package
         run: npm pack --dry-run
 
-      - name: Check platform packages
-        run: |
-          for dir in packages/*/; do
-            npm pack --dry-run --prefix "$dir"
-          done
-
   check-python:
     name: Verify Python package
     runs-on: ubuntu-latest
