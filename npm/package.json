@@ -1,6 +1,6 @@
 {
   "name": "markdownlint-rs",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "Opinionated Markdown formatter and linter",
   "keywords": [
     "markdown",
