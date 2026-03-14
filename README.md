@@ -279,25 +279,25 @@ Rules can be configured in three ways:
 
 1. **Enable/Disable a rule:**
 
-```toml
-[rules.MD013]
-enabled = false
-```
+   ```toml
+   [rules.MD013]
+   enabled = false
+   ```
 
-1. **Configure rule parameters:**
+2. **Configure rule parameters:**
 
-```toml
-[rules.MD013]
-line_length = 100
-code_blocks = false
-```
+   ```toml
+   [rules.MD013]
+   line_length = 100
+   code_blocks = false
+   ```
 
-1. **Use both (parameters implicitly enable the rule):**
+3. **Use both (parameters implicitly enable the rule):**
 
-```toml
-[rules.MD003]
-style = "atx"
-```
+   ```toml
+   [rules.MD003]
+   style = "atx"
+   ```
 
 ### Configuration Hierarchy
 

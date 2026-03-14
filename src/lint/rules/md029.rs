@@ -1,6 +1,6 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
-use crate::types::Violation;
+use crate::types::{Fix, Violation};
 use pulldown_cmark::{Event, Tag, TagEnd};
 use serde_json::Value;
 
@@ -72,6 +72,11 @@ impl Rule for MD029 {
                             if !is_valid {
                                 let should_be = if style == "one" { 1 } else { *expected };
                                 let indent = line.len() - line.trim_start().len();
+                                let digit_len = line
+                                    .trim_start()
+                                    .chars()
+                                    .take_while(|c| c.is_ascii_digit())
+                                    .count();
                                 violations.push(Violation {
                                     line: line_num,
                                     column: Some(indent + 1),
@@ -80,7 +85,17 @@ impl Rule for MD029 {
                                         "Ordered list item prefix: expected {}, found {}",
                                         should_be, num
                                     ),
-                                    fix: None,
+                                    fix: Some(Fix {
+                                        line_start: line_num,
+                                        line_end: line_num,
+                                        column_start: Some(indent + 1),
+                                        column_end: Some(indent + digit_len),
+                                        replacement: should_be.to_string(),
+                                        description: format!(
+                                            "Renumber ordered list item to {}",
+                                            should_be
+                                        ),
+                                    }),
                                 });
                             }
 
@@ -192,6 +207,35 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0, "List with backticks should be valid");
+    }
+
+    #[test]
+    fn test_fix_populated_for_wrong_number() {
+        let content = "1. First\n1. Second\n1. Third";
+        let parser = MarkdownParser::new(content);
+        let rule = MD029;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 2);
+        let fix0 = violations[0].fix.as_ref().expect("fix should be Some");
+        assert_eq!(fix0.line_start, 2);
+        assert_eq!(fix0.replacement, "2");
+        let fix1 = violations[1].fix.as_ref().expect("fix should be Some");
+        assert_eq!(fix1.line_start, 3);
+        assert_eq!(fix1.replacement, "3");
+    }
+
+    #[test]
+    fn test_fix_indented_list() {
+        let content = "1. First\n\n   text\n\n1. Second";
+        let parser = MarkdownParser::new(content);
+        let rule = MD029;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
+        let fix = violations[0].fix.as_ref().expect("fix should be Some");
+        assert_eq!(fix.replacement, "2");
+        assert_eq!(fix.column_start, Some(1));
     }
 
     #[test]

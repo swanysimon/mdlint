@@ -59,6 +59,11 @@ struct FormatterState {
 
     // Code block state
     in_code_block: bool,
+    code_block_indent: String,
+
+    // Per-depth item marker widths (e.g. 3 for "1. ", 2 for "- "), used to
+    // compute the continuation indent for code blocks inside list items.
+    list_item_widths: Vec<usize>,
 
     // Link/image stack: stores (dest_url, title) from Start until End.
     link_stack: Vec<(String, String)>,
@@ -87,6 +92,8 @@ impl FormatterState {
             bq_depth: 0,
             inline: String::new(),
             in_code_block: false,
+            code_block_indent: String::new(),
+            list_item_widths: Vec::new(),
             link_stack: Vec::new(),
             next_is_unordered_list: false,
             table_alignments: Vec::new(),
@@ -184,13 +191,17 @@ impl FormatterState {
                     CodeBlockKind::Fenced(lang) => lang.into_string(),
                     CodeBlockKind::Indented => String::new(),
                 };
+                let indent = self.list_continuation_prefix();
+                self.code_block_indent = indent.clone();
                 self.write_bq_prefix();
+                self.out.push_str(&indent);
                 self.out.push_str("```");
                 self.out.push_str(&lang);
                 self.out.push('\n');
                 self.in_code_block = true;
             }
             Tag::List(start) => {
+                self.list_item_widths.push(0);
                 if self.list_depth == 0 {
                     self.emit_blank_if_needed();
                 } else {
@@ -226,6 +237,9 @@ impl FormatterState {
                     }
                     _ => format!("{}- ", indent),
                 };
+                if let Some(w) = self.list_item_widths.last_mut() {
+                    *w = marker.len();
+                }
                 self.write_bq_prefix();
                 self.out.push_str(&marker);
             }
@@ -309,13 +323,16 @@ impl FormatterState {
                     self.out.push('\n');
                 }
                 self.write_bq_prefix();
+                self.out.push_str(&self.code_block_indent.clone());
                 self.out.push_str("```\n");
                 self.in_code_block = false;
+                self.code_block_indent = String::new();
                 self.needs_blank = true;
             }
             TagEnd::List(_) => {
                 self.list_depth -= 1;
                 self.list_starts.pop();
+                self.list_item_widths.pop();
                 if self.list_depth == 0 {
                     if self.next_is_unordered_list {
                         // Two adjacent unordered lists would merge into one on
@@ -432,8 +449,16 @@ impl FormatterState {
 
     fn on_text(&mut self, text: &str) {
         if self.in_code_block {
-            // Code block content goes directly to output verbatim.
-            self.out.push_str(text);
+            // Code block content goes directly to output, with list
+            // continuation indent re-added (pulldown-cmark strips it).
+            if self.code_block_indent.is_empty() {
+                self.out.push_str(text);
+            } else {
+                for line in text.split_inclusive('\n') {
+                    self.out.push_str(&self.code_block_indent);
+                    self.out.push_str(line);
+                }
+            }
         } else {
             // Escape backslashes so that a literal `\` in the resolved text
             // is not re-interpreted as an escape sequence on the next parse.
@@ -446,6 +471,13 @@ impl FormatterState {
                 }
             }
         }
+    }
+
+    /// Returns the continuation indent for the current innermost list item —
+    /// i.e. the number of spaces needed to keep a block element (like a code
+    /// fence) inside that item.  Empty string when not inside a list.
+    fn list_continuation_prefix(&self) -> String {
+        " ".repeat(self.list_item_widths.last().copied().unwrap_or(0))
     }
 
     fn emit_blank_if_needed(&mut self) {
@@ -973,6 +1005,42 @@ mod tests {
         let once = format("~~~python\nx = 1\n~~~");
         let twice = format(&once);
         assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_ordered_list_with_code_block() {
+        let input = "1. **Enable rule:**\n\n   ```toml\n   enabled = false\n   ```\n\n1. **Another item:**\n\n   ```toml\n   line_length = 100\n   ```\n";
+        let output = format(input);
+        assert!(
+            output.contains("   ```toml\n"),
+            "code fence should be indented 3 spaces inside ordered list item"
+        );
+        assert!(
+            output.contains("   enabled = false\n"),
+            "code content should be indented 3 spaces"
+        );
+    }
+
+    #[test]
+    fn test_ordered_list_with_code_block_idempotent() {
+        let input = "1. **Enable rule:**\n\n   ```toml\n   enabled = false\n   ```\n\n1. **Another item:**\n\n   ```toml\n   line_length = 100\n   ```\n";
+        let once = format(input);
+        let twice = format(&once);
+        assert_eq!(
+            once, twice,
+            "ordered list with code block must be idempotent"
+        );
+    }
+
+    #[test]
+    fn test_unordered_list_with_code_block_idempotent() {
+        let input = "- **Item:**\n\n  ```toml\n  enabled = false\n  ```\n";
+        let once = format(input);
+        let twice = format(&once);
+        assert_eq!(
+            once, twice,
+            "unordered list with code block must be idempotent"
+        );
     }
 
     #[test]
