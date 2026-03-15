@@ -1,4 +1,4 @@
-# Release $
+# Release $VERSION
 
 ## Installation
 
