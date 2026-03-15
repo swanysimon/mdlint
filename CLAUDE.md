@@ -68,6 +68,10 @@ src/
 - Idempotency is a hard requirement: `format(format(x)) == format(x)`; proptest found real bugs
 - Hard line breaks: trailing-space syntax (two spaces + `\n`) must become backslash continuation
   (`\\\n`) before trailing-whitespace stripping, otherwise the line break is lost
+- Code blocks inside list items must be indented by the marker width (3 spaces for an ordered
+  `1.` marker, 2 for an unordered `-` marker) to remain inside the list; tracked via
+  `list_item_widths` stack in `FormatterState`;
+  pulldown-cmark strips the indent on parse so the formatter must re-add it on emit
 - `src/formatter/mod.rs` = canonical markdown rewriter; `src/format/` = output formatters
   (JSON, SARIF, JUnit, default) — different concerns, different directories
 - Raw HTML blocks and code block contents are passed through verbatim
@@ -75,9 +79,13 @@ src/
 ### Code Quality
 
 - All checks run via `prek run -a` (defined in `prek.toml`), managed by `mise` (`mise.toml`)
-- `prek run -a` runs: tombi TOML fmt/check → rustfmt → clippy (with `--fix`) → cargo test → mdlint
-  dogfood → hadolint Dockerfile check
-- Clippy runs as errors: `-D warnings`; clippy autofix applied before tests by prek
+- `prek run -a` runs hooks sequentially with `fail_fast = true`:
+  trailing-whitespace → end-of-file-fixer → actionlint → hadolint → tombi check → tombi format →
+  clippy (with `--fix`) → rustfmt → cargo test → mdlint check (dogfood) → mdlint format (dogfood)
+- With `fail_fast`, each failure is one thing to fix; re-run after fixing until all hooks pass
+- Formatting hooks (rustfmt, tombi format, end-of-file-fixer, trailing-whitespace) modify files in
+  place and report failure — re-running immediately after often passes with no further changes needed
+- Clippy runs as errors: `-D warnings`; autofix (`--fix --allow-dirty`) applied before tests
 - Common fixes: `unwrap_or()` over manual `is_some()`, iterators over range loops, `!is_empty()`
 
 ### Testing Strategy
@@ -87,6 +95,25 @@ src/
 - Compatibility tests skip gracefully when Docker is unavailable
 - Property-based tests via `proptest`: generate random strings, verify formatter never panics, is
   idempotent, and produces valid CommonMark
+- **Every transformation test must cover both modes:**
+  - Formatter tests: use `assert_formats_to(input, expected)` — verifies `format(input) == expected`
+    AND `format(expected) == expected` (idempotency / not-fix side) in one call
+  - Lint rule tests: add an `apply_fixes` helper (calls `Fixer::apply_fixes_to_content`) and a
+    separate test that applies the violations to the input and asserts the corrected output
+- Write tests rather than running ad-hoc `cargo run` commands to verify behaviour
+- CLI integration tests (in `tests/formatter.rs`) invoke the binary via `Command`; always add
+  `.stdout(Stdio::null()).stderr(Stdio::null())` so binary output doesn't pollute test output
+
+### Fix Framework
+
+- `Fix` struct uses **1-indexed** line/column numbers; `Fixer` converts to 0-indexed internally with
+  `saturating_sub(1)` — rule implementations must use 1-indexed values (e.g. from `offset_to_line`)
+- Empty-replacement whole-line fix (`replacement: ""`, no column range) = **delete the line**;
+  the Fixer splices it out of the Vec rather than setting it to an empty string
+- Embedded newlines in a replacement string create extra lines in the output — used by some rules
+  (e.g. MD022) to insert blank lines around headings without requiring a multi-line fix range
+- Default config has `fix = true`, so `mdlint check` without an explicit config always applies
+  fixes; tests that verify the no-fix path must supply a config file with `fix = false`
 
 ### CI/CD Architecture
 
@@ -112,6 +139,15 @@ src/
 - `bin/mdlint.js` detects platform at runtime; uses `/proc/self/maps` to distinguish glibc vs musl on Linux
 - Binaries are downloaded from the GitHub release and placed in `npm/bin/` during CI publish
 - When adding a new platform, update `publish-npm.yml` (download + mv step) and `publish-python.yml` matrix
+- npm trusted publishing (OIDC, passwordless): requires npm ≥ 11.5.1 (`npm install -g npm@latest`
+  in CI), `id-token: write` permission, and the npmjs.com trusted publisher config pointing to the
+  **calling** workflow (`tag.yml`), not the reusable workflow (`publish-npm.yml`)
+
+### Python Publishing
+
+- PyPI trusted publishing: use a single job with a bash loop over all 7 platforms rather than a
+  matrix job — avoids concurrent upload errors (HTTP 500) and reduces environment approval prompts
+  to one per release instead of one per matrix element
 
 ## References
 

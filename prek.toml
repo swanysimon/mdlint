@@ -21,7 +21,6 @@ entry = "actionlint"
 language = "system"
 pass_filenames = false
 files = "^.github/"
-priority = 10
 
 [[repos.hooks]]
 id = "hadolint"
@@ -29,7 +28,6 @@ name = "check dockerfile"
 entry = "hadolint"
 language = "system"
 files = "^Dockerfile$"
-priority = 10
 
 [[repos.hooks]]
 id = "tombi-check"
@@ -38,7 +36,6 @@ entry = "tombi check"
 language = "system"
 pass_filenames = false
 types = ["toml"]
-priority = 10
 
 [[repos.hooks]]
 id = "tombi-fmt"
@@ -47,7 +44,6 @@ entry = "tombi format"
 language = "system"
 pass_filenames = false
 types = ["toml"]
-priority = 12
 
 [[repos.hooks]]
 id = "clippy"
@@ -56,8 +52,6 @@ entry = "cargo clippy --fix --allow-dirty --all-targets"
 language = "system"
 pass_filenames = false
 types = ["rust"]
-stages = ["pre-push"]
-priority = 11
 
 [[repos.hooks]]
 id = "rustfmt"
@@ -66,7 +60,6 @@ entry = "cargo fmt --"
 language = "system"
 pass_filenames = false
 types = ["rust"]
-priority = 12
 
 [[repos.hooks]]
 id = "test"
@@ -75,8 +68,6 @@ entry = "cargo test"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
-stages = ["pre-push"]
-priority = 13
 
 [[repos.hooks]]
 id = "mdlint-check"
@@ -85,8 +76,6 @@ entry = "cargo run -- check"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
-stages = ["pre-push"]
-priority = 101
 
 [[repos.hooks]]
 id = "mdlint-format"
@@ -95,5 +84,3 @@ entry = "cargo run -- format"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
-stages = ["pre-push"]
-priority = 102
