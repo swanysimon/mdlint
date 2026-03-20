@@ -175,6 +175,15 @@ Update all three in sync: `build-binaries.yml` (build the binary), `publish-npm.
 (download + rename step), and `publish-python.yml` (platform loop). Also update the
 supported platforms tables in `npm/README.md` and `python/README.md`.
 
+### Keeping READMEs in sync
+
+`npm/README.md` and `python/README.md` mirror `README.md`. When editing any of them:
+
+- Copy changes to all three. The only intentional differences are the Installation section
+  (package-manager specific), the "How it works" section (platform/binary table), and the
+  Contributing section (package-specific build/release steps with a link to the main repo).
+- Relative links (e.g. `mdlint.default.toml`) become absolute GitHub URLs in the sub-package READMEs.
+
 ## References
 
 - [FORMAT_SPEC.md](FORMAT_SPEC.md) — canonical formatter style decisions (source of truth)
