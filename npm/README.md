@@ -1,7 +1,6 @@
-# mdlint — npm package
+# mdlint
 
-This directory contains the npm distribution for [mdlint](https://github.com/swanysimon/mdlint),
-an opinionated Markdown formatter and linter written in Rust.
+[mdlint](https://github.com/swanysimon/mdlint) is an opinionated Markdown formatter and linter written in Rust.
 
 The package wraps the pre-built `mdlint` binary via platform-specific optional dependencies.
 No Rust toolchain is required to install or use it.
@@ -12,23 +11,17 @@ No Rust toolchain is required to install or use it.
 npm install --save-dev markdownlint-rs
 ```
 
-Or globally:
-
-```shell
-npm install -g markdownlint-rs
-```
-
 ## Usage
 
 ```shell
 # Format Markdown files
 mdlint format
 
-# Check for issues
+# Check for issues and auto-fix
 mdlint check
 
-# Check and auto-fix
-mdlint check --fix
+# Check only
+mdlint check --no-fix
 ```
 
 See the [full documentation](https://github.com/swanysimon/mdlint) for all options,
@@ -42,13 +35,15 @@ Node.js wrapper that locates and execs that binary.
 
 Supported platforms:
 
-| Platform | Architecture | Optional dependency |
+| Platform | Architecture | Bundled binary |
 | --- | --- | --- |
-| Linux | x64 | `markdownlint-rs-linux-x64` |
-| Linux | arm64 | `markdownlint-rs-linux-arm64` |
-| macOS | x64 | `markdownlint-rs-darwin-x64` |
-| macOS | arm64 (Apple Silicon) | `markdownlint-rs-darwin-arm64` |
-| Windows | x64 | `markdownlint-rs-win32-x64` |
+| Linux (glibc) | x64 | `mdlint-linux-x64` |
+| Linux (glibc) | arm64 | `mdlint-linux-arm64` |
+| Linux (musl) | x64 | `mdlint-linux-x64-musl` |
+| Linux (musl) | arm64 | `mdlint-linux-arm64-musl` |
+| macOS | x64 | `mdlint-darwin-x64` |
+| macOS | arm64 (Apple Silicon) | `mdlint-darwin-arm64` |
+| Windows | x64 | `mdlint-win32-x64.exe` |
 
 ## Development
 

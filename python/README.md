@@ -1,20 +1,20 @@
-# mdlint — Python package
+# mdlint
 
-This directory contains the Python distribution for [mdlint](https://github.com/swanysimon/mdlint),
-an opinionated Markdown formatter and linter written in Rust.
+[mdlint](https://github.com/swanysimon/mdlint) is an opinionated Markdown formatter and linter written in Rust.
 
-The package wraps the pre-built `mdlint` binary. No Rust toolchain is required to install or use it.
+The package wraps the pre-built `mdlint` binary in a platform-specific wheel.
+No Rust toolchain is required to install or use it.
 
 ## Installation
 
 ```shell
-pip install mdlint
+pip install markdownlint-rs
 ```
 
 Or with uv:
 
 ```shell
-uv tool install mdlint
+uv tool install markdownlint-rs
 ```
 
 ## Usage
@@ -23,11 +23,11 @@ uv tool install mdlint
 # Format Markdown files
 mdlint format
 
-# Check for issues
+# Check for issues and auto-fix
 mdlint check
 
-# Check and auto-fix
-mdlint check --fix
+# Check only
+mdlint check --no-fix
 ```
 
 See the [full documentation](https://github.com/swanysimon/mdlint) for all options,
@@ -35,19 +35,21 @@ configuration, and CI integration examples.
 
 ## How it works
 
-`pip install mdlint` downloads a platform-specific wheel that bundles the correct pre-built
-`mdlint` binary for your OS and architecture. The `mdlint` command is a thin Python wrapper
-that locates and execs that binary.
+`pip install markdownlint-rs` downloads a platform-specific wheel that bundles the correct
+pre-built `mdlint` binary for your OS and architecture. The `mdlint` command is a thin Python
+wrapper that locates and execs that binary.
 
 Supported platforms:
 
-| Platform | Architecture |
-| --- | --- |
-| Linux | x86_64 (glibc) |
-| Linux | aarch64 (glibc) |
-| macOS | x86_64 |
-| macOS | arm64 (Apple Silicon) |
-| Windows | x86_64 |
+| Platform | Architecture | Wheel tag |
+| --- | --- | --- |
+| Linux (glibc) | x86_64 | `manylinux_2_17_x86_64` |
+| Linux (glibc) | aarch64 | `manylinux_2_17_aarch64` |
+| Linux (musl) | x86_64 | `musllinux_1_2_x86_64` |
+| Linux (musl) | aarch64 | `musllinux_1_2_aarch64` |
+| macOS | x86_64 | `macosx_10_12_x86_64` |
+| macOS | arm64 (Apple Silicon) | `macosx_11_0_arm64` |
+| Windows | x86_64 | `win_amd64` |
 
 ## Development
 
@@ -85,15 +87,17 @@ uvx twine check dist/*.whl
 | Asset | `MDLINT_PLATFORM_TAG` |
 | --- | --- |
 | `mdlint-linux-x86_64` | `manylinux_2_17_x86_64.manylinux2014_x86_64` |
+| `mdlint-linux-x86_64-musl` | `musllinux_1_2_x86_64` |
 | `mdlint-linux-aarch64` | `manylinux_2_17_aarch64.manylinux2014_aarch64` |
+| `mdlint-linux-aarch64-musl` | `musllinux_1_2_aarch64` |
 | `mdlint-macos-x86_64` | `macosx_10_12_x86_64` |
 | `mdlint-macos-aarch64` | `macosx_11_0_arm64` |
 | `mdlint-windows-x86_64.exe` | `win_amd64` |
 
 ### Release
 
-Releases are automated via `.github/workflows/build-python.yml`. On a version tag push, the
+Releases are automated via `.github/workflows/publish-python.yml`. On a version tag push, the
 workflow downloads each pre-built binary from the GitHub release, builds a platform-specific
 wheel, uploads it to the GitHub release, and publishes it to PyPI.
 
-A `PYPI_TOKEN` secret must be configured in the repository settings.
+The PyPI package uses trusted publishing via GitHub Actions OIDC — no token is required.
