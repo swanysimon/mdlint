@@ -1,4 +1,4 @@
-use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 /// Format a Markdown document to canonical style.
 ///
@@ -30,13 +30,11 @@ pub fn format(input: &str) -> String {
 }
 
 fn mk_options() -> Options {
-    let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_TABLES);
-    opts.insert(Options::ENABLE_FOOTNOTES);
-    opts.insert(Options::ENABLE_STRIKETHROUGH);
-    opts.insert(Options::ENABLE_TASKLISTS);
-    opts.insert(Options::ENABLE_HEADING_ATTRIBUTES);
-    opts
+    Options::ENABLE_TABLES
+        | Options::ENABLE_FOOTNOTES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_HEADING_ATTRIBUTES
 }
 
 struct FormatterState {
@@ -109,28 +107,8 @@ impl FormatterState {
             Event::Start(tag) => self.on_start(tag),
             Event::End(tag) => self.on_end(tag),
             Event::Text(t) => self.on_text(&t),
-            Event::Code(c) => {
-                // Inline code: choose a delimiter longer than any backtick run in the content.
-                let max_run = c.chars().fold((0usize, 0usize), |(max, cur), ch| {
-                    if ch == '`' {
-                        (max.max(cur + 1), cur + 1)
-                    } else {
-                        (max, 0)
-                    }
-                });
-                let delim = "`".repeat(max_run.0 + 1);
-                self.inline.push_str(&delim);
-                if c.starts_with('`') || c.ends_with('`') {
-                    self.inline.push(' ');
-                }
-                self.inline.push_str(&c);
-                if c.starts_with('`') || c.ends_with('`') {
-                    self.inline.push(' ');
-                }
-                self.inline.push_str(&delim);
-            }
+            Event::Code(c) => self.emit_inline_code(&c),
             Event::Html(h) => {
-                // Raw HTML block: emit verbatim.
                 self.emit_blank_if_needed();
                 self.out.push_str(&h);
                 // HTML blocks may or may not end with \n; normalise.
@@ -160,7 +138,6 @@ impl FormatterState {
                 self.inline.push_str(&format!("[^{}]", label));
             }
             Event::TaskListMarker(checked) => {
-                // Emitted just before the list item text.
                 if checked {
                     self.inline.push_str("[x] ");
                 } else {
@@ -305,13 +282,10 @@ impl FormatterState {
             }
             TagEnd::Heading(level) => {
                 let text = std::mem::take(&mut self.inline);
-                let hashes = "#".repeat(heading_to_u8(level) as usize);
+                let hashes = "#".repeat(level as usize);
                 self.write_bq_prefix();
-                // Trim whitespace: pulldown-cmark strips leading/trailing ASCII
-                // whitespace (including VT U+000B) from ATX heading content on
-                // re-parse, so emitting it would break idempotency.
-                // Also collapse embedded newlines (soft breaks from multi-line
-                // setext headings) to spaces — ATX headings are single-line.
+                // Trim: pulldown-cmark strips leading/trailing whitespace (incl. VT U+000B)
+                // on re-parse; collapse soft-break newlines to spaces for single-line ATX.
                 let heading_text = text.trim().replace('\n', " ");
                 self.out.push_str(&format!("{} {}\n", hashes, heading_text));
                 self.needs_blank = true;
@@ -460,17 +434,31 @@ impl FormatterState {
                 }
             }
         } else {
-            // Escape backslashes so that a literal `\` in the resolved text
-            // is not re-interpreted as an escape sequence on the next parse.
-            // (pulldown-cmark resolves `\\` → `\`; we must re-double it.)
-            for ch in text.chars() {
-                if ch == '\\' {
-                    self.inline.push_str("\\\\");
-                } else {
-                    self.inline.push(ch);
-                }
-            }
+            // pulldown-cmark resolves `\\` → `\`; re-double to survive the next parse.
+            self.inline.push_str(&text.replace('\\', "\\\\"));
         }
+    }
+
+    fn emit_inline_code(&mut self, code: &str) {
+        // Choose a delimiter longer than any backtick run in the content.
+        let max_run = code.chars().fold((0usize, 0usize), |(max, cur), ch| {
+            if ch == '`' {
+                (max.max(cur + 1), cur + 1)
+            } else {
+                (max, 0)
+            }
+        });
+        let delim = "`".repeat(max_run.0 + 1);
+        let needs_space = code.starts_with('`') || code.ends_with('`');
+        self.inline.push_str(&delim);
+        if needs_space {
+            self.inline.push(' ');
+        }
+        self.inline.push_str(code);
+        if needs_space {
+            self.inline.push(' ');
+        }
+        self.inline.push_str(&delim);
     }
 
     /// Returns the continuation indent for the current innermost list item —
@@ -493,9 +481,7 @@ impl FormatterState {
     }
 
     fn write_bq_prefix(&mut self) {
-        for _ in 0..self.bq_depth {
-            self.out.push_str("> ");
-        }
+        self.out.push_str(&"> ".repeat(self.bq_depth));
     }
 
     /// Flush inline text to output.
@@ -506,12 +492,9 @@ impl FormatterState {
         let mut lines = text.split('\n').peekable();
 
         if let Some(first) = lines.next() {
-            // When we are at the start of a new line (e.g. first paragraph in
-            // a blockquote), emit the blockquote prefix before the content.
             if self.bq_depth > 0 && (self.out.ends_with('\n') || self.out.is_empty()) {
                 self.out.push_str(&bq);
             }
-            // Escape leading characters that would be re-parsed as structural elements.
             if needs_line_escape(first, false) {
                 self.out.push('\\');
             }
@@ -526,8 +509,6 @@ impl FormatterState {
             }
             self.out.push_str(continuation_prefix);
             self.out.push_str(&bq);
-            // Escape leading characters that would be re-parsed as structural elements.
-            // Use continuation mode: only `1.` needs escaping (CommonMark §5.2).
             if needs_line_escape(line, true) {
                 self.out.push('\\');
             }
@@ -538,8 +519,6 @@ impl FormatterState {
 
     fn finish(mut self) -> String {
         let s = std::mem::take(&mut self.out);
-        // Strip trailing whitespace from each line, collapse consecutive blank
-        // lines to one (MD012), and normalise to exactly one trailing newline.
         let mut result: Vec<&str> = Vec::new();
         let mut prev_blank = false;
         for line in s.lines() {
@@ -593,18 +572,15 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
     // Thematic break: three or more of the same char (-, *, _) with optional spaces.
     // Catches `---`, `___`, `* * *`, etc.  The * and - cases with trailing space are
     // already caught above; this covers `---` and `___` and variants without spaces.
-    {
-        let first = line.chars().next().unwrap();
-        if matches!(first, '-' | '*' | '_') {
-            let all_valid = line.chars().all(|c| c == first || c == ' ' || c == '\t');
-            let count = line.chars().filter(|&c| c == first).count();
-            if all_valid && count >= 3 {
-                return true;
-            }
+    let first = line.chars().next().unwrap();
+    if matches!(first, '-' | '*' | '_') {
+        let all_valid = line.chars().all(|c| c == first || c == ' ' || c == '\t');
+        let count = line.chars().filter(|&c| c == first).count();
+        if all_valid && count >= 3 {
+            return true;
         }
     }
 
-    // ATX heading: one or more # followed by space or end of line
     let after_hashes = line.trim_start_matches('#');
     if after_hashes.len() < line.len() && (after_hashes.is_empty() || after_hashes.starts_with(' '))
     {
@@ -614,16 +590,14 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
     // Ordered list marker: one or more ASCII digits followed by . or ) and then space/tab/end.
     // On continuation lines only `1.` / `1)` can interrupt a paragraph (CommonMark spec §5.2),
     // so we must not escape other numbers — doing so hides broken-list errors from the linter.
-    {
-        let digits: String = line.chars().take_while(|c| c.is_ascii_digit()).collect();
-        if !digits.is_empty() {
-            let rest = &line[digits.len()..];
-            if let Some(after_marker) = rest.strip_prefix(['.', ')'])
-                && (after_marker.is_empty() || after_marker.starts_with([' ', '\t']))
-                && (!is_continuation || digits == "1")
-            {
-                return true;
-            }
+    let digits: String = line.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if !digits.is_empty() {
+        let rest = &line[digits.len()..];
+        if let Some(after_marker) = rest.strip_prefix(['.', ')'])
+            && (after_marker.is_empty() || after_marker.starts_with([' ', '\t']))
+            && (!is_continuation || digits == "1")
+        {
+            return true;
         }
     }
 
@@ -655,17 +629,6 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
     }
 
     false
-}
-
-fn heading_to_u8(level: HeadingLevel) -> u8 {
-    match level {
-        HeadingLevel::H1 => 1,
-        HeadingLevel::H2 => 2,
-        HeadingLevel::H3 => 3,
-        HeadingLevel::H4 => 4,
-        HeadingLevel::H5 => 5,
-        HeadingLevel::H6 => 6,
-    }
 }
 
 #[cfg(test)]

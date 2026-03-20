@@ -87,6 +87,11 @@ src/
   place and report failure — re-running immediately after often passes with no further changes needed
 - Clippy runs as errors: `-D warnings`; autofix (`--fix --allow-dirty`) applied before tests
 - Common fixes: `unwrap_or()` over manual `is_some()`, iterators over range loops, `!is_empty()`
+- Prefer functional patterns: `str::replace` over char loops, `"x".repeat(n)` over push loops,
+  bitflags OR operator over `.insert()` chains, `level as u8` over manual match-to-discriminant
+- Extract long inline `match` arms to named methods; keep match arms as single expressions
+- Avoid bare `{}` scope blocks to limit variable lifetimes — restructure with `if let` or extract
+- Keep comments for *why*, not *what*; delete comments that restate adjacent code
 
 ### Testing Strategy
 
