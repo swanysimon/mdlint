@@ -31,6 +31,7 @@ fn run() -> Result<bool> {
     match &cli.command {
         Command::Check(args) => run_check(args, config, use_color, cli.verbose),
         Command::Format(args) => run_format(args, config),
+        Command::Server(_) => mdlint::server::run_server().map(|()| false),
     }
 }
 
@@ -156,11 +157,13 @@ fn is_excluded(path: &PathBuf, excludes: &[PathBuf]) -> bool {
     })
 }
 
+type FileOutcome = Result<(PathBuf, Vec<Violation>, Vec<String>)>;
+
 fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
     use rayon::prelude::*;
 
     let engine = LintEngine::new(config);
-    let outcomes: Vec<Result<(PathBuf, Vec<Violation>, Vec<String>)>> = files
+    let outcomes: Vec<FileOutcome> = files
         .par_iter()
         .map(|file_path| {
             if verbose {

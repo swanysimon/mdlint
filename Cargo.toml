@@ -20,6 +20,8 @@ path = "src/main.rs"
 clap = { version = "4.5", features = ["derive"] }
 globset = "0.4"
 ignore = "0.4"
+lsp-server = "0.7"
+lsp-types = "0.97"
 pulldown-cmark = "0.13.0"
 rayon = "1.10"
 regex = "1.10"
@@ -27,6 +29,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0.18"
 toml = "0.8"
+url = "2"
 
 [dev-dependencies]
 proptest = "1.6"

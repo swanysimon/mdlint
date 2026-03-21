@@ -89,7 +89,12 @@ pub enum Command {
     Check(CheckArgs),
     /// Format Markdown files with opinionated style.
     Format(FormatArgs),
+    /// Start an LSP server communicating over stdio.
+    Server(ServerArgs),
 }
+
+#[derive(Args, Debug)]
+pub struct ServerArgs {}
 
 #[derive(Args, Debug)]
 pub struct CheckArgs {

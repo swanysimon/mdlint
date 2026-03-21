@@ -19,6 +19,9 @@ pub enum MarkdownlintError {
 
     #[error("Fix error: {0}")]
     Fix(String),
+
+    #[error("LSP error: {0}")]
+    Lsp(String),
 }
 
 pub type Result<T> = std::result::Result<T, MarkdownlintError>;
