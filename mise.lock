@@ -104,37 +104,37 @@ checksum = "sha256:8e0ee174f88edb14f207a68430c7a53c2883ed509cdbde9a3a26fffa140fa
 url = "https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-windows-x86_64.exe"
 
 [[tools.prek]]
-version = "0.3.5"
+version = "0.3.6"
 backend = "aqua:j178/prek"
 
 [tools.prek."platforms.linux-arm64"]
-checksum = "sha256:2534c3297c466814a0356121c9fe15934433ec3dd0343f0c8251ff348b08fa41"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-aarch64-unknown-linux-musl.tar.gz"
+checksum = "sha256:0cf6d013c981a56465757dc7ff0fd3a9ceace27d7f0a792f435d1be79b790236"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-aarch64-unknown-linux-musl.tar.gz"
 
 [tools.prek."platforms.linux-arm64-musl"]
-checksum = "sha256:2534c3297c466814a0356121c9fe15934433ec3dd0343f0c8251ff348b08fa41"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-aarch64-unknown-linux-musl.tar.gz"
+checksum = "sha256:0cf6d013c981a56465757dc7ff0fd3a9ceace27d7f0a792f435d1be79b790236"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-aarch64-unknown-linux-musl.tar.gz"
 
 [tools.prek."platforms.linux-x64"]
-checksum = "sha256:b8a18b6da657e2a85cabaa699da191f0aaa55008109cf97d23ae0580962876dc"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:942564ccc9c342d317294fec7b7a77aa24ec71136e3439b15cddb62e49f76899"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-x86_64-unknown-linux-musl.tar.gz"
 
 [tools.prek."platforms.linux-x64-musl"]
-checksum = "sha256:b8a18b6da657e2a85cabaa699da191f0aaa55008109cf97d23ae0580962876dc"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:942564ccc9c342d317294fec7b7a77aa24ec71136e3439b15cddb62e49f76899"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-x86_64-unknown-linux-musl.tar.gz"
 
 [tools.prek."platforms.macos-arm64"]
-checksum = "sha256:652cc3f3907f732028366c1da60babfdd9236fc7bef1a686fa561b45e6f948de"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-aarch64-apple-darwin.tar.gz"
+checksum = "sha256:50535d4fb3a0fd05f137bbdae6f8ffde17615949bd282817e3aa5755dd8d8d4c"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-aarch64-apple-darwin.tar.gz"
 
 [tools.prek."platforms.macos-x64"]
-checksum = "sha256:e4fdab89c5fcca22ea99c4582eb8186e088c8d5c10b10c4fa97e1cff45050c6d"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-x86_64-apple-darwin.tar.gz"
+checksum = "sha256:0ef3ec3dd4429a5d9e2ebe1b65b37319b5611be3d688a86813aa3004761c4db3"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-x86_64-apple-darwin.tar.gz"
 provenance = "github-attestations"
 
 [tools.prek."platforms.windows-x64"]
-checksum = "sha256:d7f0877d54533376186b31455f3c23f226eaecaa4ff9e8169d5bd1670f594525"
-url = "https://github.com/j178/prek/releases/download/v0.3.5/prek-x86_64-pc-windows-msvc.zip"
+checksum = "sha256:71d02992997e3fc7a3cf1877febf385bc299cdbe397d1b7b2e57f8bc3d0a14e8"
+url = "https://github.com/j178/prek/releases/download/v0.3.6/prek-x86_64-pc-windows-msvc.zip"
 
 [[tools.shellcheck]]
 version = "0.11.0"
@@ -169,33 +169,33 @@ checksum = "sha256:8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e7
 url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip"
 
 [[tools.tombi]]
-version = "0.9.4"
+version = "0.9.9"
 backend = "aqua:tombi-toml/tombi"
 
 [tools.tombi."platforms.linux-arm64"]
-checksum = "sha256:51f267a6ec0d9bd937afe0f3a102a6a7d3e9ad15e8e985f63c69313c4bc9593d"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-aarch64-unknown-linux-musl.gz"
+checksum = "sha256:75d32d6d17a35c5307f7b67c4f80eca8d43b4d5bdacf86505a4bb87dcb3100d0"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-aarch64-unknown-linux-musl.gz"
 
 [tools.tombi."platforms.linux-arm64-musl"]
-checksum = "sha256:51f267a6ec0d9bd937afe0f3a102a6a7d3e9ad15e8e985f63c69313c4bc9593d"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-aarch64-unknown-linux-musl.gz"
+checksum = "sha256:75d32d6d17a35c5307f7b67c4f80eca8d43b4d5bdacf86505a4bb87dcb3100d0"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-aarch64-unknown-linux-musl.gz"
 
 [tools.tombi."platforms.linux-x64"]
-checksum = "sha256:4bfb639f6d242a5cbf9b364c9bfd812ab2e1ea148aa93895e9d9593418b048af"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-x86_64-unknown-linux-musl.gz"
+checksum = "sha256:4317ffc3e08fc6e3ba92953af85b6ad361493fd79916949aec5b5b7af471922f"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-x86_64-unknown-linux-musl.gz"
 
 [tools.tombi."platforms.linux-x64-musl"]
-checksum = "sha256:4bfb639f6d242a5cbf9b364c9bfd812ab2e1ea148aa93895e9d9593418b048af"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-x86_64-unknown-linux-musl.gz"
+checksum = "sha256:4317ffc3e08fc6e3ba92953af85b6ad361493fd79916949aec5b5b7af471922f"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-x86_64-unknown-linux-musl.gz"
 
 [tools.tombi."platforms.macos-arm64"]
-checksum = "sha256:7ab18edcbd50325fac023c3a78d361aad8a59313cb010f5fe06d3070b099ac74"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-aarch64-apple-darwin.gz"
+checksum = "sha256:4e49e41a2f3bd7a26e11c0ce936ac0b75d60c9068798b951ea925cea04ce4a5b"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-aarch64-apple-darwin.gz"
 
 [tools.tombi."platforms.macos-x64"]
-checksum = "sha256:746b0134d21a7ace029266e0c0fa2302b3b84206d16f6e400a39cc34cb24d705"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-x86_64-apple-darwin.gz"
+checksum = "sha256:7f43d90e17f0a6406b5c53bb2773ea1f51e9aba00d47e76d6a55f70ba6e519e0"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-x86_64-apple-darwin.gz"
 
 [tools.tombi."platforms.windows-x64"]
-checksum = "sha256:a9df3f61e1d5768d33c97f8d111ec0d1f57880cc9c7d04a65966da3933450b8a"
-url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.4/tombi-cli-0.9.4-x86_64-pc-windows-msvc.zip"
+checksum = "sha256:efb2e3bd949435d244368179476658b5bed9bf35b662face2c00920faf97f247"
+url = "https://github.com/tombi-toml/tombi/releases/download/v0.9.9/tombi-cli-0.9.9-x86_64-pc-windows-msvc.zip"
