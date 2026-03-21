@@ -41,6 +41,9 @@ all = "deny"
 [lints.rust]
 warnings = "deny"
 
+[profile.dev]
+debug = 1
+
 [profile.release]
 opt-level = 3
 strip = true
