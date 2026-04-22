@@ -123,8 +123,11 @@ pub struct CheckArgs {
     #[arg(long, hide = true, conflicts_with = "respect_ignore")]
     pub no_respect_ignore: bool,
 
-    #[arg(long, help = "Apply auto-fixes where possible")]
+    #[arg(long, help = "Apply auto-fixes where possible", overrides_with = "no_fix")]
     pub fix: bool,
+
+    #[arg(long, hide = true, overrides_with = "fix")]
+    pub no_fix: bool,
 
     #[arg(
         long,
@@ -175,6 +178,14 @@ impl CheckArgs {
 
     pub fn should_respect_ignore(&self) -> bool {
         !self.no_respect_ignore
+    }
+
+    pub fn should_fix(&self) -> Option<bool> {
+        match (self.fix, self.no_fix) {
+            (true, _) => Some(true),
+            (_, true) => Some(false),
+            (false, false) => None,
+        }
     }
 }
 
