@@ -257,12 +257,14 @@ pub enum OutputFormat {
     #[default]
     Default,
     Json,
+    Gitlab,
 }
 
 impl Display for OutputFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OutputFormat::Default => write!(f, "default"),
+            OutputFormat::Gitlab => write!(f, "gitlab"),
             OutputFormat::Json => write!(f, "json"),
         }
     }

@@ -4,7 +4,7 @@ use mdlint::config::loader::{ConfigLoader, find_all_configs};
 use mdlint::config::{Config, merge_many_configs};
 use mdlint::error::Result;
 use mdlint::fix::Fixer;
-use mdlint::format::{DefaultFormatter, Formatter, JsonFormatter};
+use mdlint::format::{DefaultFormatter, Formatter, GitlabFormatter, JsonFormatter};
 use mdlint::formatter;
 use mdlint::glob::FileWalker;
 use mdlint::lint::{LintEngine, LintResult};
@@ -57,6 +57,7 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
 
     let output = match args.output_format {
         OutputFormat::Default => DefaultFormatter::new(use_color).format(&lint_result),
+        OutputFormat::Gitlab => GitlabFormatter::new(false).format(&lint_result),
         OutputFormat::Json => JsonFormatter::new(false).format(&lint_result),
     };
     print!("{}", output);
