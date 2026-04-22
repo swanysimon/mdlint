@@ -45,11 +45,12 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
         return Ok(false);
     }
 
-    let lint_result = if args.parallel && !args.no_parallel {
+    let mut lint_result = if args.parallel && !args.no_parallel {
         lint_files_parallel(config, &files, verbose)?
     } else {
         lint_files(config, &files, verbose)?
     };
+    lint_result.sort_violations();
 
     if should_fix && lint_result.has_errors() {
         apply_fixes(&lint_result)?;

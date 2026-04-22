@@ -34,6 +34,12 @@ impl LintResult {
         self.total_files_checked += 1;
     }
 
+    pub fn sort_violations(&mut self) {
+        for file_result in &mut self.file_results {
+            file_result.violations.sort_by_key(|v| (v.line, v.column));
+        }
+    }
+
     pub fn has_errors(&self) -> bool {
         self.total_errors > 0
     }
