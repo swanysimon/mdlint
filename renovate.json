@@ -2,5 +2,31 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "schedule": ["on wednesday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["on wednesday"],
+    "groupName": "all dependencies"
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^rust-toolchain\\.toml$"],
+      "matchStrings": ["channel = \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "rust",
+      "datasourceTemplate": "github-releases",
+      "packageNameTemplate": "rust-lang/rust"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["cargo"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "matchPackagePatterns": ["*"],
+      "groupName": "all dependencies"
+    }
   ]
 }
