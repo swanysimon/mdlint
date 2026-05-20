@@ -19,6 +19,19 @@ file = "python/pyproject.toml"
 search = 'version = "[^"]*"'
 replace = 'version = "{{version}}"'
 
+# npm lock file version
+[[pre-release-replacements]]
+file = "npm/package-lock.json"
+search = '"version": "[^"]*"'
+replace = '"version": "{{version}}"'
+count = 2
+
+# Python lock file version
+[[pre-release-replacements]]
+file = "python/uv.lock"
+search = 'version = "[^"]*"'
+replace = 'version = "{{version}}"'
+
 # pre-commit hook revision in all READMEs
 [[pre-release-replacements]]
 file = "README.md"
