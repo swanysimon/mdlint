@@ -1,0 +1,15 @@
+- id: mdlint-format
+  name: mdlint format
+  description: "Run 'mdlint format' for consistent, reliable Markdown formatting."
+  entry: mdlint format
+  language: rust
+  types: [markdown]
+  args: []
+
+- id: mdlint-check
+  name: mdlint check
+  description: "Run 'mdlint check' for consistent, reliable Markdown linting."
+  entry: mdlint check
+  language: rust
+  types: [markdown]
+  args: []

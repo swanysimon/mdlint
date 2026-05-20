@@ -1,4 +1,4 @@
-FROM rust:alpine AS builder
+FROM rust:1.95-alpine AS builder
 
 # Docker provides these automatically based on --platform
 ARG TARGETARCH

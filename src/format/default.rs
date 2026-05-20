@@ -1,5 +1,7 @@
 use crate::format::Formatter;
 use crate::lint::LintResult;
+use std::env;
+use std::path::PathBuf;
 
 pub struct DefaultFormatter {
     use_color: bool,
@@ -46,6 +48,7 @@ impl DefaultFormatter {
 impl Formatter for DefaultFormatter {
     fn format(&self, result: &LintResult) -> String {
         let mut output = String::new();
+        let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
 
         // Output violations by file
         for file_result in &result.file_results {
@@ -57,12 +60,19 @@ impl Formatter for DefaultFormatter {
             let path_display = file_result.path.display();
             output.push_str(&format!("{}\n", self.yellow(&path_display.to_string())));
 
+            // Shorten file path
+            let path_relative = file_result
+                .path
+                .strip_prefix(&current_dir)
+                .map(|rel_path| rel_path.to_path_buf())
+                .unwrap_or_else(|_| file_result.path.clone());
+
             // Each violation
             for violation in &file_result.violations {
                 let location = if let Some(col) = violation.column {
-                    format!("{}:{}", violation.line, col)
+                    format!("{}:{}:{}", path_relative.display(), violation.line, col)
                 } else {
-                    format!("{}", violation.line)
+                    format!("{}:{}", path_relative.display(), violation.line)
                 };
 
                 output.push_str(&format!(
@@ -215,5 +225,31 @@ mod tests {
             "snippet should appear in output"
         );
         assert!(output.contains('^'), "caret should appear under the column");
+    }
+
+    #[test]
+    fn test_relative_path() {
+        let formatter = DefaultFormatter::without_context(false);
+        let path_relative = PathBuf::from("subfolder/test.md");
+        let path_absolute = env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from(""))
+            .join(path_relative.clone());
+        let mut result = LintResult::new();
+        result.add_file_result(
+            path_absolute.clone(),
+            vec![make_violation(
+                5,
+                Some(10),
+                "MD001",
+                "Heading levels should increment by one",
+            )],
+            vec![],
+        );
+        let output = formatter.format(&result);
+        assert!(output.contains(&path_absolute.display().to_string()));
+        assert!(output.contains(" subfolder/test.md:5:10"));
+        assert!(output.contains("MD001"));
+        assert!(output.contains("Heading levels"));
+        assert!(output.contains("Found 1 error(s)"));
     }
 }
