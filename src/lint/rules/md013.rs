@@ -56,7 +56,7 @@ impl Rule for MD013 {
         let mut link_only_lines = HashSet::new();
 
         let mut in_code_block = false;
-        let mut in_table = false;
+        let mut table_start_offset = None;
 
         for (event, range) in parser.parse_with_offsets() {
             let line = parser.offset_to_line(range.start);
@@ -72,10 +72,17 @@ impl Rule for MD013 {
                     in_code_block = false;
                 }
                 Event::Start(Tag::Table(_)) => {
-                    in_table = true;
+                    table_start_offset = Some(range.start);
                 }
                 Event::End(TagEnd::Table) => {
-                    in_table = false;
+                    if let Some(start_off) = table_start_offset {
+                        let start_line = parser.offset_to_line(start_off);
+                        let end_line = parser.offset_to_line(range.end);
+                        for l in start_line..=end_line {
+                            table_lines.insert(l);
+                        }
+                    }
+                    table_start_offset = None;
                 }
                 Event::Start(Tag::Link { .. }) | Event::Start(Tag::Image { .. }) => {
                     // Check if this link/image is the only content on the line
@@ -89,9 +96,6 @@ impl Rule for MD013 {
                 }
                 Event::Text(_) if in_code_block => {
                     code_block_lines.insert(line);
-                }
-                Event::Text(_) if in_table => {
-                    table_lines.insert(line);
                 }
                 _ => {}
             }
@@ -278,5 +282,33 @@ mod tests {
             1,
             "Lines with text and links should still be checked"
         );
+    }
+
+    #[test]
+    fn test_long_table_line() {
+        let content = "| Col1 | Col2 |\n|------|------|\n| A    | B    |\n| C    | D    |";
+        let parser = MarkdownParser::new(content);
+        let rule = MD013;
+        let config = serde_json::json!({ "line_length": 10, "tables": true });
+        let violations = rule.check(&parser, Some(&config));
+
+        assert_eq!(violations.len(), 4);
+        assert!(
+            violations
+                .iter()
+                .enumerate()
+                .all(|(i, v)| v.line == (i + 1))
+        );
+    }
+
+    #[test]
+    fn test_long_table_line_ignored() {
+        let content = "| Col1 | Col2 |\n|------|------|\n| A    | B    |\n| C    | D    |";
+        let parser = MarkdownParser::new(content);
+        let rule = MD013;
+        let config = serde_json::json!({ "line_length": 10, "tables": false });
+        let violations = rule.check(&parser, Some(&config));
+
+        assert_eq!(violations.len(), 0);
     }
 }
