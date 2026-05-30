@@ -399,29 +399,20 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/swanysimon/mdlint
-    rev: v0.3.3  # use the latest release tag
+    rev: v0.3.16  # use the latest release tag
     hooks:
-      - id: mdlint-format-check
-        name: mdlint format --check
-        language: system
-        entry: mdlint format --check
-        types: [markdown]
+      - id: mdlint-format
       - id: mdlint-check
-        name: mdlint check
-        language: system
-        entry: mdlint check
-        types: [markdown]
 ```
 
-Or use `mdlint check --fix` to auto-fix and stage the result:
+Or use additional arguments, e.g., to disable auto‑fix features:
 
 ```yaml
-      - id: mdlint-fix
-        name: mdlint check --fix
-        language: system
-        entry: mdlint check --fix
-        types: [markdown]
-        pass_filenames: false
+    hooks:
+      - id: mdlint-format
+        args: [--check]
+      - id: mdlint-check
+        args: [--no-fix]
 ```
 
 ### GitHub Actions

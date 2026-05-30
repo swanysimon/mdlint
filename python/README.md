@@ -355,7 +355,7 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/swanysimon/mdlint
-    rev: v0.3.3  # use the latest release tag
+    rev: v0.3.16  # use the latest release tag
     hooks:
       - id: mdlint-format-check
         name: mdlint format --check

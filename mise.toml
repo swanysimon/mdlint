@@ -1,7 +1,7 @@
 [tools]
-actionlint = "latest"
-"github:crate-ci/cargo-release" = "latest"
-hadolint = "latest"
-prek = "latest"
-shellcheck = "latest"
-tombi = "latest"
+actionlint = "1.7.12"
+"github:crate-ci/cargo-release" = "1.1.2"
+hadolint = "2.14.0"
+prek = "0.3.13"
+shellcheck = "0.11.0"
+tombi = "0.10.6"
