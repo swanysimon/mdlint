@@ -5,10 +5,14 @@ default_install_hook_types = [
 
 [[repos]]
 repo = "builtin"
-hooks = [
-  { id = "trailing-whitespace" },
-  { id = "end-of-file-fixer" },
-]
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+prority = 1
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+prority = 2
 
 [[repos]]
 repo = "local"
@@ -20,6 +24,7 @@ entry = "actionlint"
 language = "system"
 pass_filenames = false
 files = "^.github/"
+priority = 3
 
 [[repos.hooks]]
 id = "hadolint"
@@ -27,6 +32,7 @@ name = "check dockerfile"
 entry = "hadolint"
 language = "system"
 files = "^Dockerfile$"
+priority = 3
 
 [[repos.hooks]]
 id = "tombi-check"
@@ -35,6 +41,7 @@ entry = "tombi check"
 language = "system"
 pass_filenames = false
 types = ["toml"]
+priority = 3
 
 [[repos.hooks]]
 id = "tombi-fmt"
@@ -43,6 +50,7 @@ entry = "tombi format"
 language = "system"
 pass_filenames = false
 types = ["toml"]
+priority = 4
 
 [[repos.hooks]]
 id = "clippy"
@@ -51,6 +59,7 @@ entry = "cargo clippy --fix --allow-dirty --all-targets"
 language = "system"
 pass_filenames = false
 types = ["rust"]
+priority = 4
 
 [[repos.hooks]]
 id = "rustfmt"
@@ -59,6 +68,7 @@ entry = "cargo fmt --"
 language = "system"
 pass_filenames = false
 types = ["rust"]
+priority = 5
 
 [[repos.hooks]]
 id = "test"
@@ -67,6 +77,7 @@ entry = "cargo test"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
+priority = 6
 
 [[repos.hooks]]
 id = "mdlint-check"
@@ -75,6 +86,7 @@ entry = "cargo run -- check"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
+priority = 6
 
 [[repos.hooks]]
 id = "mdlint-format"
@@ -83,3 +95,4 @@ entry = "cargo run -- format"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
+priority = 7
