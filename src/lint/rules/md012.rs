@@ -46,7 +46,9 @@ impl Rule for MD012 {
                             rule: self.name().to_string(),
                             message: format!(
                                 "{} [Expected: {}; Actual: {}]",
-                                self.description().to_string(), 1, consecutive_blank
+                                self.description(),
+                                1,
+                                consecutive_blank
                             ),
                             fix: Some(Fix {
                                 line_start: blank_start_line + i,
