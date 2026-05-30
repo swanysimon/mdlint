@@ -1,6 +1,6 @@
 {
   "name": "markdownlint-rs",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "description": "Opinionated Markdown formatter and linter",
   "keywords": [
     "markdown",
@@ -23,6 +23,6 @@
     "bin/"
   ],
   "engines": {
-    "node": ">=14"
+    "node": ">=20"
   }
 }

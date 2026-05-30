@@ -39,12 +39,10 @@ impl Rule for MD031 {
                     // Track that we're in an indented block, but don't record it
                     in_fenced_block = false;
                 }
-                Event::End(TagEnd::CodeBlock) => {
-                    if in_fenced_block {
-                        let line = parser.offset_to_line(range.end);
-                        code_block_ends.push(line);
-                        in_fenced_block = false;
-                    }
+                Event::End(TagEnd::CodeBlock) if in_fenced_block => {
+                    let line = parser.offset_to_line(range.end);
+                    code_block_ends.push(line);
+                    in_fenced_block = false;
                 }
                 _ => {}
             }

@@ -301,9 +301,13 @@ impl FormatterState {
                 let text = std::mem::take(&mut self.inline);
                 let hashes = "#".repeat(level as usize);
                 self.write_bq_prefix();
-                // Trim: pulldown-cmark strips leading/trailing whitespace (incl. VT U+000B)
-                // on re-parse; collapse soft-break newlines to spaces for single-line ATX.
-                let heading_text = text.trim().replace('\n', " ");
+                // Collapse hard breaks (`\\\n`) and soft breaks (`\n`) to spaces, then trim.
+                // Trim must come after replacement: a leading hard break produces a leading
+                // space after replacement that trim() removes.  Trimming first would leave
+                // the bare `\` of the hard-break marker in the output unescaped, breaking
+                // idempotency on re-parse.
+                let heading_raw = text.replace("\\\n", " ").replace('\n', " ");
+                let heading_text = heading_raw.trim();
                 self.out.push_str(&format!("{} {}\n", hashes, heading_text));
                 self.needs_blank = true;
             }
@@ -337,9 +341,9 @@ impl FormatterState {
                     }
                 }
             }
-            TagEnd::Item => {
+            TagEnd::Item
                 // Tight list item: the content was never wrapped in Paragraph.
-                if self.in_tight_item {
+                if self.in_tight_item => {
                     let text = std::mem::take(&mut self.inline);
                     if !text.is_empty() {
                         let prefix = "  ".repeat(self.list_depth);
@@ -347,7 +351,6 @@ impl FormatterState {
                     }
                     self.in_tight_item = false;
                 }
-            }
             TagEnd::Emphasis => self.inline.push('*'),
             TagEnd::Strong => self.inline.push_str("**"),
             TagEnd::Strikethrough => self.inline.push_str("~~"),
@@ -910,6 +913,13 @@ mod tests {
     fn test_setext_headings_to_atx() {
         assert_formats_to("Heading 1\n=========", "# Heading 1\n");
         assert_formats_to("Heading 2\n---------", "## Heading 2\n");
+    }
+
+    // Heading with a hard line break in content: the `\` marker must not appear
+    // unescaped in output (proptest regression: input "\\\r¡\r=").
+    #[test]
+    fn test_setext_heading_hard_break_not_leaked() {
+        assert_formats_to("\\\r¡\r=", "# ¡\n");
     }
 
     // Headings: closed ATX → open ATX
