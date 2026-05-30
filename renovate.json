@@ -13,7 +13,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^rust-toolchain\\.toml$"],
+      "managerFilePatterns": [
+        "/^rust-toolchain\\.toml$/"
+      ],
       "matchStrings": ["channel = \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "rust",
       "datasourceTemplate": "github-releases",
@@ -26,8 +28,10 @@
       "rangeStrategy": "bump"
     },
     {
-      "matchPackagePatterns": ["*"],
-      "groupName": "all dependencies"
+      "groupName": "all dependencies",
+      "matchPackageNames": [
+        "*"
+      ]
     }
   ]
 }
