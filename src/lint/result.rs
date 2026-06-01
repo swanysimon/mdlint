@@ -36,11 +36,59 @@ impl LintResult {
 
     pub fn sort_violations(&mut self) {
         for file_result in &mut self.file_results {
-            file_result.violations.sort_by_key(|v| (v.line, v.column));
+            file_result
+                .violations
+                .sort_by_key(|v| (v.line, v.column, v.rule.clone()));
         }
     }
 
     pub fn has_errors(&self) -> bool {
         self.total_errors > 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sort_violations() {
+        let mut result = LintResult::new();
+        result.add_file_result(
+            PathBuf::from("test.md"),
+            vec![
+                // violations in reverse order
+                Violation {
+                    line: 3,
+                    column: Some(1),
+                    rule: "MD047".to_string(),
+                    message: "Files should end with a single newline character".to_string(),
+                    fix: None,
+                },
+                Violation {
+                    line: 3,
+                    column: Some(1),
+                    rule: "MD041".to_string(),
+                    message: "First line in file should be a level 1 heading".to_string(),
+                    fix: None,
+                },
+                Violation {
+                    line: 2,
+                    column: Some(1),
+                    rule: "MD012".to_string(),
+                    message: "Multiple consecutive blank lines".to_string(),
+                    fix: None,
+                },
+            ],
+            vec![],
+        );
+
+        result.sort_violations();
+
+        assert_eq!(result.file_results.len(), 1);
+        assert_eq!(result.file_results[0].violations.len(), 3);
+        assert_eq!(result.file_results[0].violations[0].rule, "MD012");
+        assert_eq!(result.file_results[0].violations[1].rule, "MD041");
+        assert_eq!(result.file_results[0].violations[2].rule, "MD047");
     }
 }
