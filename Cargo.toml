@@ -17,23 +17,23 @@ name = "mdlint"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "^4.5", features = ["derive"] }
-globset = ">= 0.4, < 1"
-ignore = ">= 0.4, < 1"
-lsp-server = ">= 0.7, < 1"
+clap = { version = "^4.6.1", features = ["derive"] }
+globset = ">= 0.4.18, < 1"
+ignore = ">= 0.4.25, < 1"
+lsp-server = ">= 0.7.9, < 1"
 lsp-types = ">= 0.97, < 1"
-pulldown-cmark = ">= 0.13.0, < 1"
-rayon = "^1.10"
-regex = "^1.10"
-serde = { version = "^1.0", features = ["derive"] }
-serde_json = "^1.0"
+pulldown-cmark = ">= 0.13.4, < 1"
+rayon = "^1.12.0"
+regex = "^1.12.3"
+serde = { version = "^1.0.228", features = ["derive"] }
+serde_json = "^1.0.150"
 thiserror = "^2.0.18"
-toml = "^1"
-url = "^2"
+toml = "^1.1.2"
+url = "^2.5.8"
 
 [dev-dependencies]
-proptest = "^1.6"
-tempfile = "^3.14"
+proptest = "^1.11.0"
+tempfile = "^3.27.0"
 
 [lints.clippy]
 all = "deny"
