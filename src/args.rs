@@ -91,10 +91,35 @@ pub enum Command {
     Format(FormatArgs),
     /// Start an LSP server communicating over stdio.
     Server(ServerArgs),
+    /// Migrate a markdownlint-cli2 configuration to mdlint.toml.
+    Migrate(MigrateArgs),
 }
 
 #[derive(Args, Debug)]
 pub struct ServerArgs {}
+
+#[derive(Args, Debug)]
+pub struct MigrateArgs {
+    #[arg(
+        value_name = "INPUT",
+        help = "Path to the markdownlint-cli2 config to migrate (auto-detected if omitted)"
+    )]
+    pub input: Option<PathBuf>,
+
+    #[arg(
+        long,
+        default_value = "mdlint.toml",
+        value_name = "PATH",
+        help = "Output path for the generated config"
+    )]
+    pub output: PathBuf,
+
+    #[arg(long, help = "Overwrite the output file if it already exists")]
+    pub force: bool,
+
+    #[arg(long, help = "Print the generated config without writing it")]
+    pub dry_run: bool,
+}
 
 #[derive(Args, Debug)]
 pub struct CheckArgs {

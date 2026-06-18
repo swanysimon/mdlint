@@ -136,6 +136,31 @@ Options:
   -h, --help                       Print help
 ```
 
+### mdlint migrate
+
+Migrate a `markdownlint-cli2` configuration to `mdlint.toml`.
+
+```text
+Usage: mdlint migrate [OPTIONS] [INPUT]
+
+Arguments:
+  [INPUT]                          Path to the markdownlint-cli2 config to migrate (auto-detected if omitted)
+
+Options:
+      --output <PATH>              Output path for the generated config [default: mdlint.toml]
+      --force                      Overwrite the output file if it already exists
+      --dry-run                    Print the generated config without writing it
+  -h, --help                       Print help
+```
+
+Supports `.markdownlint-cli2.{json,jsonc,yaml,yml}` and standalone `.markdownlint.{json,jsonc,yaml,yml}` rule
+configs. Rule names and their common aliases (e.g. `line-length` for `MD013`) are both recognized. `.cjs`/`.mjs`
+configs are handled on a best-effort basis (mdlint does not execute JavaScript) — if a config uses variables,
+function calls, or computed values, migration fails with a message asking you to export the config with
+`console.log(JSON.stringify(config))` and migrate the resulting JSON file instead. Rules with no mdlint
+implementation, and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`, `outputFormatters`),
+are skipped with a warning rather than failing the migration.
+
 ### Examples
 
 ```bash
@@ -168,6 +193,12 @@ mdlint check --config path/to/mdlint.toml
 
 # ignore all config files
 mdlint check --no-config
+
+# migrate a markdownlint-cli2 config to mdlint.toml
+mdlint migrate
+
+# migrate a specific config file to a custom output path
+mdlint migrate .markdownlint-cli2.jsonc --output mdlint.toml
 ```
 
 ## Configuration

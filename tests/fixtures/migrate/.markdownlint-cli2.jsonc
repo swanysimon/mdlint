@@ -1,0 +1,11 @@
+{
+  // example markdownlint-cli2 config
+  "config": {
+    "default": true,
+    "MD013": { "line_length": 100 },
+    "heading-style": { "style": "atx" },
+    "no-bare-urls": false
+  },
+  "ignores": ["dist/**", "node_modules"],
+  "fix": false
+}

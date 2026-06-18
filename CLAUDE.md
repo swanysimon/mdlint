@@ -25,6 +25,7 @@ src/
   fix/                   # Auto-fix framework
   formatter/             # Canonical markdown rewriter (mdlint format)
   format/                # Output formatters (default, JSON, JUnit, SARIF)
+  migrate/               # markdownlint-cli2 config -> mdlint.toml (mdlint migrate)
   logger/                # Log level handling
   error.rs / types.rs    # Shared types and error definitions
 ```
