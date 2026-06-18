@@ -90,9 +90,9 @@ pub fn migrate_file(path: &Path) -> Result<MigrationResult> {
         .unwrap_or_default()
         .to_ascii_lowercase();
 
-    let source = match extension.as_str() {
-        "json" | "jsonc" => cli2::parse_json(&content, path)?,
-        "yaml" | "yml" => cli2::parse_yaml(&content, path)?,
+    let (source, mut extra_warnings) = match extension.as_str() {
+        "json" | "jsonc" => (cli2::parse_json(&content, path)?, Vec::new()),
+        "yaml" | "yml" => (cli2::parse_yaml(&content, path)?, Vec::new()),
         "cjs" | "mjs" | "js" => js::parse_js(&content, path)?,
         other => {
             return Err(MarkdownlintError::Migrate(format!(
@@ -102,7 +102,10 @@ pub fn migrate_file(path: &Path) -> Result<MigrationResult> {
         }
     };
 
-    Ok(build_config(source))
+    let mut result = build_config(source);
+    extra_warnings.append(&mut result.warnings);
+    result.warnings = extra_warnings;
+    Ok(result)
 }
 
 fn build_config(source: Cli2Source) -> MigrationResult {

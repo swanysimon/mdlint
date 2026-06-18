@@ -3,21 +3,97 @@ use crate::migrate::cli2::Cli2Source;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
+use std::process::Command;
+use std::sync::OnceLock;
 
-/// Best-effort extraction of a markdownlint-cli2 config from a `.cjs`/`.mjs` file.
+const NODE_EVAL_SCRIPT: &str = r#"import(process.argv[1]).then(m => {
+  const cfg = m.default ?? m;
+  process.stdout.write(JSON.stringify(cfg));
+}).catch(e => { console.error(e.message); process.exit(1); });"#;
+
+fn node_available() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        Command::new("node")
+            .arg("--version")
+            .output()
+            .is_ok_and(|output| output.status.success())
+    })
+}
+
+fn document_to_source(document: HashMap<String, Value>) -> Cli2Source {
+    Cli2Source {
+        config: document
+            .get("config")
+            .and_then(|v| serde_json::from_value::<HashMap<String, Value>>(v.clone()).ok())
+            .or_else(|| Some(document.clone())),
+        ignores: document
+            .get("ignores")
+            .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok()),
+        fix: document.get("fix").and_then(Value::as_bool),
+    }
+}
+
+/// Evaluate a `.cjs`/`.mjs` markdownlint-cli2 config with a real Node.js runtime, the
+/// only way to correctly resolve `require()`, spread syntax, or computed values. Returns
+/// `None` if Node is not on `PATH`; returns `Some(Err)` if Node is available but the
+/// config itself fails to evaluate (e.g. a missing `require`).
 ///
-/// This does not execute JavaScript. It locates the object literal assigned to
-/// `module.exports` or `export default`, relaxes it into valid JSON (quoting bare
-/// keys, normalizing quotes, dropping trailing commas), and parses that. Configs that
-/// use variables, function calls, or spread syntax cannot be recovered this way and
-/// produce an error directing the user to export a JSON config instead.
-pub fn parse_js(content: &str, path: &Path) -> Result<Cli2Source> {
+/// This executes the user's own config file — the same thing `markdownlint-cli2` itself
+/// would do when loading it — so no new trust boundary is crossed by running it here.
+fn try_node_eval(path: &Path) -> Option<Result<Cli2Source>> {
+    if !node_available() {
+        return None;
+    }
+
+    let absolute = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let output = Command::new("node")
+        .arg("-e")
+        .arg(NODE_EVAL_SCRIPT)
+        .arg("--")
+        .arg(&absolute)
+        .output();
+
+    let result = match output {
+        Ok(output) if output.status.success() => {
+            serde_json::from_slice::<HashMap<String, Value>>(&output.stdout)
+                .map(document_to_source)
+                .map_err(|e| {
+                    MarkdownlintError::Migrate(format!(
+                        "Node evaluated {:?} but its output was not valid JSON: {}",
+                        path, e
+                    ))
+                })
+        }
+        Ok(output) => Err(MarkdownlintError::Migrate(format!(
+            "Node failed to evaluate {:?}: {}",
+            path,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))),
+        Err(e) => Err(MarkdownlintError::Migrate(format!(
+            "Failed to run node for {:?}: {}",
+            path, e
+        ))),
+    };
+
+    Some(result)
+}
+
+/// Best-effort extraction of a markdownlint-cli2 config from a `.cjs`/`.mjs` file via a
+/// regex/text scrape, used when Node is unavailable (or as a fallback if Node eval
+/// fails). It locates the object literal assigned to `module.exports` or
+/// `export default`, relaxes it into valid JSON (quoting bare keys, normalizing quotes,
+/// dropping trailing commas), and parses that. Configs that use variables, function
+/// calls, or spread syntax cannot be recovered this way and produce an error directing
+/// the user to export a JSON config instead.
+fn scrape_js(content: &str, path: &Path) -> Result<Cli2Source> {
     let unparsable = || {
         MarkdownlintError::Migrate(format!(
             "Could not parse {:?} as a static object literal. JS configs that use \
              variables, function calls, or computed values cannot be migrated \
-             automatically — run `console.log(JSON.stringify(config))` in your config \
-             and save the output as a `.json` file, then migrate that instead.",
+             automatically without Node.js — install Node for full fidelity, or run \
+             `console.log(JSON.stringify(config))` in your config and save the output \
+             as a `.json` file, then migrate that instead.",
             path
         ))
     };
@@ -27,16 +103,32 @@ pub fn parse_js(content: &str, path: &Path) -> Result<Cli2Source> {
     let document: HashMap<String, Value> =
         serde_json::from_str(&relaxed).map_err(|_| unparsable())?;
 
-    Ok(Cli2Source {
-        config: document
-            .get("config")
-            .and_then(|v| serde_json::from_value::<HashMap<String, Value>>(v.clone()).ok())
-            .or_else(|| Some(document.clone())),
-        ignores: document
-            .get("ignores")
-            .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok()),
-        fix: document.get("fix").and_then(Value::as_bool),
-    })
+    Ok(document_to_source(document))
+}
+
+/// Parse a `.cjs`/`.mjs` markdownlint-cli2 config, preferring a real Node.js evaluation
+/// (handles `require()`, spread, and computed values) and falling back to a best-effort
+/// regex scrape when Node is unavailable or fails. Returns any non-fatal warning about
+/// the strategy used alongside the parsed source.
+pub fn parse_js(content: &str, path: &Path) -> Result<(Cli2Source, Vec<String>)> {
+    match try_node_eval(path) {
+        Some(Ok(source)) => Ok((source, Vec::new())),
+        Some(Err(node_error)) => scrape_js(content, path)
+            .map(|source| (source, Vec::new()))
+            .map_err(|_| node_error),
+        None => match scrape_js(content, path) {
+            Ok(source) => Ok((
+                source,
+                vec![format!(
+                    "Node.js was not found on PATH; parsed {:?} with a best-effort scrape \
+                     instead of evaluating it — require()/spread/computed values, if \
+                     present, were not resolved. Install Node for full fidelity.",
+                    path
+                )],
+            )),
+            Err(e) => Err(e),
+        },
+    }
 }
 
 /// Find the brace-balanced object literal following `module.exports =` or
@@ -172,7 +264,8 @@ mod tests {
                 fix: true,
             };
         "#;
-        let source = parse_js(content, &PathBuf::from(".markdownlint-cli2.cjs")).unwrap();
+        let (source, _warnings) =
+            parse_js(content, &PathBuf::from(".markdownlint-cli2.cjs")).unwrap();
         assert_eq!(source.fix, Some(true));
         assert_eq!(source.ignores, Some(vec!["dist/**".to_string()]));
         assert!(source.config.unwrap().contains_key("MD013"));
@@ -186,5 +279,49 @@ mod tests {
         "#;
         let result = parse_js(content, &PathBuf::from(".markdownlint-cli2.cjs"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn falls_back_to_scrape_without_node() {
+        let content = r#"
+            module.exports = {
+                config: { default: true, MD013: { line_length: 100 } },
+                ignores: ['dist/**'],
+                fix: true,
+            };
+        "#;
+        let source = scrape_js(content, &PathBuf::from(".markdownlint-cli2.cjs")).unwrap();
+        assert_eq!(source.fix, Some(true));
+        assert!(source.config.unwrap().contains_key("MD013"));
+    }
+
+    #[test]
+    fn node_eval_resolves_require_and_spread() {
+        if !node_available() {
+            eprintln!("skipping: node not found on PATH");
+            return;
+        }
+
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("base.js"),
+            "module.exports = { config: { default: true, MD013: { line_length: 100 } } };",
+        )
+        .unwrap();
+        let config_path = dir.path().join(".markdownlint-cli2.cjs");
+        std::fs::write(
+            &config_path,
+            r#"
+            const base = require('./base');
+            module.exports = { ...base, ignores: ['dist/**'] };
+            "#,
+        )
+        .unwrap();
+
+        let result = try_node_eval(&config_path).expect("node is available");
+        let source = result.unwrap();
+        assert_eq!(source.ignores, Some(vec!["dist/**".to_string()]));
+        let config = source.config.unwrap();
+        assert!(config.contains_key("MD013"));
     }
 }
