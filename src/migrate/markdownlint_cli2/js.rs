@@ -1,5 +1,5 @@
+use super::cli2::Cli2Source;
 use crate::error::{MarkdownlintError, Result};
-use crate::migrate::cli2::Cli2Source;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;

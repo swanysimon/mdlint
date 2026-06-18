@@ -91,7 +91,7 @@ pub enum Command {
     Format(FormatArgs),
     /// Start an LSP server communicating over stdio.
     Server(ServerArgs),
-    /// Migrate a markdownlint-cli2 configuration to mdlint.toml.
+    /// Migrate a configuration from another Markdown tool to mdlint.toml.
     Migrate(MigrateArgs),
 }
 
@@ -101,8 +101,16 @@ pub struct ServerArgs {}
 #[derive(Args, Debug)]
 pub struct MigrateArgs {
     #[arg(
+        long,
+        value_name = "SOURCE",
+        default_value_t = MigrateFrom::MarkdownlintCli2,
+        help = "Tool to migrate the configuration from"
+    )]
+    pub from: MigrateFrom,
+
+    #[arg(
         value_name = "INPUT",
-        help = "Path to the markdownlint-cli2 config to migrate (auto-detected if omitted)"
+        help = "Path to the configuration to migrate (auto-detected if omitted)"
     )]
     pub input: Option<PathBuf>,
 
@@ -119,6 +127,21 @@ pub struct MigrateArgs {
 
     #[arg(long, help = "Print the generated config without writing it")]
     pub dry_run: bool,
+}
+
+#[derive(ValueEnum, Debug, Default, Clone)]
+pub enum MigrateFrom {
+    #[default]
+    #[value(name = "markdownlint-cli2")]
+    MarkdownlintCli2,
+}
+
+impl Display for MigrateFrom {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MigrateFrom::MarkdownlintCli2 => write!(f, "markdownlint-cli2"),
+        }
+    }
 }
 
 #[derive(Args, Debug)]

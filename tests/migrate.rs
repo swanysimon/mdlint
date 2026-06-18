@@ -27,7 +27,13 @@ fn migrate_writes_mdlint_toml_from_jsonc() {
     let output = dir.path().join("mdlint.toml");
 
     let status = Command::new(mdlint_bin())
-        .args(["migrate", input.to_str().unwrap(), "--output"])
+        .args([
+            "migrate",
+            "--from",
+            "markdownlint-cli2",
+            input.to_str().unwrap(),
+            "--output",
+        ])
         .arg(&output)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
