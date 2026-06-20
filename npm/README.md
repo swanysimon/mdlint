@@ -136,6 +136,26 @@ Options:
   -h, --help                       Print help
 ```
 
+### mdlint migrate
+
+Generate an `mdlint.toml` from another tool's config. The source tool is auto-detected from files
+in the target directory — no need to say which tool you're migrating from. Currently supports
+`markdownlint-cli2` (JSON/JSONC config files, or a `package.json` `markdownlint-cli2` field; YAML
+and `.cjs`/`.mjs` configs are detected but not yet parsed).
+
+```text
+Usage: mdlint migrate [OPTIONS] [DIR]
+
+Arguments:
+  [DIR]                Directory to search for a config to migrate from [default: .]
+
+Options:
+      --output <PATH>  Path to write the generated config to [default: mdlint.toml]
+      --dry-run        Print the generated config to stdout instead of writing a file
+      --force          Overwrite the output file if it already exists
+  -h, --help           Print help
+```
+
 ### Examples
 
 ```bash
@@ -168,6 +188,12 @@ mdlint check --config path/to/mdlint.toml
 
 # ignore all config files
 mdlint check --no-config
+
+# generate mdlint.toml from a detected markdownlint-cli2 config
+mdlint migrate
+
+# preview the generated config without writing it
+mdlint migrate --dry-run
 ```
 
 ## Configuration

@@ -91,10 +91,39 @@ pub enum Command {
     Format(FormatArgs),
     /// Start an LSP server communicating over stdio.
     Server(ServerArgs),
+    /// Generate an `mdlint.toml` from another tool's config.
+    Migrate(MigrateArgs),
 }
 
 #[derive(Args, Debug)]
 pub struct ServerArgs {}
+
+#[derive(Args, Debug)]
+pub struct MigrateArgs {
+    #[arg(
+        value_name = "DIR",
+        default_value = ".",
+        help = "Directory to search for a config to migrate from"
+    )]
+    pub dir: PathBuf,
+
+    #[arg(
+        long,
+        value_name = "PATH",
+        default_value = "mdlint.toml",
+        help = "Path to write the generated config to"
+    )]
+    pub output: PathBuf,
+
+    #[arg(
+        long,
+        help = "Print the generated config to stdout instead of writing a file"
+    )]
+    pub dry_run: bool,
+
+    #[arg(long, help = "Overwrite the output file if it already exists")]
+    pub force: bool,
+}
 
 #[derive(Args, Debug)]
 pub struct CheckArgs {

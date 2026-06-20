@@ -8,5 +8,6 @@ pub mod glob;
 pub mod lint;
 pub mod logger;
 pub mod markdown;
+pub mod migrate;
 pub mod server;
 pub mod types;

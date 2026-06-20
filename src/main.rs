@@ -1,13 +1,14 @@
 use clap::Parser;
-use mdlint::args::{CheckArgs, Cli, Command, FormatArgs, OutputFormat, TerminalColor};
+use mdlint::args::{CheckArgs, Cli, Command, FormatArgs, MigrateArgs, OutputFormat, TerminalColor};
 use mdlint::config::loader::{ConfigLoader, find_all_configs};
 use mdlint::config::{Config, merge_many_configs};
-use mdlint::error::Result;
+use mdlint::error::{MarkdownlintError, Result};
 use mdlint::fix::Fixer;
 use mdlint::format::{DefaultFormatter, Formatter, JsonFormatter};
 use mdlint::formatter;
 use mdlint::glob::FileWalker;
 use mdlint::lint::{LintEngine, LintResult};
+use mdlint::migrate;
 use mdlint::types::Violation;
 use std::env;
 use std::fs;
@@ -25,6 +26,11 @@ fn main() {
 
 fn run() -> Result<bool> {
     let cli = Cli::parse();
+
+    if let Command::Migrate(args) = &cli.command {
+        return run_migrate(args);
+    }
+
     let config = load_config(&cli)?;
     let use_color = should_use_color(&cli.color);
 
@@ -32,6 +38,7 @@ fn run() -> Result<bool> {
         Command::Check(args) => run_check(args, config, use_color, cli.verbose),
         Command::Format(args) => run_format(args, config),
         Command::Server(_) => mdlint::server::run_server().map(|()| false),
+        Command::Migrate(_) => unreachable!("handled above"),
     }
 }
 
@@ -95,6 +102,42 @@ fn run_format(args: &FormatArgs, config: Config) -> Result<bool> {
     }
 
     Ok(args.check && any_changed)
+}
+
+fn run_migrate(args: &MigrateArgs) -> Result<bool> {
+    let Some((source, config_path)) = migrate::detect_source(&args.dir) else {
+        return Err(MarkdownlintError::Migrate(format!(
+            "No known linter config found in {}",
+            args.dir.display()
+        )));
+    };
+
+    eprintln!("Detected {} config: {}", source, config_path.display());
+
+    let migration = migrate::migrate(source, &config_path)?;
+    let toml = toml::to_string_pretty(&migration.config)
+        .map_err(|e| MarkdownlintError::Migrate(format!("Failed to render TOML: {}", e)))?;
+
+    for warning in &migration.warnings {
+        eprintln!("Warning: {}", warning);
+    }
+
+    if args.dry_run {
+        print!("{}", toml);
+        return Ok(false);
+    }
+
+    if args.output.exists() && !args.force {
+        return Err(MarkdownlintError::Migrate(format!(
+            "{} already exists; pass --force to overwrite it",
+            args.output.display()
+        )));
+    }
+
+    fs::write(&args.output, toml)?;
+    eprintln!("Wrote {}", args.output.display());
+
+    Ok(false)
 }
 
 fn load_config(cli: &Cli) -> Result<Config> {
