@@ -31,6 +31,11 @@ fn document_to_source(document: HashMap<String, Value>) -> Cli2Source {
             .get("ignores")
             .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok()),
         fix: document.get("fix").and_then(Value::as_bool),
+        gitignore: document.get("gitignore").and_then(Value::as_bool),
+        no_inline_config: document.get("noInlineConfig").and_then(Value::as_bool),
+        front_matter: document
+            .get("frontMatterPattern")
+            .and_then(|v| v.as_str().map(str::to_string)),
     }
 }
 

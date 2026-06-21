@@ -158,14 +158,16 @@ Options:
 #### markdownlint-cli2
 
 Supports `.markdownlint-cli2.{json,jsonc,yaml,yml}` and standalone `.markdownlint.{json,jsonc,yaml,yml}` rule
-configs. Rule names and their common aliases (e.g. `line-length` for `MD013`) are both recognized. `.cjs`/`.mjs`
-configs are evaluated with a Node.js runtime when one is found on `PATH` (the same thing `markdownlint-cli2` itself
-would do when loading them), correctly resolving `require()`, spread syntax, and computed values. If Node isn't
-available, mdlint falls back to a best-effort text scrape and warns that dynamic values may not have been resolved;
-if a config can't be parsed either way, migration fails with a message asking you to export it with
-`console.log(JSON.stringify(config))` and migrate the resulting JSON file instead. Rules with no mdlint
-implementation, and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`, `outputFormatters`),
-are skipped with a warning rather than failing the migration.
+configs, and falls back to the `"markdownlint-cli2"` field in `package.json` if no dedicated config file is found.
+Rule names and their common aliases (e.g. `line-length` for `MD013`) are both recognized. The `gitignore`,
+`noInlineConfig`, and `frontMatterPattern` cli2 options map onto mdlint's equivalent `gitignore`, `no_inline_config`,
+and `front_matter` settings. `.cjs`/`.mjs` configs are evaluated with a Node.js runtime when one is found on `PATH`
+(the same thing `markdownlint-cli2` itself would do when loading them), correctly resolving `require()`, spread
+syntax, and computed values. If Node isn't available, mdlint falls back to a best-effort text scrape and warns that
+dynamic values may not have been resolved; if a config can't be parsed either way, migration fails with a message
+asking you to export it with `console.log(JSON.stringify(config))` and migrate the resulting JSON file instead.
+Rules with no mdlint implementation, and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`,
+`outputFormatters`), are skipped with a warning rather than failing the migration.
 
 ### Examples
 

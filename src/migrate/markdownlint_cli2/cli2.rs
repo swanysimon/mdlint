@@ -13,6 +13,9 @@ pub struct Cli2Source {
     pub config: Option<HashMap<String, Value>>,
     pub ignores: Option<Vec<String>>,
     pub fix: Option<bool>,
+    pub gitignore: Option<bool>,
+    pub no_inline_config: Option<bool>,
+    pub front_matter: Option<String>,
 }
 
 /// Whether a config file is the markdownlint-cli2 wrapper format (with a nested
@@ -87,27 +90,61 @@ pub fn parse_yaml(content: &str, path: &Path) -> Result<Cli2Source> {
     Ok(document_to_source(document, path))
 }
 
-fn document_to_source(mut document: HashMap<String, Value>, path: &Path) -> Cli2Source {
-    if is_cli2_wrapper(path) {
-        let config = document
-            .remove("config")
-            .and_then(|v| serde_json::from_value::<HashMap<String, Value>>(v).ok());
-        let ignores = document
-            .remove("ignores")
-            .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok());
-        let fix = document.remove("fix").and_then(|v| v.as_bool());
+/// Parse a `markdownlint-cli2` config nested under the `"markdownlint-cli2"` field of a
+/// `package.json` file, used as a last-resort fallback when no dedicated config file is
+/// found. That field always has the wrapper shape (`config`/`ignores`/`fix`/...), so it
+/// is extracted and treated as a wrapper unconditionally rather than relying on the
+/// filename-based `is_cli2_wrapper` heuristic.
+pub fn parse_package_json(content: &str, path: &Path) -> Result<Cli2Source> {
+    let mut document: HashMap<String, Value> = serde_json::from_str(content)
+        .map_err(|e| MarkdownlintError::Parse(format!("Failed to parse {:?}: {}", path, e)))?;
+    let field = document.remove("markdownlint-cli2").ok_or_else(|| {
+        MarkdownlintError::Migrate(format!(
+            "{:?} has no \"markdownlint-cli2\" field to migrate",
+            path
+        ))
+    })?;
+    let wrapper: HashMap<String, Value> = serde_json::from_value(field)
+        .map_err(|e| MarkdownlintError::Parse(format!("Failed to parse {:?}: {}", path, e)))?;
+    Ok(document_to_source_as_wrapper(wrapper))
+}
 
-        Cli2Source {
-            config,
-            ignores,
-            fix,
-        }
+fn document_to_source(document: HashMap<String, Value>, path: &Path) -> Cli2Source {
+    if is_cli2_wrapper(path) {
+        document_to_source_as_wrapper(document)
     } else {
         Cli2Source {
             config: Some(document),
             ignores: None,
             fix: None,
+            gitignore: None,
+            no_inline_config: None,
+            front_matter: None,
         }
+    }
+}
+
+fn document_to_source_as_wrapper(mut document: HashMap<String, Value>) -> Cli2Source {
+    let config = document
+        .remove("config")
+        .and_then(|v| serde_json::from_value::<HashMap<String, Value>>(v).ok());
+    let ignores = document
+        .remove("ignores")
+        .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok());
+    let fix = document.remove("fix").and_then(|v| v.as_bool());
+    let gitignore = document.remove("gitignore").and_then(|v| v.as_bool());
+    let no_inline_config = document.remove("noInlineConfig").and_then(|v| v.as_bool());
+    let front_matter = document
+        .remove("frontMatterPattern")
+        .and_then(|v| v.as_str().map(str::to_string));
+
+    Cli2Source {
+        config,
+        ignores,
+        fix,
+        gitignore,
+        no_inline_config,
+        front_matter,
     }
 }
 
@@ -154,5 +191,45 @@ mod tests {
         let source = parse_yaml(content, &PathBuf::from(".markdownlint-cli2.yaml")).unwrap();
         assert_eq!(source.ignores, Some(vec!["dist/**".to_string()]));
         assert_eq!(source.fix, Some(true));
+    }
+
+    #[test]
+    fn parses_gitignore_no_inline_config_and_front_matter() {
+        let content = r#"{
+            "config": { "default": true },
+            "gitignore": false,
+            "noInlineConfig": true,
+            "frontMatterPattern": "^-{3}\\s*\\n(?:.*?\\n)?-{3}\\s*\\n"
+        }"#;
+        let source = parse_json(content, &PathBuf::from(".markdownlint-cli2.jsonc")).unwrap();
+        assert_eq!(source.gitignore, Some(false));
+        assert_eq!(source.no_inline_config, Some(true));
+        assert_eq!(
+            source.front_matter,
+            Some("^-{3}\\s*\\n(?:.*?\\n)?-{3}\\s*\\n".to_string())
+        );
+    }
+
+    #[test]
+    fn parses_markdownlint_cli2_field_from_package_json() {
+        let content = r#"{
+            "name": "some-package",
+            "markdownlint-cli2": {
+                "config": { "default": true, "MD013": { "line_length": 100 } },
+                "ignores": ["dist/**"],
+                "fix": true
+            }
+        }"#;
+        let source = parse_package_json(content, &PathBuf::from("package.json")).unwrap();
+        assert_eq!(source.ignores, Some(vec!["dist/**".to_string()]));
+        assert_eq!(source.fix, Some(true));
+        assert!(source.config.unwrap().contains_key("MD013"));
+    }
+
+    #[test]
+    fn package_json_without_field_errors() {
+        let content = r#"{ "name": "some-package" }"#;
+        let result = parse_package_json(content, &PathBuf::from("package.json"));
+        assert!(result.is_err());
     }
 }
