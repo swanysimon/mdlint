@@ -20,7 +20,7 @@ path = "src/main.rs"
 clap = { version = "^4.6.1", features = ["derive"] }
 globset = ">= 0.4.18, < 1"
 ignore = ">= 0.4.26, < 1"
-lsp-server = ">= 0.7.9, < 1"
+lsp-server = ">= 0.8.0, < 1"
 lsp-types = ">= 0.97, < 1"
 pulldown-cmark = ">= 0.13.4, < 1"
 rayon = "^1.12.0"
