@@ -36,6 +36,13 @@ impl Rule for MD034 {
                 continue;
             }
 
+            // Skip link reference definitions (`[label]: https://example.com`); the
+            // URL there is the definition's destination, not a bare URL in prose.
+            let trimmed = line.trim();
+            if trimmed.starts_with('[') && trimmed.find("]:").is_some() {
+                continue;
+            }
+
             // Skip lines that are inside markdown link syntax
             for cap in url_regex.captures_iter(line) {
                 if let Some(url_match) = cap.get(1) {
@@ -122,5 +129,20 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0, "URLs in inline code should be ignored");
+    }
+
+    #[test]
+    fn test_url_in_reference_definition() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/53
+        let content = "Here a [reference] is used.\n\n[reference]: https://example.com/";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "URL in a link reference definition should not be flagged as bare"
+        );
     }
 }

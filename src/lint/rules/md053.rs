@@ -1,7 +1,7 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
-use regex::Regex;
+use pulldown_cmark::{Event, LinkType, Tag};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
@@ -37,15 +37,27 @@ impl Rule for MD053 {
             }
         }
 
-        // Second pass: find reference-style links and images in raw text
-        // Pattern: [text][label] or ![alt][label]
+        // Second pass: find reference-style links and images actually used. Parses
+        // events rather than raw text so shortcut (`[label]`) and collapsed
+        // (`[label][]`) forms are counted alongside the full `[text][label]` form.
         let mut used_labels: HashSet<String> = HashSet::new();
-        let regex_link = Regex::new(r"!?\[([^\]]+)\]\[([^\]]+)\]").unwrap();
 
-        for line in parser.lines() {
-            for cap in regex_link.captures_iter(line) {
-                let label = cap.get(2).unwrap().as_str().to_lowercase();
-                used_labels.insert(label);
+        for event in parser.parse() {
+            let (link_type, id) = match event {
+                Event::Start(Tag::Link { link_type, id, .. }) => (link_type, id),
+                Event::Start(Tag::Image { link_type, id, .. }) => (link_type, id),
+                _ => continue,
+            };
+            if matches!(
+                link_type,
+                LinkType::Reference
+                    | LinkType::ReferenceUnknown
+                    | LinkType::Collapsed
+                    | LinkType::CollapsedUnknown
+                    | LinkType::Shortcut
+                    | LinkType::ShortcutUnknown
+            ) {
+                used_labels.insert(id.to_lowercase());
             }
         }
 
@@ -122,6 +134,26 @@ mod tests {
     #[test]
     fn test_all_used() {
         let content = "[link1]: url1\n[link2]: url2\n\n[A][link1] [B][link2]";
+        let parser = MarkdownParser::new(content);
+        let rule = MD053;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_shortcut_reference_used() {
+        let content = "Here a [reference] is used.\n\nAnd below it is defined:\n\n[reference]: https://example.com/";
+        let parser = MarkdownParser::new(content);
+        let rule = MD053;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_collapsed_reference_used() {
+        let content = "[link]: https://example.com\n\n[Link][]";
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);

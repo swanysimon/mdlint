@@ -1,4 +1,4 @@
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
 use std::collections::HashSet;
 use std::ops::Range;
 
@@ -57,6 +57,19 @@ impl<'a> MarkdownParser<'a> {
 
     pub fn parse_with_offsets(&self) -> impl Iterator<Item = (Event<'a>, Range<usize>)> {
         Parser::new_ext(self.content, mk_options()).into_offset_iter()
+    }
+
+    /// Like `parse_with_offsets`, but resolves otherwise-broken reference links
+    /// (undefined labels) by flagging their `LinkType` as the corresponding
+    /// `*Unknown` variant instead of silently dropping the event as plain text.
+    /// Used by rules that need to detect undefined reference links/images.
+    pub fn parse_with_broken_links(&self) -> impl Iterator<Item = (Event<'a>, Range<usize>)> + 'a {
+        Parser::new_with_broken_link_callback(
+            self.content,
+            mk_options(),
+            Some(|_broken: BrokenLink| Some((CowStr::from(""), CowStr::from("")))),
+        )
+        .into_offset_iter()
     }
 
     pub fn offset_to_line(&self, offset: usize) -> usize {
