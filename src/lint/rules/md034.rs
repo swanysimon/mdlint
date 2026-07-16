@@ -27,12 +27,13 @@ impl Rule for MD034 {
 
         // Get code lines to skip (both blocks and inline code can contain URLs)
         let code_lines = parser.get_code_line_numbers();
+        let ref_def_lines = parser.get_ref_def_line_numbers();
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
 
-            // Skip if line is in a code block or inline code
-            if code_lines.contains(&line_number) {
+            // Skip code and link reference definitions — URLs in these are not bare
+            if code_lines.contains(&line_number) || ref_def_lines.contains(&line_number) {
                 continue;
             }
 
@@ -122,5 +123,20 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0, "URLs in inline code should be ignored");
+    }
+
+    #[test]
+    fn test_url_in_reference_definition() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/53
+        let content = "Here a [reference] is used.\n\n[reference]: https://example.com/";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "URL in a link reference definition should not be flagged as bare"
+        );
     }
 }
