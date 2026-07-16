@@ -58,8 +58,9 @@ impl Rule for MD014 {
 
                         if all_start_with_dollar {
                             // Report a violation for each line that starts with $
-                            let mut current_line = code_block_start_line + 1;
-                            for line in &lines {
+                            for (current_line, line) in
+                                (code_block_start_line + 1..).zip(lines.iter())
+                            {
                                 if !line.trim().is_empty() && line.trim_start().starts_with('$') {
                                     // Remove leading $ and any spaces after it
                                     let trimmed = line.trim_start();
@@ -90,7 +91,6 @@ impl Rule for MD014 {
                                         }),
                                     });
                                 }
-                                current_line += 1;
                             }
                         }
                     }
