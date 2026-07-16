@@ -3,7 +3,7 @@ use crate::markdown::MarkdownParser;
 use crate::types::Violation;
 use pulldown_cmark::{Event, LinkType, Tag};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 pub struct MD053;
 
@@ -23,21 +23,9 @@ impl Rule for MD053 {
     fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
 
-        // First pass: collect all defined reference labels with their line numbers
-        let mut defined_labels: HashMap<String, usize> = HashMap::new();
+        let defined_labels = parser.get_ref_defs();
 
-        for (line_num, line) in parser.lines().iter().enumerate() {
-            let line_number = line_num + 1;
-            let trimmed = line.trim();
-            if trimmed.starts_with('[')
-                && let Some(end_bracket) = trimmed.find("]:")
-            {
-                let label = &trimmed[1..end_bracket];
-                defined_labels.insert(label.to_lowercase(), line_number);
-            }
-        }
-
-        // Second pass: find reference-style links and images actually used. Parses
+        // Find reference-style links and images actually used. Parses
         // events rather than raw text so shortcut (`[label]`) and collapsed
         // (`[label][]`) forms are counted alongside the full `[text][label]` form.
         let mut used_labels: HashSet<String> = HashSet::new();
@@ -63,9 +51,9 @@ impl Rule for MD053 {
 
         // Find unused definitions
         for (label, line_number) in defined_labels {
-            if !used_labels.contains(&label) {
+            if !used_labels.contains(label.as_str()) {
                 violations.push(Violation {
-                    line: line_number,
+                    line: *line_number,
                     column: Some(1),
                     rule: self.name().to_string(),
                     message: format!(

@@ -1,5 +1,5 @@
 use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 pub struct MarkdownParser<'a> {
@@ -16,6 +16,8 @@ pub struct MarkdownParser<'a> {
     code_ranges: Vec<Range<usize>>,
     /// Lines (1-indexed) that are part of a link reference definition (`[label]: url`).
     ref_def_lines: HashSet<usize>,
+    /// Map from normalised (lowercase) label to its 1-indexed line number.
+    ref_defs: HashMap<String, usize>,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -23,7 +25,7 @@ impl<'a> MarkdownParser<'a> {
         let lines: Vec<&'a str> = content.lines().collect();
         let line_offsets = build_line_offsets(content);
         let (code_block_lines, code_lines, code_ranges) = build_code_info(content, &line_offsets);
-        let ref_def_lines = build_ref_def_lines(content, &line_offsets);
+        let (ref_def_lines, ref_defs) = build_ref_def_info(content, &line_offsets);
         Self {
             content,
             lines,
@@ -32,6 +34,7 @@ impl<'a> MarkdownParser<'a> {
             code_lines,
             code_ranges,
             ref_def_lines,
+            ref_defs,
         }
     }
 
@@ -114,6 +117,12 @@ impl<'a> MarkdownParser<'a> {
     /// (`[label]: url`). Result is precomputed in `new()` — O(1) to access.
     pub fn get_ref_def_line_numbers(&self) -> &HashSet<usize> {
         &self.ref_def_lines
+    }
+
+    /// Returns a map of normalised (lowercase) label → 1-indexed line number for
+    /// every link reference definition in the document.
+    pub fn get_ref_defs(&self) -> &HashMap<String, usize> {
+        &self.ref_defs
     }
 
     /// Converts a (1-indexed) line number and 0-indexed byte offset within that
@@ -227,20 +236,26 @@ fn build_code_info(
     (code_block_lines, code_lines, code_ranges)
 }
 
-/// Collects all 1-indexed line numbers that belong to link reference definitions.
-/// Uses `Parser::reference_definitions()` which is populated before the first event
-/// is consumed, so we only need to create the parser (not iterate it).
-fn build_ref_def_lines(content: &str, line_offsets: &[usize]) -> HashSet<usize> {
+/// Collects link reference definition metadata in one pass over the parser's
+/// `reference_definitions()` map (populated before the first event is consumed).
+/// Returns (line-number set, label→line map); both use 1-indexed line numbers and
+/// normalised (lowercase) labels.
+fn build_ref_def_info(
+    content: &str,
+    line_offsets: &[usize],
+) -> (HashSet<usize>, HashMap<String, usize>) {
     let parser = Parser::new_ext(content, mk_options());
-    let mut lines = HashSet::new();
-    for (_, link_def) in parser.reference_definitions().iter() {
+    let mut line_set = HashSet::new();
+    let mut label_map = HashMap::new();
+    for (label, link_def) in parser.reference_definitions().iter() {
         let start = line_from_offset(link_def.span.start, line_offsets);
         let end = line_from_offset(link_def.span.end.saturating_sub(1), line_offsets);
         for line in start..=end {
-            lines.insert(line);
+            line_set.insert(line);
         }
+        label_map.insert(label.to_string(), start);
     }
-    lines
+    (line_set, label_map)
 }
 
 #[cfg(test)]
