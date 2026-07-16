@@ -27,19 +27,13 @@ impl Rule for MD034 {
 
         // Get code lines to skip (both blocks and inline code can contain URLs)
         let code_lines = parser.get_code_line_numbers();
+        let ref_def_lines = parser.get_ref_def_line_numbers();
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
 
-            // Skip if line is in a code block or inline code
-            if code_lines.contains(&line_number) {
-                continue;
-            }
-
-            // Skip link reference definitions (`[label]: https://example.com`); the
-            // URL there is the definition's destination, not a bare URL in prose.
-            let trimmed = line.trim();
-            if trimmed.starts_with('[') && trimmed.find("]:").is_some() {
+            // Skip code and link reference definitions — URLs in these are not bare
+            if code_lines.contains(&line_number) || ref_def_lines.contains(&line_number) {
                 continue;
             }
 

@@ -14,6 +14,8 @@ pub struct MarkdownParser<'a> {
     code_lines: HashSet<usize>,
     /// Byte ranges of all code blocks and inline code spans.
     code_ranges: Vec<Range<usize>>,
+    /// Lines (1-indexed) that are part of a link reference definition (`[label]: url`).
+    ref_def_lines: HashSet<usize>,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -21,6 +23,7 @@ impl<'a> MarkdownParser<'a> {
         let lines: Vec<&'a str> = content.lines().collect();
         let line_offsets = build_line_offsets(content);
         let (code_block_lines, code_lines, code_ranges) = build_code_info(content, &line_offsets);
+        let ref_def_lines = build_ref_def_lines(content, &line_offsets);
         Self {
             content,
             lines,
@@ -28,6 +31,7 @@ impl<'a> MarkdownParser<'a> {
             code_block_lines,
             code_lines,
             code_ranges,
+            ref_def_lines,
         }
     }
 
@@ -104,6 +108,12 @@ impl<'a> MarkdownParser<'a> {
     /// inline code spans. Result is precomputed in `new()` — O(1) to access.
     pub fn get_code_ranges(&self) -> &[Range<usize>] {
         &self.code_ranges
+    }
+
+    /// Returns the 1-indexed line numbers that form link reference definitions
+    /// (`[label]: url`). Result is precomputed in `new()` — O(1) to access.
+    pub fn get_ref_def_line_numbers(&self) -> &HashSet<usize> {
+        &self.ref_def_lines
     }
 
     /// Converts a (1-indexed) line number and 0-indexed byte offset within that
@@ -215,6 +225,22 @@ fn build_code_info(
     }
 
     (code_block_lines, code_lines, code_ranges)
+}
+
+/// Collects all 1-indexed line numbers that belong to link reference definitions.
+/// Uses `Parser::reference_definitions()` which is populated before the first event
+/// is consumed, so we only need to create the parser (not iterate it).
+fn build_ref_def_lines(content: &str, line_offsets: &[usize]) -> HashSet<usize> {
+    let parser = Parser::new_ext(content, mk_options());
+    let mut lines = HashSet::new();
+    for (_, link_def) in parser.reference_definitions().iter() {
+        let start = line_from_offset(link_def.span.start, line_offsets);
+        let end = line_from_offset(link_def.span.end.saturating_sub(1), line_offsets);
+        for line in start..=end {
+            lines.insert(line);
+        }
+    }
+    lines
 }
 
 #[cfg(test)]
@@ -403,5 +429,16 @@ mod tests {
         assert_eq!(parser.offset_to_position(2), (1, 3));
         assert_eq!(parser.offset_to_position(5), (2, 1));
         assert_eq!(parser.offset_to_position(7), (2, 3));
+    }
+
+    #[test]
+    fn test_ref_def_line_numbers() {
+        let content = "Text\n\n[foo]: https://example.com\n\nMore text";
+        let parser = MarkdownParser::new(content);
+        let ref_def_lines = parser.get_ref_def_line_numbers();
+
+        assert!(ref_def_lines.contains(&3), "ref def line should be marked");
+        assert!(!ref_def_lines.contains(&1), "prose should not be marked");
+        assert!(!ref_def_lines.contains(&5), "prose should not be marked");
     }
 }
