@@ -9,7 +9,8 @@
   "separateMajorMinor": false,
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["on monday"]
+    "schedule": ["on monday"],
+    "groupName": "all dependencies"
   },
   "packageRules": [
     {
