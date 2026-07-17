@@ -81,6 +81,82 @@ pub fn migrate_file(path: &Path) -> Result<MigrationResult> {
     Ok(result)
 }
 
+/// markdownlint-cli2 built-in defaults that differ from mdlint's defaults. Any enabled
+/// rule not explicitly configured by the user must be pinned to these values so
+/// behaviour is preserved after migration.
+fn cli2_defaults() -> Vec<(&'static str, RuleConfig)> {
+    use toml::Value as T;
+    vec![
+        (
+            "MD003",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD004",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD013",
+            RuleConfig::Config(HashMap::from([("line_length".to_string(), T::Integer(80))])),
+        ),
+        (
+            "MD029",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("one_or_ordered".to_string()),
+            )])),
+        ),
+        (
+            "MD035",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD046",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD048",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD049",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD050",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+        (
+            "MD055",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("consistent".to_string()),
+            )])),
+        ),
+    ]
+}
+
 fn build_config(source: Cli2Source) -> MigrationResult {
     let mut warnings = Vec::new();
     let mut config = Config::default();
@@ -123,6 +199,23 @@ fn build_config(source: Cli2Source) -> MigrationResult {
             };
 
             config.rules.insert(code, translate_rule_value(&value));
+        }
+    }
+
+    // Pin cli2's built-in defaults for rules that the user left unconfigured.
+    // Rules with explicit params (RuleConfig::Config) are left as-is; rules the
+    // user simply enabled (RuleConfig::Enabled(true)) or that are on via
+    // default_enabled get the cli2 default so behaviour is unchanged post-migration.
+    for (code, default) in cli2_defaults() {
+        match config.rules.get(code) {
+            Some(RuleConfig::Config(_)) | Some(RuleConfig::Enabled(false)) => {}
+            Some(RuleConfig::Enabled(true)) => {
+                config.rules.insert(code.to_string(), default);
+            }
+            None if config.default_enabled => {
+                config.rules.insert(code.to_string(), default);
+            }
+            None => {}
         }
     }
 
@@ -205,7 +298,7 @@ mod tests {
 
         let result = migrate_file(&path).unwrap();
         assert_eq!(result.warnings.len(), 1);
-        assert!(result.config.rules.is_empty());
+        assert!(!result.config.rules.contains_key("MD999"));
     }
 
     #[test]
@@ -230,6 +323,73 @@ mod tests {
             result.config.front_matter,
             Some("^-{3}\\s*\\n(?:.*?\\n)?-{3}\\s*\\n".to_string())
         );
+    }
+
+    #[test]
+    fn pins_cli2_defaults_for_unconfigured_rules() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join(".markdownlint.json");
+        // User enabled all rules but configured nothing explicitly.
+        fs::write(&path, r#"{ "default": true }"#).unwrap();
+
+        let result = migrate_file(&path).unwrap();
+
+        // MD013: cli2 default is 80; mdlint default is 120 — must be pinned to 80.
+        let md013 = result.config.rules.get("MD013").unwrap();
+        assert!(
+            matches!(md013, RuleConfig::Config(p) if p.get("line_length") == Some(&toml::Value::Integer(80)))
+        );
+
+        // MD003/MD004/MD049/MD050: cli2 default is "consistent"; mdlint defaults are opinionated.
+        for code in &["MD003", "MD004", "MD049", "MD050"] {
+            let rule = result.config.rules.get(*code).unwrap();
+            assert!(
+                matches!(rule, RuleConfig::Config(p) if p.get("style") == Some(&toml::Value::String("consistent".to_string()))),
+                "{code} should be pinned to consistent"
+            );
+        }
+    }
+
+    #[test]
+    fn does_not_override_explicit_user_config() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join(".markdownlint-cli2.jsonc");
+        // User explicitly set MD013 line_length to 100 and MD003 style to atx.
+        fs::write(
+            &path,
+            r#"{
+                "config": {
+                    "default": true,
+                    "MD013": { "line_length": 100 },
+                    "MD003": { "style": "atx" }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let result = migrate_file(&path).unwrap();
+
+        let md013 = result.config.rules.get("MD013").unwrap();
+        assert!(
+            matches!(md013, RuleConfig::Config(p) if p.get("line_length") == Some(&toml::Value::Integer(100)))
+        );
+        let md003 = result.config.rules.get("MD003").unwrap();
+        assert!(
+            matches!(md003, RuleConfig::Config(p) if p.get("style") == Some(&toml::Value::String("atx".to_string())))
+        );
+    }
+
+    #[test]
+    fn does_not_pin_defaults_when_default_disabled() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join(".markdownlint.json");
+        // User disabled all rules by default; cli2 defaults should not be emitted.
+        fs::write(&path, r#"{ "default": false }"#).unwrap();
+
+        let result = migrate_file(&path).unwrap();
+        assert!(!result.config.default_enabled);
+        assert!(!result.config.rules.contains_key("MD013"));
+        assert!(!result.config.rules.contains_key("MD003"));
     }
 
     #[test]
