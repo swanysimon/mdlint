@@ -1,5 +1,5 @@
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
-use std::collections::HashSet;
+use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 pub struct MarkdownParser<'a> {
@@ -14,6 +14,10 @@ pub struct MarkdownParser<'a> {
     code_lines: HashSet<usize>,
     /// Byte ranges of all code blocks and inline code spans.
     code_ranges: Vec<Range<usize>>,
+    /// Lines (1-indexed) that are part of a link reference definition (`[label]: url`).
+    ref_def_lines: HashSet<usize>,
+    /// Map from normalised (lowercase) label to its 1-indexed line number.
+    ref_defs: HashMap<String, usize>,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -21,6 +25,7 @@ impl<'a> MarkdownParser<'a> {
         let lines: Vec<&'a str> = content.lines().collect();
         let line_offsets = build_line_offsets(content);
         let (code_block_lines, code_lines, code_ranges) = build_code_info(content, &line_offsets);
+        let (ref_def_lines, ref_defs) = build_ref_def_info(content, &line_offsets);
         Self {
             content,
             lines,
@@ -28,6 +33,8 @@ impl<'a> MarkdownParser<'a> {
             code_block_lines,
             code_lines,
             code_ranges,
+            ref_def_lines,
+            ref_defs,
         }
     }
 
@@ -57,6 +64,19 @@ impl<'a> MarkdownParser<'a> {
 
     pub fn parse_with_offsets(&self) -> impl Iterator<Item = (Event<'a>, Range<usize>)> {
         Parser::new_ext(self.content, mk_options()).into_offset_iter()
+    }
+
+    /// Like `parse_with_offsets`, but resolves otherwise-broken reference links
+    /// (undefined labels) by flagging their `LinkType` as the corresponding
+    /// `*Unknown` variant instead of silently dropping the event as plain text.
+    /// Used by rules that need to detect undefined reference links/images.
+    pub fn parse_with_broken_links(&self) -> impl Iterator<Item = (Event<'a>, Range<usize>)> + 'a {
+        Parser::new_with_broken_link_callback(
+            self.content,
+            mk_options(),
+            Some(|_broken: BrokenLink| Some((CowStr::from(""), CowStr::from("")))),
+        )
+        .into_offset_iter()
     }
 
     pub fn offset_to_line(&self, offset: usize) -> usize {
@@ -91,6 +111,18 @@ impl<'a> MarkdownParser<'a> {
     /// inline code spans. Result is precomputed in `new()` — O(1) to access.
     pub fn get_code_ranges(&self) -> &[Range<usize>] {
         &self.code_ranges
+    }
+
+    /// Returns the 1-indexed line numbers that form link reference definitions
+    /// (`[label]: url`). Result is precomputed in `new()` — O(1) to access.
+    pub fn get_ref_def_line_numbers(&self) -> &HashSet<usize> {
+        &self.ref_def_lines
+    }
+
+    /// Returns a map of normalised (lowercase) label → 1-indexed line number for
+    /// every link reference definition in the document.
+    pub fn get_ref_defs(&self) -> &HashMap<String, usize> {
+        &self.ref_defs
     }
 
     /// Converts a (1-indexed) line number and 0-indexed byte offset within that
@@ -202,6 +234,28 @@ fn build_code_info(
     }
 
     (code_block_lines, code_lines, code_ranges)
+}
+
+/// Collects link reference definition metadata in one pass over the parser's
+/// `reference_definitions()` map (populated before the first event is consumed).
+/// Returns (line-number set, label→line map); both use 1-indexed line numbers and
+/// normalised (lowercase) labels.
+fn build_ref_def_info(
+    content: &str,
+    line_offsets: &[usize],
+) -> (HashSet<usize>, HashMap<String, usize>) {
+    let parser = Parser::new_ext(content, mk_options());
+    let mut line_set = HashSet::new();
+    let mut label_map = HashMap::new();
+    for (label, link_def) in parser.reference_definitions().iter() {
+        let start = line_from_offset(link_def.span.start, line_offsets);
+        let end = line_from_offset(link_def.span.end.saturating_sub(1), line_offsets);
+        for line in start..=end {
+            line_set.insert(line);
+        }
+        label_map.insert(label.to_string(), start);
+    }
+    (line_set, label_map)
 }
 
 #[cfg(test)]
@@ -390,5 +444,16 @@ mod tests {
         assert_eq!(parser.offset_to_position(2), (1, 3));
         assert_eq!(parser.offset_to_position(5), (2, 1));
         assert_eq!(parser.offset_to_position(7), (2, 3));
+    }
+
+    #[test]
+    fn test_ref_def_line_numbers() {
+        let content = "Text\n\n[foo]: https://example.com\n\nMore text";
+        let parser = MarkdownParser::new(content);
+        let ref_def_lines = parser.get_ref_def_line_numbers();
+
+        assert!(ref_def_lines.contains(&3), "ref def line should be marked");
+        assert!(!ref_def_lines.contains(&1), "prose should not be marked");
+        assert!(!ref_def_lines.contains(&5), "prose should not be marked");
     }
 }

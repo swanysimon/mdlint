@@ -1,4 +1,4 @@
-use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
+use lsp_server::{Connection, Message, Notification, Request, RequestId, Response, ResponseKind};
 use lsp_types::{
     CodeActionOrCommand, InitializeResult, NumberOrString, PublishDiagnosticsParams, TextEdit,
 };
@@ -59,8 +59,10 @@ fn initialize(client: &Connection) {
     );
 
     let resp = next_response(client);
-    let result: InitializeResult =
-        serde_json::from_value(resp.result.expect("initialize result")).unwrap();
+    let result: InitializeResult = match resp.response_kind {
+        ResponseKind::Ok { result } => serde_json::from_value(result).unwrap(),
+        ResponseKind::Err { error } => panic!("initialize error: {error:?}"),
+    };
     assert!(result.capabilities.text_document_sync.is_some());
 
     send_notification(client, "initialized", serde_json::json!({}));
@@ -69,7 +71,11 @@ fn initialize(client: &Connection) {
 fn shutdown(client: &Connection) {
     send_request(client, 999, "shutdown", serde_json::json!(null));
     let resp = next_response(client);
-    assert!(resp.error.is_none(), "shutdown error: {:?}", resp.error);
+    assert!(
+        matches!(resp.response_kind, ResponseKind::Ok { .. }),
+        "shutdown error: {:?}",
+        resp.response_kind
+    );
     send_notification(client, "exit", serde_json::json!(null));
 }
 
@@ -137,9 +143,10 @@ fn lsp_full_lifecycle() {
     );
 
     let resp = next_response(&client_conn);
-    assert!(resp.error.is_none(), "formatting error: {:?}", resp.error);
-    let edits: Vec<TextEdit> =
-        serde_json::from_value(resp.result.expect("formatting result")).unwrap();
+    let edits: Vec<TextEdit> = match resp.response_kind {
+        ResponseKind::Ok { result } => serde_json::from_value(result).unwrap(),
+        ResponseKind::Err { error } => panic!("formatting error: {error:?}"),
+    };
     // Content needs formatting; expect exactly one whole-doc edit.
     assert_eq!(edits.len(), 1, "expected one TextEdit");
     assert_eq!(
@@ -171,11 +178,13 @@ fn lsp_full_lifecycle() {
     );
 
     let resp = next_response(&client_conn);
-    assert!(resp.error.is_none(), "codeAction error: {:?}", resp.error);
     // Must parse as a valid array of CodeActionOrCommand.
-    let _actions: Vec<CodeActionOrCommand> =
-        serde_json::from_value(resp.result.expect("codeAction result"))
-            .expect("parse codeAction result");
+    let _actions: Vec<CodeActionOrCommand> = match resp.response_kind {
+        ResponseKind::Ok { result } => {
+            serde_json::from_value(result).expect("parse codeAction result")
+        }
+        ResponseKind::Err { error } => panic!("codeAction error: {error:?}"),
+    };
 
     // 5. shutdown + exit → server thread completes without panic
     shutdown(&client_conn);

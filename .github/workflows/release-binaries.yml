@@ -1,16 +1,16 @@
-name: Build and Publish Rust Artifacts
+name: Release Binaries
 
 on:
   workflow_call:
     inputs:
       release:
         description: GitHub release to upload artifacts into
-        default: ""
+        required: true
         type: string
 
 jobs:
-  build:
-    name: Build Release Binaries (${{ matrix.target }})
+  release:
+    name: Release Binary (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -69,13 +69,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6  # v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659  # v1
         with:
           target: ${{ matrix.target }}
-          cache-key: "build"
+          cache-key: "release"
           cache-shared-key: ${{ matrix.target }}
 
       - name: Install musl tools (Linux musl only)
@@ -119,7 +119,6 @@ jobs:
           "$hash  ${{ matrix.asset_name }}.zip" | Out-File -Encoding ASCII ${{ matrix.asset_name }}.zip.sha256
 
       - name: Upload release assets
-        if: ${{ inputs.release != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: target/${{ matrix.target }}/release

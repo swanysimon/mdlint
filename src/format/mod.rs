@@ -1,9 +1,11 @@
 mod default;
+mod gitlab;
 mod json;
 mod junit;
 mod sarif;
 
 pub use default::DefaultFormatter;
+pub use gitlab::GitlabFormatter;
 pub use json::JsonFormatter;
 pub use junit::JunitFormatter;
 pub use sarif::SarifFormatter;

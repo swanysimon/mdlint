@@ -1,9 +1,8 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
-use regex::Regex;
+use pulldown_cmark::{Event, LinkType, Tag};
 use serde_json::Value;
-use std::collections::HashSet;
 
 pub struct MD052;
 
@@ -23,46 +22,30 @@ impl Rule for MD052 {
     fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
 
-        // First pass: collect all defined reference labels
-        let mut defined_labels: HashSet<String> = HashSet::new();
+        // A broken-link callback forces pulldown-cmark to still emit an event for
+        // reference-style links/images with no matching definition, tagging their
+        // `LinkType` as the `*Unknown` variant instead of silently treating them as
+        // plain text. This lets shortcut (`[label]`) and collapsed (`[label][]`)
+        // forms be checked alongside the full `[text][label]` form.
+        for (event, range) in parser.parse_with_broken_links() {
+            let (is_image, link_type, id) = match event {
+                Event::Start(Tag::Link { link_type, id, .. }) => (false, link_type, id),
+                Event::Start(Tag::Image { link_type, id, .. }) => (true, link_type, id),
+                _ => continue,
+            };
 
-        for line in parser.lines() {
-            // Match reference definitions: [label]: url
-            let trimmed = line.trim();
-            if trimmed.starts_with('[')
-                && let Some(end_bracket) = trimmed.find("]:")
-            {
-                let label = &trimmed[1..end_bracket];
-                defined_labels.insert(label.to_lowercase());
-            }
-        }
-
-        // Second pass: find reference-style links and images in raw text
-        // Pattern: [text][label] or ![alt][label]
-        let regex_link = Regex::new(r"!?\[([^\]]+)\]\[([^\]]+)\]").unwrap();
-
-        for (line_num, line) in parser.lines().iter().enumerate() {
-            let line_number = line_num + 1;
-
-            for cap in regex_link.captures_iter(line) {
-                let label = cap.get(2).unwrap().as_str().to_lowercase();
-
-                if !defined_labels.contains(&label) {
-                    let is_image = cap.get(0).unwrap().as_str().starts_with('!');
-                    let item_type = if is_image { "image" } else { "link" };
-
-                    violations.push(Violation {
-                        line: line_number,
-                        column: Some(1),
-                        rule: self.name().to_string(),
-                        message: format!(
-                            "Reference {} label '{}' is not defined",
-                            item_type,
-                            cap.get(2).unwrap().as_str()
-                        ),
-                        fix: None,
-                    });
-                }
+            if matches!(
+                link_type,
+                LinkType::ReferenceUnknown | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown
+            ) {
+                let item_type = if is_image { "image" } else { "link" };
+                violations.push(Violation {
+                    line: parser.offset_to_line(range.start),
+                    column: Some(1),
+                    rule: self.name().to_string(),
+                    message: format!("Reference {item_type} label '{id}' is not defined"),
+                    fix: None,
+                });
             }
         }
 
@@ -129,5 +112,37 @@ mod tests {
 
         // Labels should be case-insensitive
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_shortcut_reference_undefined() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/53
+        let content = "Here a [reference] is unused.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD052;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
+        assert!(violations[0].message.contains("reference"));
+    }
+
+    #[test]
+    fn test_shortcut_reference_defined() {
+        let content = "Here a [reference] is used.\n\n[reference]: https://example.com/";
+        let parser = MarkdownParser::new(content);
+        let rule = MD052;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_collapsed_reference_undefined() {
+        let content = "[Link][]";
+        let parser = MarkdownParser::new(content);
+        let rule = MD052;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
     }
 }
