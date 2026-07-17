@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "markdownlint-rs"
-version = "0.3.18"
+version = "0.3.19"
 dependencies = [
  "clap",
  "globset",

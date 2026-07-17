@@ -71,7 +71,7 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/swanysimon/mdlint
-    rev: v0.3.18 # use the latest release tag
+    rev: v0.3.19# use the latest release tag
     hooks:
       - id: mdlint-format
       - id: mdlint-check
