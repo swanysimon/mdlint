@@ -1,15 +1,85 @@
 name: CI
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_call:
+
 jobs:
-  build:
-    name: Build
+  check-code:
+    name: Check codebase
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-    uses: ./.github/workflows/build-binaries.yml
-  lint:
-    name: Lint and test
-    uses: ./.github/workflows/lint.yml
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          cache-key: "lint"
+
+      - name: Install mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+      - name: Run all codebase checks
+        run: prek run -av --hook-stage pre-push
+
+  check-npm:
+    name: Verify npm package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          sparse-checkout: npm
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "lts/*"
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Check syntax
+        run: node --check bin/mdlint.js
+
+      - name: Check package
+        run: npm pack --dry-run
+
+  check-python:
+    name: Verify Python package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          sparse-checkout: python
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+
+      - name: Check syntax
+        run: uv run python -m py_compile mdlint/__init__.py mdlint/__main__.py
+
+      - name: Build wheel
+        run: uv build --wheel
+
+      - name: Check package metadata
+        run: uvx twine check dist/*.whl

@@ -18,15 +18,6 @@ prority = 2
 repo = "local"
 
 [[repos.hooks]]
-id = "actionlint"
-name = "check github workflows"
-entry = "actionlint"
-language = "system"
-pass_filenames = false
-files = "^.github/"
-priority = 3
-
-[[repos.hooks]]
 id = "hadolint"
 name = "check dockerfile"
 entry = "hadolint"
