@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     permissions:
-      contents: write
-      id-token: write
+      contents: read
+      id-token: write # OIDC trusted publishing
     defaults:
       run:
         working-directory: npm

@@ -3,7 +3,7 @@ name: Tag and Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 # Prevent concurrent builds: only one at a time (main pushes + releases)
 concurrency:
@@ -12,8 +12,10 @@ concurrency:
 
 jobs:
   lint:
+    permissions:
+      contents: read
     name: Lint and test
-    uses: ./.github/workflows/lint.yml
+    uses: ./.github/workflows/ci.yml
 
   draft-release:
     name: Create draft release
@@ -25,7 +27,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Get tag version
         id: version
@@ -73,12 +75,12 @@ jobs:
             --draft \
             --notes-file /tmp/release-notes.md
 
-  build:
-    name: Build
+  release-binaries:
+    name: Release Binaries
     needs: draft-release
     permissions:
       contents: write
-    uses: ./.github/workflows/build-binaries.yml
+    uses: ./.github/workflows/release-binaries.yml
     with:
       release: ${{ github.ref_name }}
 
@@ -86,7 +88,6 @@ jobs:
     needs: draft-release
     permissions:
       contents: read
-      id-token: write
       packages: write
     uses: ./.github/workflows/publish-container.yml
     with:
@@ -97,23 +98,23 @@ jobs:
     needs: draft-release
     permissions:
       contents: read
-      id-token: write
+      id-token: write # OIDC trusted publishing
     uses: ./.github/workflows/publish-crates-io.yml
 
   publish-python:
-    needs: build
+    needs: release-binaries
     permissions:
-      contents: write
-      id-token: write
+      contents: read
+      id-token: write # OIDC trusted publishing
     uses: ./.github/workflows/publish-python.yml
     with:
       release: ${{ github.ref_name }}
 
   publish-npm:
-    needs: build
+    needs: release-binaries
     permissions:
-      contents: write
-      id-token: write
+      contents: read
+      id-token: write # OIDC trusted publishing
     uses: ./.github/workflows/publish-npm.yml
     with:
       release: ${{ github.ref_name }}
@@ -130,7 +131,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Publish Release
         env:
