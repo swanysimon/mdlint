@@ -104,7 +104,7 @@ pub struct MigrateArgs {
         long,
         value_name = "SOURCE",
         default_value_t = MigrateFrom::MarkdownlintCli2,
-        help = "Tool to migrate the configuration from"
+        help = "[Experimental] Migrate the configuration from other markdown tools"
     )]
     pub from: MigrateFrom,
 
