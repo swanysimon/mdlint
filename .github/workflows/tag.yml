@@ -75,6 +75,10 @@ jobs:
             --draft \
             --notes-file /tmp/release-notes.md
 
+  ####
+  # Publish binaries to GitHub; necessary for Python and Node builds
+  ####
+
   release-binaries:
     name: Release Binaries
     needs: draft-release
@@ -84,8 +88,12 @@ jobs:
     with:
       release: ${{ github.ref_name }}
 
-  publish-container:
-    needs: draft-release
+  ####
+  # Publish to consumer repositories
+  ####
+
+  publish-docker:
+    needs: release-binaries
     permissions:
       contents: read
       packages: write
@@ -94,12 +102,14 @@ jobs:
       version: ${{ github.ref_name }}
     secrets: inherit
 
-  publish-crates-io:
-    needs: draft-release
+  publish-node:
+    needs: release-binaries
     permissions:
       contents: read
       id-token: write # OIDC trusted publishing
-    uses: ./.github/workflows/publish-crates-io.yml
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      release: ${{ github.ref_name }}
 
   publish-python:
     needs: release-binaries
@@ -110,22 +120,24 @@ jobs:
     with:
       release: ${{ github.ref_name }}
 
-  publish-npm:
+  publish-rust:
     needs: release-binaries
     permissions:
       contents: read
       id-token: write # OIDC trusted publishing
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      release: ${{ github.ref_name }}
+    uses: ./.github/workflows/publish-rust.yml
+
+  ####
+  # Finalize the draft release
+  ####
 
   publish-release:
     name: Publish Release
     needs:
-      - publish-container
-      - publish-npm
+      - publish-docker
+      - publish-node
       - publish-python
-      - publish-crates-io
+      - publish-rust
     runs-on: ubuntu-latest
     permissions:
       contents: write
