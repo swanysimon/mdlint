@@ -108,8 +108,6 @@ jobs:
       contents: read
       id-token: write # OIDC trusted publishing
     uses: ./.github/workflows/publish-npm.yml
-    with:
-      release: ${{ github.ref_name }}
 
   publish-python:
     needs: release-binaries
@@ -117,8 +115,6 @@ jobs:
       contents: read
       id-token: write # OIDC trusted publishing
     uses: ./.github/workflows/publish-python.yml
-    with:
-      release: ${{ github.ref_name }}
 
   publish-rust:
     needs: release-binaries

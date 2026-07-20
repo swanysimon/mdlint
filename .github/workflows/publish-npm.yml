@@ -2,11 +2,6 @@ name: npm
 
 on:
   workflow_call:
-    inputs:
-      release:
-        description: GitHub release tag to download binaries from and publish to npm
-        required: true
-        type: string
 
 jobs:
   publish:
@@ -33,22 +28,16 @@ jobs:
       - name: Upgrade npm
         run: npm install -g npm@latest
 
-      - name: Download binaries from release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download binaries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: mdlint-*
+          path: /tmp/binaries
+          merge-multiple: true
+
+      - name: Stage binaries
         working-directory: npm/bin
         run: |
-          gh release download '${{ inputs.release }}' \
-            --pattern 'mdlint-linux-x86_64' \
-            --pattern 'mdlint-linux-x86_64-musl' \
-            --pattern 'mdlint-linux-aarch64' \
-            --pattern 'mdlint-linux-aarch64-musl' \
-            --pattern 'mdlint-macos-x86_64' \
-            --pattern 'mdlint-macos-aarch64' \
-            --pattern 'mdlint-windows-x86_64.exe' \
-            --dir /tmp/binaries \
-            --repo '${{ github.repository }}'
-
           mv /tmp/binaries/mdlint-linux-x86_64       mdlint-linux-x64
           mv /tmp/binaries/mdlint-linux-x86_64-musl  mdlint-linux-x64-musl
           mv /tmp/binaries/mdlint-linux-aarch64      mdlint-linux-arm64
@@ -56,7 +45,6 @@ jobs:
           mv /tmp/binaries/mdlint-macos-x86_64       mdlint-darwin-x64
           mv /tmp/binaries/mdlint-macos-aarch64      mdlint-darwin-arm64
           mv /tmp/binaries/mdlint-windows-x86_64.exe mdlint-win32-x64.exe
-
           chmod +x mdlint-*
 
       - name: Publish to npm
