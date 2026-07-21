@@ -8,11 +8,11 @@ use serde_json::Value;
 pub struct MD011;
 
 impl Rule for MD011 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD011"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Reversed link syntax"
     }
 
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_code_block_not_flagged() {
-        let content = r#"# Code Example
+        let content = r"# Code Example
 
 ```python
 result = function(param)[index]
@@ -162,7 +162,7 @@ data = array(0)[key]
 ```
 
 This (is)[wrong] though.
-"#;
+";
         let parser = MarkdownParser::new(content);
         let rule = MD011;
         let violations = rule.check(&parser, None);

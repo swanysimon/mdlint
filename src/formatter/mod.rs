@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 /// Format a Markdown document to canonical style.
@@ -8,6 +10,7 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagE
 /// - Uses ATX-style headings
 /// - Uses `-` for unordered list markers
 /// - Uses backtick fences for code blocks
+#[must_use]
 pub fn format(input: &str) -> String {
     if input.trim().is_empty() {
         return String::new();
@@ -37,6 +40,7 @@ fn mk_options() -> Options {
         | Options::ENABLE_HEADING_ATTRIBUTES
 }
 
+#[allow(clippy::struct_excessive_bools)] // each bool is a distinct formatting phase flag
 struct FormatterState {
     out: String,
     /// Whether the next block element should be preceded by a blank line.
@@ -129,7 +133,7 @@ impl FormatterState {
                 self.needs_blank = true;
             }
             Event::FootnoteReference(label) => {
-                self.inline.push_str(&format!("[^{}]", label));
+                write!(self.inline, "[^{label}]").unwrap();
             }
             Event::TaskListMarker(checked) => {
                 if checked {
@@ -142,6 +146,7 @@ impl FormatterState {
         }
     }
 
+    #[allow(clippy::too_many_lines)] // exhaustive match over pulldown-cmark Tag variants
     fn on_start(&mut self, tag: Tag<'_>) {
         match tag {
             Tag::Paragraph => {
@@ -225,11 +230,11 @@ impl FormatterState {
                 let indent = "  ".repeat(self.list_depth.saturating_sub(1));
                 let marker = match self.list_starts.last_mut() {
                     Some(Some(n)) => {
-                        let s = format!("{}{}. ", indent, n);
+                        let s = format!("{indent}{n}. ");
                         *n += 1;
                         s
                     }
-                    _ => format!("{}- ", indent),
+                    _ => format!("{indent}- "),
                 };
                 if let Some(w) = self.list_item_widths.last_mut() {
                     *w = marker.len();
@@ -265,11 +270,11 @@ impl FormatterState {
                 self.emit_blank_if_needed();
                 // Write the label prefix; body will be flushed inline.
                 self.write_bq_prefix();
-                self.out.push_str(&format!("[^{}]: ", label));
+                write!(self.out, "[^{label}]: ").unwrap();
             }
             Tag::Table(alignments) => {
                 self.emit_blank_if_needed();
-                self.table_alignments = alignments.to_vec();
+                self.table_alignments.clone_from(&alignments);
                 self.table_head_cells = Vec::new();
                 self.table_data_rows = Vec::new();
                 self.current_row_cells = Vec::new();
@@ -281,13 +286,11 @@ impl FormatterState {
             Tag::TableRow => {
                 self.current_row_cells = Vec::new();
             }
-            Tag::TableCell => {
-                // inline content accumulates in self.inline; flushed at End(TableCell)
-            }
             _ => {}
         }
     }
 
+    #[allow(clippy::too_many_lines)] // exhaustive match over pulldown-cmark TagEnd variants
     fn on_end(&mut self, tag: TagEnd) {
         match tag {
             TagEnd::Paragraph => {
@@ -311,7 +314,7 @@ impl FormatterState {
                 // idempotency on re-parse.
                 let heading_raw = text.replace("\\\n", " ").replace('\n', " ");
                 let heading_text = heading_raw.trim();
-                self.out.push_str(&format!("{} {}\n", hashes, heading_text));
+                writeln!(self.out, "{hashes} {heading_text}").unwrap();
                 self.needs_blank = true;
             }
             TagEnd::CodeBlock => {
@@ -360,21 +363,12 @@ impl FormatterState {
             TagEnd::Emphasis => self.inline.push('*'),
             TagEnd::Strong => self.inline.push_str("**"),
             TagEnd::Strikethrough => self.inline.push_str("~~"),
-            TagEnd::Link => {
+            TagEnd::Link | TagEnd::Image => {
                 if let Some((dest, title)) = self.link_stack.pop() {
                     if title.is_empty() {
-                        self.inline.push_str(&format!("]({})", dest));
+                        write!(self.inline, "]({dest})").unwrap();
                     } else {
-                        self.inline.push_str(&format!("]({} \"{}\")", dest, title));
-                    }
-                }
-            }
-            TagEnd::Image => {
-                if let Some((dest, title)) = self.link_stack.pop() {
-                    if title.is_empty() {
-                        self.inline.push_str(&format!("]({})", dest));
-                    } else {
-                        self.inline.push_str(&format!("]({} \"{}\")", dest, title));
+                        write!(self.inline, "]({dest} \"{title}\")").unwrap();
                     }
                 }
             }
@@ -640,7 +634,7 @@ impl FormatterState {
         if trimmed.is_empty() {
             return String::new();
         }
-        format!("{}\n", trimmed)
+        format!("{trimmed}\n")
     }
 }
 
@@ -651,13 +645,13 @@ impl FormatterState {
 /// gives a valid backslash escape that round-trips through pulldown-cmark.
 ///
 /// The exception is ordered-list markers: `0.` or `12.` start with a digit, and
-/// `\0` is NOT a valid CommonMark escape sequence (digits are not ASCII punctuation).
+/// `\0` is NOT a valid `CommonMark` escape sequence (digits are not ASCII punctuation).
 /// A literal `\` before a digit is emitted as-is by pulldown-cmark, then the
 /// formatter doubles it on the second pass, breaking idempotency.  The fix: place
 /// the backslash before the `.` or `)` that follows the digits instead — `0\.` —
 /// which IS a valid escape and renders identically.
 fn escape_line(line: &str) -> String {
-    let digits_len = line.chars().take_while(|c| c.is_ascii_digit()).count();
+    let digits_len = line.chars().take_while(char::is_ascii_digit).count();
     if digits_len > 0 {
         // Ordered-list marker: `0.` → `0\.`, `12)` → `12\)`, etc.
         format!("{}\\{}", &line[..digits_len], &line[digits_len..])
@@ -672,7 +666,7 @@ fn escape_line(line: &str) -> String {
 /// soft-break continuation lines that are emitted as separate output lines.
 ///
 /// When `is_continuation` is true, the line is a soft-break continuation
-/// inside a paragraph.  In CommonMark only `1.` / `1)` can interrupt a
+/// inside a paragraph.  In `CommonMark` only `1.` / `1)` can interrupt a
 /// paragraph, so other ordered-list markers (2., 6., etc.) must NOT be
 /// escaped — escaping them hides real formatting problems from the linter.
 fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
@@ -719,7 +713,7 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
     // Ordered list marker: one or more ASCII digits followed by . or ) and then space/tab/end.
     // On continuation lines only `1.` / `1)` can interrupt a paragraph (CommonMark spec §5.2),
     // so we must not escape other numbers — doing so hides broken-list errors from the linter.
-    let digits: String = line.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let digits: String = line.chars().take_while(char::is_ascii_digit).collect();
     if !digits.is_empty() {
         let rest = &line[digits.len()..];
         if let Some(after_marker) = rest.strip_prefix(['.', ')'])

@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD056;
 
 impl Rule for MD056 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD056"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Table column count"
     }
 
@@ -49,8 +49,7 @@ impl Rule for MD056 {
                             column: Some(1),
                             rule: self.name().to_string(),
                             message: format!(
-                                "Table separator has {} columns, expected {}",
-                                separator_columns, expected_columns
+                                "Table separator has {separator_columns} columns, expected {expected_columns}"
                             ),
                             fix: None,
                         });
@@ -71,8 +70,7 @@ impl Rule for MD056 {
                                 column: Some(1),
                                 rule: self.name().to_string(),
                                 message: format!(
-                                    "Table row has {} columns, expected {}",
-                                    data_columns, expected_columns
+                                    "Table row has {data_columns} columns, expected {expected_columns}"
                                 ),
                                 fix: None,
                             });

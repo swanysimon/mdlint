@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD028;
 
 impl Rule for MD028 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD028"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Blank line inside blockquote"
     }
 

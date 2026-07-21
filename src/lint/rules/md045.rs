@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD045;
 
 impl Rule for MD045 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD045"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Images should have alternate text (alt text)"
     }
 

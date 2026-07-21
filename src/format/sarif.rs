@@ -10,6 +10,7 @@ impl Default for SarifFormatter {
 }
 
 impl SarifFormatter {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

@@ -86,7 +86,7 @@ fn lsp_full_lifecycle() {
     let (server_conn, client_conn) = Connection::memory();
 
     let server_thread =
-        thread::spawn(move || run_server_with_connection(server_conn, None).unwrap());
+        thread::spawn(move || run_server_with_connection(&server_conn, None).unwrap());
 
     // 1. Initialize handshake
     initialize(&client_conn);

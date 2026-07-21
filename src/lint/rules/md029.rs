@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD029;
 
 impl Rule for MD029 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD029"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Ordered list item prefix"
     }
 
@@ -75,15 +75,14 @@ impl Rule for MD029 {
                                 let digit_len = line
                                     .trim_start()
                                     .chars()
-                                    .take_while(|c| c.is_ascii_digit())
+                                    .take_while(char::is_ascii_digit)
                                     .count();
                                 violations.push(Violation {
                                     line: line_num,
                                     column: Some(indent + 1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Ordered list item prefix: expected {}, found {}",
-                                        should_be, num
+                                        "Ordered list item prefix: expected {should_be}, found {num}"
                                     ),
                                     fix: Some(Fix {
                                         line_start: line_num,
@@ -92,8 +91,7 @@ impl Rule for MD029 {
                                         column_end: Some(indent + digit_len),
                                         replacement: should_be.to_string(),
                                         description: format!(
-                                            "Renumber ordered list item to {}",
-                                            should_be
+                                            "Renumber ordered list item to {should_be}"
                                         ),
                                     }),
                                 });
@@ -118,7 +116,7 @@ impl Rule for MD029 {
 /// Extract the leading integer from an ordered list item line (after stripping indentation).
 /// Returns `Some(n)` for `"3. text"` or `"3) text"`, `None` otherwise.
 fn parse_item_number(trimmed: &str) -> Option<usize> {
-    let digits: String = trimmed.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let digits: String = trimmed.chars().take_while(char::is_ascii_digit).collect();
     if digits.is_empty() {
         return None;
     }

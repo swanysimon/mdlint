@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD026;
 
 impl Rule for MD026 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD026"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Trailing punctuation in heading"
     }
 
@@ -52,7 +52,7 @@ impl Rule for MD026 {
                             line: current_heading_line,
                             column: Some(1),
                             rule: self.name().to_string(),
-                            message: format!("Trailing punctuation in heading: '{}'", last_char),
+                            message: format!("Trailing punctuation in heading: '{last_char}'"),
                             fix: None,
                         });
                     }

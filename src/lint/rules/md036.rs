@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD036;
 
 impl Rule for MD036 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD036"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Emphasis used instead of a heading"
     }
 

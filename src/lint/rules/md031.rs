@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD031;
 
 impl Rule for MD031 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD031"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Fenced code blocks should be surrounded by blank lines"
     }
 

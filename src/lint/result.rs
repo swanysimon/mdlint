@@ -10,6 +10,7 @@ pub struct LintResult {
 }
 
 impl LintResult {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -42,6 +43,7 @@ impl LintResult {
         }
     }
 
+    #[must_use]
     pub fn has_errors(&self) -> bool {
         self.total_errors > 0
     }

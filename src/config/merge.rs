@@ -1,6 +1,7 @@
 use crate::config::types::{Config, RuleConfig};
 use std::collections::HashMap;
 
+#[must_use]
 pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
     // Extend custom rules
     if !override_cfg.custom_rules.is_empty() {
@@ -38,6 +39,8 @@ pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
     base
 }
 
+#[must_use]
+#[allow(clippy::implicit_hasher)] // binary-only crate; no benefit generalizing over BuildHasher
 pub fn merge_rule_configs(
     base: &HashMap<String, RuleConfig>,
     override_cfg: &HashMap<String, RuleConfig>,

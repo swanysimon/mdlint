@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD049;
 
 impl Rule for MD049 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD049"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Emphasis style should be consistent"
     }
 
@@ -18,6 +18,7 @@ impl Rule for MD049 {
         &["emphasis"]
     }
 
+    #[allow(clippy::too_many_lines)] // rule logic requires tracking multiple style variants per event
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let style = config
             .and_then(|c| c.get("style"))
@@ -98,8 +99,7 @@ impl Rule for MD049 {
                                                     column: Some(i + 1),
                                                     rule: self.name().to_string(),
                                                     message: format!(
-                                                        "Emphasis style should be consistent: expected '{}', found '{}'",
-                                                        first, ch
+                                                        "Emphasis style should be consistent: expected '{first}', found '{ch}'"
                                                     ),
                                                     fix: Some(make_fix(i + 1, first)),
                                                 });
@@ -108,8 +108,7 @@ impl Rule for MD049 {
                                                     column: Some(j + 1),
                                                     rule: self.name().to_string(),
                                                     message: format!(
-                                                        "Emphasis style should be consistent: expected '{}', found '{}'",
-                                                        first, ch
+                                                        "Emphasis style should be consistent: expected '{first}', found '{ch}'"
                                                     ),
                                                     fix: Some(make_fix(j + 1, first)),
                                                 });
@@ -125,8 +124,7 @@ impl Rule for MD049 {
                                                 column: Some(i + 1),
                                                 rule: self.name().to_string(),
                                                 message: format!(
-                                                    "Emphasis style should be '{}', found '{}'",
-                                                    expected, ch
+                                                    "Emphasis style should be '{expected}', found '{ch}'"
                                                 ),
                                                 fix: Some(make_fix(i + 1, expected)),
                                             });
@@ -135,8 +133,7 @@ impl Rule for MD049 {
                                                 column: Some(j + 1),
                                                 rule: self.name().to_string(),
                                                 message: format!(
-                                                    "Emphasis style should be '{}', found '{}'",
-                                                    expected, ch
+                                                    "Emphasis style should be '{expected}', found '{ch}'"
                                                 ),
                                                 fix: Some(make_fix(j + 1, expected)),
                                             });

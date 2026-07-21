@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD054;
 
 impl Rule for MD054 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD054"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Link and image style"
     }
 
@@ -35,8 +35,9 @@ impl Rule for MD054 {
 
         for (event, range) in parser.parse_with_offsets() {
             let (is_link_or_image, link_type) = match &event {
-                Event::Start(Tag::Link { link_type: lt, .. }) => (true, Some(lt)),
-                Event::Start(Tag::Image { link_type: lt, .. }) => (true, Some(lt)),
+                Event::Start(
+                    Tag::Link { link_type: lt, .. } | Tag::Image { link_type: lt, .. },
+                ) => (true, Some(lt)),
                 _ => (false, None),
             };
 
@@ -55,8 +56,7 @@ impl Rule for MD054 {
                                     column: Some(1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Link/image style should be consistent: expected '{}', found '{}'",
-                                        first, current_style
+                                        "Link/image style should be consistent: expected '{first}', found '{current_style}'"
                                     ),
                                     fix: None,
                                 });
@@ -70,8 +70,7 @@ impl Rule for MD054 {
                         column: Some(1),
                         rule: self.name().to_string(),
                         message: format!(
-                            "Link/image style should be '{}', found '{}'",
-                            style, current_style
+                            "Link/image style should be '{style}', found '{current_style}'"
                         ),
                         fix: None,
                     });

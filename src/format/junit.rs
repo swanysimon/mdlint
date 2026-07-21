@@ -10,6 +10,7 @@ impl Default for JunitFormatter {
 }
 
 impl JunitFormatter {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

@@ -8,16 +8,18 @@ use documents::DocumentStore;
 use lsp_server::{Connection, IoThreads, Message};
 
 /// Start an LSP server on stdio.
+#[allow(clippy::missing_errors_doc)]
 pub fn run_server() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
-    run_server_with_connection(connection, Some(io_threads))
+    run_server_with_connection(&connection, Some(io_threads))
 }
 
 /// Run the LSP event loop on an existing connection.
 ///
 /// Exposed for integration testing via `Connection::memory()`.
+#[allow(clippy::missing_errors_doc)]
 pub fn run_server_with_connection(
-    connection: Connection,
+    connection: &Connection,
     io_threads: Option<IoThreads>,
 ) -> Result<()> {
     let server_capabilities = serde_json::to_value(capabilities::capabilities())
@@ -43,7 +45,7 @@ pub fn run_server_with_connection(
                     }
                     return Ok(());
                 }
-                handlers::handle_request(&connection, &req, &mut docs);
+                handlers::handle_request(connection, &req, &mut docs);
             }
             Message::Notification(notif) => {
                 if notif.method == "exit" {
@@ -54,7 +56,7 @@ pub fn run_server_with_connection(
                     }
                     return Ok(());
                 }
-                handlers::handle_notification(&connection, &notif, &mut docs);
+                handlers::handle_notification(connection, &notif, &mut docs);
             }
             Message::Response(_) => {}
         }

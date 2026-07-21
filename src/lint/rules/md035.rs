@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD035;
 
 impl Rule for MD035 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD035"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Horizontal rule style"
     }
 
@@ -48,8 +48,7 @@ impl Rule for MD035 {
                                 column: Some(1),
                                 rule: self.name().to_string(),
                                 message: format!(
-                                    "Horizontal rule style should be consistent: expected {}, found {}",
-                                    first_style, current_style
+                                    "Horizontal rule style should be consistent: expected {first_style}, found {current_style}"
                                 ),
                                 fix: Some(Fix {
                                     line_start: line_number,
@@ -71,8 +70,7 @@ impl Rule for MD035 {
                         column: Some(1),
                         rule: self.name().to_string(),
                         message: format!(
-                            "Horizontal rule style should be '{}', found '{}'",
-                            style, current_style
+                            "Horizontal rule style should be '{style}', found '{current_style}'"
                         ),
                         fix: Some(Fix {
                             line_start: line_number,

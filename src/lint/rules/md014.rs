@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD014;
 
 impl Rule for MD014 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD014"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Dollar signs used before commands without showing output"
     }
 

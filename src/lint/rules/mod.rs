@@ -111,6 +111,7 @@ pub use md060::MD060;
 use crate::lint::rule::RuleRegistry;
 
 /// Create a registry with all built-in rules
+#[must_use]
 pub fn create_default_registry() -> RuleRegistry {
     let mut registry = RuleRegistry::new();
 

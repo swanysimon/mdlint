@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD027;
 
 impl Rule for MD027 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD027"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Multiple spaces after blockquote symbol"
     }
 
@@ -35,9 +35,9 @@ impl Rule for MD027 {
                     let leading_spaces = &line[..line.len() - trimmed.len()];
                     let content = after_gt[space_count..].trim_start();
                     let replacement = if content.is_empty() {
-                        format!("{}>", leading_spaces)
+                        format!("{leading_spaces}>")
                     } else {
-                        format!("{}> {}", leading_spaces, content)
+                        format!("{leading_spaces}> {content}")
                     };
 
                     violations.push(Violation {
@@ -45,8 +45,7 @@ impl Rule for MD027 {
                         column: Some(line.len() - trimmed.len() + 2),
                         rule: self.name().to_string(),
                         message: format!(
-                            "Multiple spaces after blockquote symbol ({} spaces)",
-                            space_count
+                            "Multiple spaces after blockquote symbol ({space_count} spaces)"
                         ),
                         fix: Some(Fix {
                             line_start: line_number,

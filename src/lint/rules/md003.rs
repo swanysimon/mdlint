@@ -13,11 +13,11 @@ enum HeadingStyle {
 }
 
 impl Rule for MD003 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD003"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Heading style should be consistent throughout the document"
     }
 
@@ -81,8 +81,7 @@ impl Rule for MD003 {
                                 column: Some(1),
                                 rule: self.name().to_string(),
                                 message: format!(
-                                    "Heading style should be consistent (expected {:?}, found {:?})",
-                                    first, current
+                                    "Heading style should be consistent (expected {first:?}, found {current:?})"
                                 ),
                                 fix: None,
                             });
@@ -104,8 +103,7 @@ impl Rule for MD003 {
                             column: Some(1),
                             rule: self.name().to_string(),
                             message: format!(
-                                "Heading style should be {:?} but found {:?}",
-                                required_style, current
+                                "Heading style should be {required_style:?} but found {current:?}"
                             ),
                             fix: None,
                         });

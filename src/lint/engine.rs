@@ -13,11 +13,13 @@ pub struct LintEngine {
 }
 
 impl LintEngine {
+    #[must_use]
     pub fn new(config: Config) -> Self {
         let registry = crate::lint::rules::create_default_registry();
         Self { config, registry }
     }
 
+    #[allow(clippy::missing_errors_doc)]
     pub fn lint_content(&self, content: &str) -> Result<Vec<Violation>> {
         let parser = MarkdownParser::new(content);
         let mut violations: Vec<Violation> = self
@@ -75,6 +77,7 @@ impl LintEngine {
         rule.check(parser, config_value.as_ref())
     }
 
+    #[allow(clippy::missing_errors_doc)]
     pub fn lint_file(&self, path: &Path) -> Result<Vec<Violation>> {
         let content = std::fs::read_to_string(path)?;
         self.lint_content(&content)

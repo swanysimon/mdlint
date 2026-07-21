@@ -12,6 +12,7 @@ pub enum ConfigLoader {
 }
 
 impl ConfigLoader {
+    #[allow(clippy::missing_errors_doc)]
     pub fn load(&self) -> Result<Config> {
         match self {
             ConfigLoader::Detect => {
@@ -24,9 +25,10 @@ impl ConfigLoader {
     }
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn discover_config(start_dir: &Path) -> Result<Config> {
     let config_file = iter::successors(Some(start_dir.to_path_buf()), |path| {
-        path.parent().map(|p| p.to_path_buf())
+        path.parent().map(std::path::Path::to_path_buf)
     })
     .flat_map(|path| CONFIG_FILE_NAMES.iter().map(move |name| path.join(name)))
     .find(|path| path.exists());
@@ -36,6 +38,7 @@ pub fn discover_config(start_dir: &Path) -> Result<Config> {
     }
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn find_all_configs(start_dir: &Path) -> Result<Vec<(PathBuf, Config)>> {
     let mut configs = Vec::new();
     let mut current = start_dir.to_path_buf();
@@ -60,14 +63,17 @@ pub fn find_all_configs(start_dir: &Path) -> Result<Vec<(PathBuf, Config)>> {
 }
 fn load_config(path: &PathBuf) -> Result<Config> {
     let content = fs::read_to_string(path).map_err(|e| {
-        MarkdownlintError::Config(format!("Failed to read config file {:?}: {}", path, e))
+        MarkdownlintError::Config(format!(
+            "Failed to read config file {}: {e}",
+            path.display()
+        ))
     })?;
     parse_toml_config(&content, path)
 }
 
 fn parse_toml_config(content: &str, _path: &Path) -> Result<Config> {
     toml::from_str(content)
-        .map_err(|e| MarkdownlintError::Config(format!("Failed to parse TOML: {}", e)))
+        .map_err(|e| MarkdownlintError::Config(format!("Failed to parse TOML: {e}")))
 }
 
 #[cfg(test)]
@@ -103,13 +109,13 @@ style = "atx"
         let mut file = fs::File::create(&config_path).unwrap();
         write!(
             file,
-            r#"
+            r"
 gitignore = true
 default_enabled = true
 
 [rules.MD013]
 line_length = 80
-"#
+"
         )
         .unwrap();
 

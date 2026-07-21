@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD048;
 
 impl Rule for MD048 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD048"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Code fence style"
     }
 
@@ -45,8 +45,7 @@ impl Rule for MD048 {
                                     column: Some(1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Code fence style should be consistent: expected '{}', found '{}'",
-                                        first, fence_char
+                                        "Code fence style should be consistent: expected '{first}', found '{fence_char}'"
                                     ),
                                     fix: None,
                                 });
@@ -78,8 +77,7 @@ impl Rule for MD048 {
                                     column: Some(1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Code fence style should be consistent: expected '{}', found '{}'",
-                                        first, fence_char
+                                        "Code fence style should be consistent: expected '{first}', found '{fence_char}'"
                                     ),
                                     fix: None,
                                 });

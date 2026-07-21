@@ -8,11 +8,11 @@ use std::collections::HashMap;
 pub struct MD051;
 
 impl Rule for MD051 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD051"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Link fragments should be valid"
     }
 
@@ -73,8 +73,7 @@ impl Rule for MD051 {
                                 column: Some(1),
                                 rule: self.name().to_string(),
                                 message: format!(
-                                    "Link fragment '{}' does not match any heading",
-                                    fragment
+                                    "Link fragment '{fragment}' does not match any heading"
                                 ),
                                 fix: None,
                             });
@@ -92,8 +91,7 @@ impl Rule for MD051 {
                                     column: Some(1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Link fragment '{}' does not match any heading",
-                                        fragment
+                                        "Link fragment '{fragment}' does not match any heading"
                                     ),
                                     fix: None,
                                 });

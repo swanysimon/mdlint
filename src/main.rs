@@ -16,11 +16,7 @@ use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    process::exit(
-        run()
-            .map(|had_errors| if had_errors { 1 } else { 0 })
-            .unwrap_or(2),
-    );
+    process::exit(run().map_or(2, i32::from));
 }
 
 fn run() -> Result<bool> {
@@ -30,7 +26,7 @@ fn run() -> Result<bool> {
 
     match &cli.command {
         Command::Check(args) => run_check(args, config, use_color, cli.verbose),
-        Command::Format(args) => run_format(args, config),
+        Command::Format(args) => run_format(args, &config),
         Command::Server(_) => mdlint::server::run_server().map(|()| false),
     }
 }
@@ -61,12 +57,12 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
         OutputFormat::Gitlab => GitlabFormatter::new(false).format(&lint_result),
         OutputFormat::Json => JsonFormatter::new(false).format(&lint_result),
     };
-    print!("{}", output);
+    print!("{output}");
 
     Ok(lint_result.has_errors())
 }
 
-fn run_format(args: &FormatArgs, config: Config) -> Result<bool> {
+fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
     let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
 
@@ -225,6 +221,7 @@ fn should_use_color(color: &TerminalColor) -> bool {
     }
 }
 
+#[allow(clippy::similar_names)] // `fixer` and `fixes` are clearly distinct: one is the engine, one is the data
 fn apply_fixes(lint_result: &LintResult) -> Result<()> {
     let fixer = Fixer::new();
 

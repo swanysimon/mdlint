@@ -14,6 +14,7 @@ pub struct FrontMatter {
     pub end_line: usize,
 }
 
+#[must_use]
 pub fn detect_front_matter(content: &str) -> Option<FrontMatter> {
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {

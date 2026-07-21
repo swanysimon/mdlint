@@ -8,22 +8,25 @@ pub struct Fixer {
 }
 
 impl Fixer {
+    #[must_use]
     pub fn new() -> Self {
         Self { dry_run: false }
     }
 
+    #[must_use]
     pub fn with_dry_run(dry_run: bool) -> Self {
         Self { dry_run }
     }
 
     /// Apply fixes to a file and return the fixed content
+    #[allow(clippy::missing_errors_doc)]
     pub fn apply_fixes(&self, path: &Path, fixes: &[Fix]) -> Result<String> {
         let content = fs::read_to_string(path)?;
-        let fixed = self.apply_fixes_to_content(&content, fixes)?;
-        Ok(fixed)
+        self.apply_fixes_to_content(&content, fixes)
     }
 
     /// Apply fixes to content string
+    #[allow(clippy::missing_errors_doc)]
     pub fn apply_fixes_to_content(&self, content: &str, fixes: &[Fix]) -> Result<String> {
         if fixes.is_empty() {
             return Ok(content.to_string());
@@ -34,7 +37,10 @@ impl Fixer {
         let had_trailing_newline = content.ends_with('\n');
 
         // Split into lines
-        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        let mut lines: Vec<String> = content
+            .lines()
+            .map(std::string::ToString::to_string)
+            .collect();
 
         // Sort fixes in reverse order (by line, then by column) to apply from end to start
         let mut sorted_fixes = fixes.to_vec();
@@ -72,7 +78,8 @@ impl Fixer {
         Ok(result)
     }
 
-    /// Apply fixes from a FileResult and write to disk
+    /// Apply fixes from a `FileResult` and write to disk
+    #[allow(clippy::missing_errors_doc)]
     pub fn apply_file_fixes(&self, file_result: &FileResult) -> Result<()> {
         let fixes: Vec<Fix> = file_result
             .violations
@@ -196,12 +203,15 @@ fn apply_single_fix(lines: &mut Vec<String>, fix: &Fix) -> Result<()> {
             // Empty replacement with no column range = "delete this line".
             lines.remove(start_line);
         } else {
-            lines[start_line] = fix.replacement.clone();
+            lines[start_line].clone_from(&fix.replacement);
         }
     } else {
         // Multi-line replacement
-        let replacement_lines: Vec<String> =
-            fix.replacement.lines().map(|l| l.to_string()).collect();
+        let replacement_lines: Vec<String> = fix
+            .replacement
+            .lines()
+            .map(std::string::ToString::to_string)
+            .collect();
 
         // Remove old lines and insert new ones
         lines.splice(start_line..=end_line, replacement_lines);

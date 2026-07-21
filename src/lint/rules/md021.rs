@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD021;
 
 impl Rule for MD021 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD021"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Multiple spaces inside hashes on closed atx style heading"
     }
 
@@ -47,9 +47,9 @@ impl Rule for MD021 {
 
                         if space_count > 1 {
                             // Replace multiple spaces with single space
-                            let before_spaces = &trimmed[..check_pos + 1];
+                            let before_spaces = &trimmed[..=check_pos];
                             let after_spaces = &trimmed[pos..];
-                            let replacement = format!("{} {}", before_spaces, after_spaces);
+                            let replacement = format!("{before_spaces} {after_spaces}");
 
                             violations.push(Violation {
                                 line: line_number,

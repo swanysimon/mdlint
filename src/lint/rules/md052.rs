@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD052;
 
 impl Rule for MD052 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD052"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Reference links and images should use a label that is defined"
     }
 

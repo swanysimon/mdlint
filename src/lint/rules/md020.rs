@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD020;
 
 impl Rule for MD020 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD020"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "No space inside hashes on closed atx style heading"
     }
 
@@ -43,7 +43,7 @@ impl Rule for MD020 {
                         // Insert space before closing hashes
                         let before_closing: String = chars[..=pos_before_closing].iter().collect();
                         let closing: String = chars[(pos_before_closing + 1)..].iter().collect();
-                        let replacement = format!("{} {}", before_closing, closing);
+                        let replacement = format!("{before_closing} {closing}");
 
                         violations.push(Violation {
                             line: line_number,

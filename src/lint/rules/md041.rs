@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD041;
 
 impl Rule for MD041 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD041"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "First line in file should be a top-level heading"
     }
 
@@ -19,15 +19,15 @@ impl Rule for MD041 {
         &["headings"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; heading level is always ≤ 6
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
         let level = config
             .and_then(|c| c.get("level"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let expected_level = match level {
-            1 => HeadingLevel::H1,
             2 => HeadingLevel::H2,
             3 => HeadingLevel::H3,
             4 => HeadingLevel::H4,

@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD050;
 
 impl Rule for MD050 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD050"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Strong style should be consistent"
     }
 
@@ -18,6 +18,7 @@ impl Rule for MD050 {
         &["emphasis"]
     }
 
+    #[allow(clippy::too_many_lines)] // rule logic requires tracking multiple style variants per event
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let style = config
             .and_then(|c| c.get("style"))
@@ -92,8 +93,7 @@ impl Rule for MD050 {
                                                     column: Some(i + 1),
                                                     rule: self.name().to_string(),
                                                     message: format!(
-                                                        "Strong style should be consistent: expected '{}', found '{}'",
-                                                        expected_marker, two_char
+                                                        "Strong style should be consistent: expected '{expected_marker}', found '{two_char}'"
                                                     ),
                                                     fix: Some(make_fix(i + 1, expected_marker)),
                                                 });
@@ -102,8 +102,7 @@ impl Rule for MD050 {
                                                     column: Some(j + 1),
                                                     rule: self.name().to_string(),
                                                     message: format!(
-                                                        "Strong style should be consistent: expected '{}', found '{}'",
-                                                        expected_marker, close_two
+                                                        "Strong style should be consistent: expected '{expected_marker}', found '{close_two}'"
                                                     ),
                                                     fix: Some(make_fix(j + 1, expected_marker)),
                                                 });
@@ -121,8 +120,7 @@ impl Rule for MD050 {
                                                 column: Some(i + 1),
                                                 rule: self.name().to_string(),
                                                 message: format!(
-                                                    "Strong style should be '{}', found '{}'",
-                                                    expected_marker, two_char
+                                                    "Strong style should be '{expected_marker}', found '{two_char}'"
                                                 ),
                                                 fix: Some(make_fix(i + 1, expected_marker)),
                                             });
@@ -131,8 +129,7 @@ impl Rule for MD050 {
                                                 column: Some(j + 1),
                                                 rule: self.name().to_string(),
                                                 message: format!(
-                                                    "Strong style should be '{}', found '{}'",
-                                                    expected_marker, close_two
+                                                    "Strong style should be '{expected_marker}', found '{close_two}'"
                                                 ),
                                                 fix: Some(make_fix(j + 1, expected_marker)),
                                             });

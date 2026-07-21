@@ -14,11 +14,11 @@ enum ListMarker {
 }
 
 impl Rule for MD032 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD032"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Lists should be surrounded by blank lines"
     }
 
@@ -150,7 +150,7 @@ impl Rule for MD032 {
 }
 
 /// Returns true if the line starts with `1.` or `1)` (the only ordered marker
-/// that can interrupt a paragraph in CommonMark).
+/// that can interrupt a paragraph in `CommonMark`).
 fn starts_with_one(trimmed: &str) -> bool {
     let check = trimmed.strip_prefix('\\').unwrap_or(trimmed);
     check.starts_with("1. ") || check.starts_with("1) ")

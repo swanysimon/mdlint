@@ -16,6 +16,7 @@ pub struct GlobMatcher {
 }
 
 impl GlobMatcher {
+    #[allow(clippy::missing_errors_doc)]
     pub fn new(patterns: &[String]) -> Result<Self> {
         let mut include_builder = GlobSetBuilder::new();
         let mut exclude_builder = GlobSetBuilder::new();
@@ -25,30 +26,30 @@ impl GlobMatcher {
                 let normalized = normalize_exclude_pattern(exclude_pattern);
                 let glob = Glob::new(&normalized).map_err(|e| {
                     MarkdownlintError::InvalidGlob(format!(
-                        "Invalid exclude pattern '{}': {}",
-                        exclude_pattern, e
+                        "Invalid exclude pattern '{exclude_pattern}': {e}"
                     ))
                 })?;
                 exclude_builder.add(glob);
             } else {
                 let glob = Glob::new(pattern).map_err(|e| {
-                    MarkdownlintError::InvalidGlob(format!("Invalid pattern '{}': {}", pattern, e))
+                    MarkdownlintError::InvalidGlob(format!("Invalid pattern '{pattern}': {e}"))
                 })?;
                 include_builder.add(glob);
             }
         }
 
         let includes = include_builder.build().map_err(|e| {
-            MarkdownlintError::InvalidGlob(format!("Failed to build include glob set: {}", e))
+            MarkdownlintError::InvalidGlob(format!("Failed to build include glob set: {e}"))
         })?;
 
         let excludes = exclude_builder.build().map_err(|e| {
-            MarkdownlintError::InvalidGlob(format!("Failed to build exclude glob set: {}", e))
+            MarkdownlintError::InvalidGlob(format!("Failed to build exclude glob set: {e}"))
         })?;
 
         Ok(Self { includes, excludes })
     }
 
+    #[must_use]
     pub fn matches(&self, path: &Path) -> bool {
         if self.excludes.is_match(path) {
             return false;
@@ -61,6 +62,7 @@ impl GlobMatcher {
         self.includes.is_match(path)
     }
 
+    #[must_use]
     pub fn has_patterns(&self) -> bool {
         !self.includes.is_empty() || !self.excludes.is_empty()
     }

@@ -125,6 +125,7 @@ fn code_action(conn: &Connection, req: &Request, docs: &DocumentStore) {
 
 // lsp-types requires HashMap<Uri, _> in WorkspaceEdit; Uri has interior mutability by design.
 #[allow(clippy::mutable_key_type)]
+#[allow(clippy::cast_possible_truncation)] // LSP positions are u32; line counts in real files fit
 fn violations_to_actions(
     uri: &Uri,
     content: &str,

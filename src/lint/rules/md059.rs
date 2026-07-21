@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD059;
 
 impl Rule for MD059 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD059"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Link text should be descriptive"
     }
 

@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD022;
 
 impl Rule for MD022 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD022"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Headings should be surrounded by blank lines"
     }
 

@@ -1,7 +1,9 @@
+use std::env;
+use std::fmt::Write as _;
+use std::path::PathBuf;
+
 use crate::format::Formatter;
 use crate::lint::LintResult;
-use std::env;
-use std::path::PathBuf;
 
 pub struct DefaultFormatter {
     use_color: bool,
@@ -10,6 +12,7 @@ pub struct DefaultFormatter {
 }
 
 impl DefaultFormatter {
+    #[must_use]
     pub fn new(use_color: bool) -> Self {
         Self {
             use_color,
@@ -17,6 +20,7 @@ impl DefaultFormatter {
         }
     }
 
+    #[must_use]
     pub fn without_context(use_color: bool) -> Self {
         Self {
             use_color,
@@ -26,7 +30,7 @@ impl DefaultFormatter {
 
     fn colorize(&self, text: &str, color_code: &str) -> String {
         if self.use_color {
-            format!("\x1b[{}m{}\x1b[0m", color_code, text)
+            format!("\x1b[{color_code}m{text}\x1b[0m")
         } else {
             text.to_string()
         }
@@ -58,14 +62,13 @@ impl Formatter for DefaultFormatter {
 
             // File path header
             let path_display = file_result.path.display();
-            output.push_str(&format!("{}\n", self.yellow(&path_display.to_string())));
+            writeln!(output, "{}", self.yellow(&path_display.to_string())).unwrap();
 
             // Shorten file path
             let path_relative = file_result
                 .path
                 .strip_prefix(&current_dir)
-                .map(|rel_path| rel_path.to_path_buf())
-                .unwrap_or_else(|_| file_result.path.clone());
+                .map_or_else(|_| file_result.path.clone(), std::path::Path::to_path_buf);
 
             // Each violation
             for violation in &file_result.violations {
@@ -75,23 +78,25 @@ impl Formatter for DefaultFormatter {
                     format!("{}:{}", path_relative.display(), violation.line)
                 };
 
-                output.push_str(&format!(
-                    "  {}: {} {}\n",
+                writeln!(
+                    output,
+                    "  {}: {} {}",
                     self.gray(&location),
                     self.red(&violation.rule),
                     violation.message
-                ));
+                )
+                .unwrap();
 
                 // Source snippet
                 if self.show_context {
                     let line_idx = violation.line.saturating_sub(1);
                     if let Some(src) = file_result.source_lines.get(line_idx) {
                         let src_trimmed = src.trim_end();
-                        output.push_str(&format!("       | {}\n", src_trimmed));
+                        writeln!(output, "       | {src_trimmed}").unwrap();
                         if let Some(col) = violation.column {
                             // Point at the column with a caret (col is 1-indexed)
                             let spaces = " ".repeat(col.saturating_sub(1));
-                            output.push_str(&format!("       | {}{}\n", spaces, self.red("^")));
+                            writeln!(output, "       | {}{}", spaces, self.red("^")).unwrap();
                         }
                     }
                 }
@@ -104,14 +109,14 @@ impl Formatter for DefaultFormatter {
         let files_with_errors = result.file_results.len();
         let total = result.total_files_checked;
         if result.total_errors == 0 {
-            let msg = format!("Checked {} file(s), no errors found.", total);
-            output.push_str(&format!("{}\n", self.gray(&msg)));
+            let msg = format!("Checked {total} file(s), no errors found.");
+            writeln!(output, "{}", self.gray(&msg)).unwrap();
         } else {
             let summary = format!(
                 "Found {} error(s) in {} file(s) ({} checked)",
                 result.total_errors, files_with_errors, total
             );
-            output.push_str(&format!("{}\n", self.red(&summary)));
+            writeln!(output, "{}", self.red(&summary)).unwrap();
         }
 
         output

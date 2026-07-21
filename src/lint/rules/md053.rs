@@ -8,11 +8,11 @@ use std::collections::HashSet;
 pub struct MD053;
 
 impl Rule for MD053 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD053"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Link and image reference definitions should be needed"
     }
 
@@ -31,10 +31,10 @@ impl Rule for MD053 {
         let mut used_labels: HashSet<String> = HashSet::new();
 
         for event in parser.parse() {
-            let (link_type, id) = match event {
-                Event::Start(Tag::Link { link_type, id, .. }) => (link_type, id),
-                Event::Start(Tag::Image { link_type, id, .. }) => (link_type, id),
-                _ => continue,
+            let Event::Start(Tag::Link { link_type, id, .. } | Tag::Image { link_type, id, .. }) =
+                event
+            else {
+                continue;
             };
             if matches!(
                 link_type,
@@ -56,10 +56,7 @@ impl Rule for MD053 {
                     line: *line_number,
                     column: Some(1),
                     rule: self.name().to_string(),
-                    message: format!(
-                        "Link reference definition '{}' is defined but not used",
-                        label
-                    ),
+                    message: format!("Link reference definition '{label}' is defined but not used"),
                     fix: None,
                 });
             }

@@ -7,11 +7,11 @@ use std::collections::HashMap;
 pub struct MD005;
 
 impl Rule for MD005 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD005"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Inconsistent indentation for list items at the same level"
     }
 
@@ -36,8 +36,7 @@ impl Rule for MD005 {
                     .trim_start()
                     .chars()
                     .next()
-                    .map(|c| c.is_ascii_digit())
-                    .unwrap_or(false);
+                    .is_some_and(|c| c.is_ascii_digit());
 
             if !is_list_item {
                 continue;
@@ -69,8 +68,7 @@ impl Rule for MD005 {
                         column: Some(1),
                         rule: self.name().to_string(),
                         message: format!(
-                            "List item indentation mismatch: expected {} spaces, found {}",
-                            expected_indent, indent
+                            "List item indentation mismatch: expected {expected_indent} spaces, found {indent}"
                         ),
                         fix: None,
                     });

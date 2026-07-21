@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD010;
 
 impl Rule for MD010 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD010"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Hard tabs"
     }
 
@@ -22,7 +22,7 @@ impl Rule for MD010 {
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let code_blocks = config
             .and_then(|c| c.get("code_blocks"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
         let mut violations = Vec::new();

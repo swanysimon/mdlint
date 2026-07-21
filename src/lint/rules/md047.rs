@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD047;
 
 impl Rule for MD047 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD047"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Files should end with a single newline character"
     }
 
@@ -42,7 +42,7 @@ impl Rule for MD047 {
                     line_end: lines.len(),
                     column_start: None,
                     column_end: None,
-                    replacement: format!("{}\n", last_line),
+                    replacement: format!("{last_line}\n"),
                     description: "Add newline at end of file".to_string(),
                 }),
             });
@@ -71,7 +71,7 @@ impl Rule for MD047 {
                         column_start: None,
                         column_end: None,
                         replacement: if last_content_line_idx > 0 {
-                            format!("{}\n", last_content_line)
+                            format!("{last_content_line}\n")
                         } else {
                             "\n".to_string()
                         },

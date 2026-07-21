@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD058;
 
 impl Rule for MD058 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD058"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Tables should be surrounded by blank lines"
     }
 

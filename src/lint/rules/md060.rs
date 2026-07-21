@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD060;
 
 impl Rule for MD060 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD060"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Table column style"
     }
 

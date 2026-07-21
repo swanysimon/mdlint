@@ -23,6 +23,7 @@ pub struct RuleRegistry {
 }
 
 impl RuleRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -31,6 +32,7 @@ impl RuleRegistry {
         self.rules.insert(rule.name().to_string(), rule);
     }
 
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&dyn Rule> {
         self.rules.get(name).map(|r| r.as_ref() as &dyn Rule)
     }

@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD025;
 
 impl Rule for MD025 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD025"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Multiple top-level headings in the same document"
     }
 
@@ -37,8 +37,7 @@ impl Rule for MD025 {
                         column: Some(1),
                         rule: self.name().to_string(),
                         message: format!(
-                            "Multiple top-level headings (first h1 at line {})",
-                            first_line
+                            "Multiple top-level headings (first h1 at line {first_line})"
                         ),
                         fix: None,
                     });

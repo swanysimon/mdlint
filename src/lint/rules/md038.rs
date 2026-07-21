@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD038;
 
 impl Rule for MD038 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD038"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Spaces inside code span elements"
     }
 

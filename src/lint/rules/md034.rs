@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD034;
 
 impl Rule for MD034 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD034"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Bare URL used"
     }
 
@@ -45,7 +45,7 @@ impl Rule for MD034 {
                         line: line_number,
                         column: Some(url_match.start() + 1),
                         rule: self.name().to_string(),
-                        message: format!("Bare URL used: {}", url),
+                        message: format!("Bare URL used: {url}"),
                         fix: None,
                     });
                 }

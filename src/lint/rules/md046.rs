@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD046;
 
 impl Rule for MD046 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD046"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Code block style"
     }
 
@@ -43,8 +43,7 @@ impl Rule for MD046 {
                                     column: Some(1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Code block style should be consistent: expected {}, found {}",
-                                        first, current_style
+                                        "Code block style should be consistent: expected {first}, found {current_style}"
                                     ),
                                     fix: None,
                                 });
@@ -74,8 +73,7 @@ impl Rule for MD046 {
                                     column: Some(1),
                                     rule: self.name().to_string(),
                                     message: format!(
-                                        "Code block style should be consistent: expected {}, found {}",
-                                        first, current_style
+                                        "Code block style should be consistent: expected {first}, found {current_style}"
                                     ),
                                     fix: None,
                                 });

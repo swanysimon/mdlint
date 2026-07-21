@@ -37,6 +37,7 @@ tempfile = "^3.27.0"
 
 [lints.clippy]
 all = "deny"
+pedantic = "deny"
 
 [lints.rust]
 warnings = "deny"

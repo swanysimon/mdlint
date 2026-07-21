@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD044;
 
 impl Rule for MD044 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD044"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Proper names should have the correct capitalization"
     }
 
@@ -25,13 +25,13 @@ impl Rule for MD044 {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                     .collect::<Vec<_>>()
             });
 
         let code_blocks = config
             .and_then(|c| c.get("code_blocks"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
         // If no names are specified, skip check
@@ -66,8 +66,7 @@ impl Rule for MD044 {
                                 column: Some(mat.start() + 1),
                                 rule: self.name().to_string(),
                                 message: format!(
-                                    "Proper name '{}' should be capitalized as '{}'",
-                                    found, name
+                                    "Proper name '{found}' should be capitalized as '{name}'"
                                 ),
                                 fix: None,
                             });

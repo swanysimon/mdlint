@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD043;
 
 impl Rule for MD043 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD043"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Required heading structure"
     }
 
@@ -25,7 +25,7 @@ impl Rule for MD043 {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                     .collect::<Vec<_>>()
             });
 
@@ -62,10 +62,7 @@ impl Rule for MD043 {
                                 line: current_heading_line,
                                 column: Some(1),
                                 rule: self.name().to_string(),
-                                message: format!(
-                                    "Expected heading '{}', found '{}'",
-                                    expected, text
-                                ),
+                                message: format!("Expected heading '{expected}', found '{text}'"),
                                 fix: None,
                             });
                         }
@@ -75,7 +72,7 @@ impl Rule for MD043 {
                             line: current_heading_line,
                             column: Some(1),
                             rule: self.name().to_string(),
-                            message: format!("Unexpected heading: '{}'", text),
+                            message: format!("Unexpected heading: '{text}'"),
                             fix: None,
                         });
                     }

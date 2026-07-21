@@ -15,8 +15,8 @@ impl MD037 {
         violations: &mut Vec<Violation>,
     ) {
         let marker_len = marker.len();
-        let open_pattern = format!("{} ", marker);
-        let close_pattern = format!(" {}", marker);
+        let open_pattern = format!("{marker} ");
+        let close_pattern = format!(" {marker}");
 
         let mut offset = 0;
         while let Some(pos) = text[offset..].find(&open_pattern) {
@@ -63,8 +63,8 @@ impl MD037 {
         parser: &MarkdownParser,
         violations: &mut Vec<Violation>,
     ) {
-        let open_pattern = format!("{} ", marker);
-        let close_pattern = format!(" {}", marker);
+        let open_pattern = format!("{marker} ");
+        let close_pattern = format!(" {marker}");
         let double_marker = marker.repeat(2);
 
         let mut offset = 0;
@@ -104,10 +104,10 @@ impl MD037 {
                     let before_close_char = if before_close < search_start {
                         ""
                     } else {
-                        &text[before_close..before_close + 1]
+                        &text[before_close..=before_close]
                     };
                     let after_close_char = if after_close_marker < text.len() {
-                        &text[after_close_marker..after_close_marker + 1]
+                        &text[after_close_marker..=after_close_marker]
                     } else {
                         ""
                     };
@@ -146,11 +146,11 @@ impl MD037 {
 }
 
 impl Rule for MD037 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD037"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Spaces inside emphasis markers"
     }
 
@@ -166,7 +166,7 @@ impl Rule for MD037 {
         let events: Vec<_> = parser.parse_with_offsets().collect();
         let code_ranges = parser.get_code_ranges();
 
-        for (event, range) in events.iter() {
+        for (event, range) in &events {
             if let Event::Text(text) = event {
                 let text_str = text.as_ref();
                 let offset = range.start;
