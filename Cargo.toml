@@ -35,9 +35,29 @@ url = "^2.5.8"
 proptest = "^1.11.0"
 tempfile = "^3.27.0"
 
+# Groups denied: all, pedantic (priority 0)
+# Opt-in restriction lints (priority 1, deny): cast_possible_truncation, implicit_hasher,
+#   mutable_key_type, similar_names, struct_excessive_bools, too_many_lines
+# Pedantic suppressed (priority 1, allow): missing_errors_doc, missing_panics_doc (no doc
+#   culture), module_name_repetitions (LintEngine in lint module is clearer),
+#   non_ascii_literal (Unicode punctuation sets are intentional),
+#   wildcard_enum_match_arm (conflicts with match_same_arms)
+# lint_groups_priority suppressed: we intentionally mix group and individual priorities
 [lints.clippy]
 all = "deny"
+cast_possible_truncation = { level = "deny", priority = 1 }
+implicit_hasher = { level = "deny", priority = 1 }
+lint_groups_priority = { level = "allow", priority = 1 }
+missing_errors_doc = { level = "allow", priority = 1 }
+missing_panics_doc = { level = "allow", priority = 1 }
+module_name_repetitions = { level = "allow", priority = 1 }
+mutable_key_type = { level = "deny", priority = 1 }
+non_ascii_literal = { level = "allow", priority = 1 }
 pedantic = "deny"
+similar_names = { level = "deny", priority = 1 }
+struct_excessive_bools = { level = "deny", priority = 1 }
+too_many_lines = { level = "deny", priority = 1 }
+wildcard_enum_match_arm = { level = "allow", priority = 1 }
 
 [lints.rust]
 warnings = "deny"

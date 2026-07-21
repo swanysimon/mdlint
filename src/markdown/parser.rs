@@ -57,7 +57,7 @@ impl<'a> MarkdownParser<'a> {
     #[must_use]
     pub fn get_line(&self, line_num: usize) -> Option<&'a str> {
         if line_num > 0 && line_num <= self.lines.len() {
-            Some(self.lines[line_num - 1])
+            self.lines.get(line_num - 1).copied()
         } else {
             None
         }
@@ -98,7 +98,12 @@ impl<'a> MarkdownParser<'a> {
             return (1, 1);
         }
         let line_idx = i - 1; // 0-indexed
-        let column = offset - self.line_offsets[line_idx] + 1;
+        let column = offset
+            - self
+                .line_offsets
+                .get(line_idx)
+                .expect("line_idx = i-1, i from partition_point so valid")
+            + 1;
         (line_idx + 1, column) // 1-indexed
     }
 
@@ -144,7 +149,10 @@ impl<'a> MarkdownParser<'a> {
         if line_num == 0 || line_num > self.line_offsets.len() {
             return self.content.len();
         }
-        self.line_offsets[line_num - 1] + byte_offset_in_line
+        self.line_offsets
+            .get(line_num - 1)
+            .expect("line_num <= line_offsets.len() checked")
+            + byte_offset_in_line
     }
 
     #[must_use]
@@ -269,7 +277,7 @@ fn build_ref_def_info(
         for line in start..=end {
             line_set.insert(line);
         }
-        label_map.insert(label.to_string(), start);
+        label_map.insert(label.to_owned(), start);
     }
     (line_set, label_map)
 }

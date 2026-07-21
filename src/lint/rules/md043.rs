@@ -25,7 +25,7 @@ impl Rule for MD043 {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
+                    .filter_map(|v| v.as_str().map(str::to_owned))
                     .collect::<Vec<_>>()
             });
 
@@ -55,13 +55,15 @@ impl Rule for MD043 {
                     let text = current_heading_text.trim();
 
                     if heading_index < required_headings.len() {
-                        let expected = &required_headings[heading_index];
+                        let expected = required_headings
+                            .get(heading_index)
+                            .expect("heading_index < required_headings.len()");
                         // Support wildcards (*)
                         if expected != "*" && text != expected {
                             violations.push(Violation {
                                 line: current_heading_line,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!("Expected heading '{expected}', found '{text}'"),
                                 fix: None,
                             });
@@ -71,7 +73,7 @@ impl Rule for MD043 {
                         violations.push(Violation {
                             line: current_heading_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!("Unexpected heading: '{text}'"),
                             fix: None,
                         });
@@ -89,7 +91,7 @@ impl Rule for MD043 {
             violations.push(Violation {
                 line: parser.lines().len(),
                 column: Some(1),
-                rule: self.name().to_string(),
+                rule: self.name().to_owned(),
                 message: format!(
                     "Missing required headings (expected {}, found {})",
                     required_headings.len(),

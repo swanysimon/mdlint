@@ -133,7 +133,7 @@ impl FormatterState {
                 self.needs_blank = true;
             }
             Event::FootnoteReference(label) => {
-                write!(self.inline, "[^{label}]").unwrap();
+                write!(self.inline, "[^{label}]").expect("writing to String is infallible");
             }
             Event::TaskListMarker(checked) => {
                 if checked {
@@ -270,7 +270,7 @@ impl FormatterState {
                 self.emit_blank_if_needed();
                 // Write the label prefix; body will be flushed inline.
                 self.write_bq_prefix();
-                write!(self.out, "[^{label}]: ").unwrap();
+                write!(self.out, "[^{label}]: ").expect("writing to String is infallible");
             }
             Tag::Table(alignments) => {
                 self.emit_blank_if_needed();
@@ -314,7 +314,7 @@ impl FormatterState {
                 // idempotency on re-parse.
                 let heading_raw = text.replace("\\\n", " ").replace('\n', " ");
                 let heading_text = heading_raw.trim();
-                writeln!(self.out, "{hashes} {heading_text}").unwrap();
+                writeln!(self.out, "{hashes} {heading_text}").expect("writing to String is infallible");
                 self.needs_blank = true;
             }
             TagEnd::CodeBlock => {
@@ -366,9 +366,9 @@ impl FormatterState {
             TagEnd::Link | TagEnd::Image => {
                 if let Some((dest, title)) = self.link_stack.pop() {
                     if title.is_empty() {
-                        write!(self.inline, "]({dest})").unwrap();
+                        write!(self.inline, "]({dest})").expect("writing to String is infallible");
                     } else {
-                        write!(self.inline, "]({dest} \"{title}\")").unwrap();
+                        write!(self.inline, "]({dest} \"{title}\")").expect("writing to String is infallible");
                     }
                 }
             }
@@ -494,7 +494,7 @@ impl FormatterState {
                     '`' => s.push_str("\\`"),
                     '_' | '~' => {
                         let prev = if i > 0 {
-                            Some(chars[i - 1])
+                            chars.get(i - 1).copied()
                         } else {
                             prev_inline_char
                         };
@@ -629,7 +629,10 @@ impl FormatterState {
             .iter()
             .position(|l| !l.is_empty())
             .unwrap_or(result.len());
-        let joined = result[start..].join("\n");
+        let joined = result
+            .get(start..)
+            .expect("start bounded by result.len()")
+            .join("\n");
         let trimmed = joined.trim_end_matches('\n');
         if trimmed.is_empty() {
             return String::new();
@@ -694,7 +697,7 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
     // Thematic break: three or more of the same char (-, *, _) with optional spaces.
     // Catches `---`, `___`, `* * *`, etc.  The * and - cases with trailing space are
     // already caught above; this covers `---` and `___` and variants without spaces.
-    let first = line.chars().next().unwrap();
+    let first = line.chars().next().expect("non-empty, checked above");
     if matches!(first, '-' | '*' | '_') {
         let all_valid = line.chars().all(|c| c == first || c == ' ' || c == '\t');
         let count = line.chars().filter(|&c| c == first).count();

@@ -39,7 +39,7 @@ pub fn violation_to_diagnostic(v: &Violation, content: &str) -> Diagnostic {
         },
         severity: Some(DiagnosticSeverity::WARNING),
         code: Some(NumberOrString::String(v.rule.clone())),
-        source: Some("mdlint".to_string()),
+        source: Some("mdlint".to_owned()),
         message: v.message.clone(),
         ..Default::default()
     }
@@ -115,7 +115,7 @@ pub fn whole_doc_edit(content: &str, formatted: &str) -> TextEdit {
                 character: 0,
             },
         },
-        new_text: formatted.to_string(),
+        new_text: formatted.to_owned(),
     }
 }
 
@@ -134,8 +134,8 @@ mod tests {
         Violation {
             line,
             column,
-            rule: "MD001".to_string(),
-            message: "test".to_string(),
+            rule: "MD001".to_owned(),
+            message: "test".to_owned(),
             fix: None,
         }
     }

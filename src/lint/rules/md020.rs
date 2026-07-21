@@ -39,25 +39,38 @@ impl Rule for MD020 {
                     let chars: Vec<char> = trimmed.chars().collect();
                     let pos_before_closing = chars.len() - closing_hashes - 1;
 
-                    if chars[pos_before_closing] != ' ' {
+                    if chars
+                        .get(pos_before_closing)
+                        .copied()
+                        .expect("pos bounded by len")
+                        != ' '
+                    {
                         // Insert space before closing hashes
-                        let before_closing: String = chars[..=pos_before_closing].iter().collect();
-                        let closing: String = chars[(pos_before_closing + 1)..].iter().collect();
+                        let before_closing: String = chars
+                            .get(..=pos_before_closing)
+                            .expect("pos bounded by len")
+                            .iter()
+                            .collect();
+                        let closing: String = chars
+                            .get((pos_before_closing + 1)..)
+                            .expect("pos+1 bounded by len")
+                            .iter()
+                            .collect();
                         let replacement = format!("{before_closing} {closing}");
 
                         violations.push(Violation {
                             line: line_number,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "No space inside hashes on closed atx style heading"
-                                .to_string(),
+                                .to_owned(),
                             fix: Some(Fix {
                                 line_start: line_number,
                                 line_end: line_number,
                                 column_start: None,
                                 column_end: None,
                                 replacement,
-                                description: "Add space before closing hashes".to_string(),
+                                description: "Add space before closing hashes".to_owned(),
                             }),
                         });
                     }

@@ -25,7 +25,7 @@ impl Rule for MD044 {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
+                    .filter_map(|v| v.as_str().map(str::to_owned))
                     .collect::<Vec<_>>()
             });
 
@@ -64,7 +64,7 @@ impl Rule for MD044 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(mat.start() + 1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Proper name '{found}' should be capitalized as '{name}'"
                                 ),

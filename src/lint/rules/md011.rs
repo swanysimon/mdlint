@@ -49,7 +49,7 @@ impl Rule for MD011 {
 
         // Pattern for reversed link syntax: (text)[url]
         // Capture the bracket content so we can exclude GFM task list checkboxes ([ ], [x], [X])
-        let re = Regex::new(r"\([^)]+\)\[([^\]]+)\]").unwrap();
+        let re = Regex::new(r"\([^)]+\)\[([^\]]+)\]").expect("valid regex");
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
@@ -65,13 +65,13 @@ impl Rule for MD011 {
                 if matches!(bracket_content, " " | "x" | "X") {
                     continue;
                 }
-                let m = caps.get(0).unwrap();
+                let m = caps.get(0).expect("group 0 always present");
                 violations.push(Violation {
                     line: line_number,
                     column: Some(m.start() + 1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: "Reversed link syntax (found '(text)[url]', should be '[text](url)')"
-                        .to_string(),
+                        .to_owned(),
                     fix: None,
                 });
             }
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_code_block_not_flagged() {
-        let content = r"# Code Example
+        let content = "# Code Example
 
 ```python
 result = function(param)[index]

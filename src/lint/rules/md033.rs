@@ -55,7 +55,7 @@ impl Rule for MD033 {
                     violations.push(Violation {
                         line,
                         column: Some(1),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!("Inline HTML element: <{tag_name}>"),
                         fix: None,
                     });

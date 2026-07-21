@@ -53,7 +53,7 @@ impl Rule for MD024 {
                     current_heading_text.push('`');
                 }
                 Event::End(TagEnd::Heading(_)) if in_heading => {
-                    let text = current_heading_text.trim().to_string();
+                    let text = current_heading_text.trim().to_owned();
 
                     if siblings_only {
                         // Check if same level heading with same text exists
@@ -70,7 +70,7 @@ impl Rule for MD024 {
                             violations.push(Violation {
                                 line: current_heading_line,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Multiple sibling headings with the same content: \"{text}\" (first at line {first_line})"
                                 ),
@@ -88,7 +88,7 @@ impl Rule for MD024 {
                             violations.push(Violation {
                                 line: current_heading_line,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Multiple headings with the same content: \"{text}\" (first at line {first_line})"
                                 ),

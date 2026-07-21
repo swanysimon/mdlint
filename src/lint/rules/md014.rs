@@ -64,7 +64,9 @@ impl Rule for MD014 {
                                 if !line.trim().is_empty() && line.trim_start().starts_with('$') {
                                     // Remove leading $ and any spaces after it
                                     let trimmed = line.trim_start();
-                                    let after_dollar = trimmed.strip_prefix('$').unwrap();
+                                    let after_dollar = trimmed
+                                        .strip_prefix('$')
+                                        .expect("starts_with('$') checked above");
                                     let after_dollar_trimmed = after_dollar.trim_start();
                                     // Preserve leading whitespace before $
                                     let leading_spaces = line.len() - trimmed.len();
@@ -77,17 +79,16 @@ impl Rule for MD014 {
                                     violations.push(Violation {
                                         line: current_line,
                                         column: Some(1),
-                                        rule: self.name().to_string(),
+                                        rule: self.name().to_owned(),
                                         message:
-                                            "Dollar signs should not be used before commands without showing output"
-                                                .to_string(),
+                                            "Dollar signs should not be used before commands without showing output".to_owned(),
                                         fix: Some(Fix {
                                             line_start: current_line,
                                             line_end: current_line,
                                             column_start: None,
                                             column_end: None,
                                             replacement,
-                                            description: "Remove dollar sign".to_string(),
+                                            description: "Remove dollar sign".to_owned(),
                                         }),
                                     });
                                 }

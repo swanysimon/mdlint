@@ -62,15 +62,15 @@ impl Rule for MD010 {
                 violations.push(Violation {
                     line: line_number,
                     column: Some(tab_pos + 1),
-                    rule: self.name().to_string(),
-                    message: "Hard tabs found".to_string(),
+                    rule: self.name().to_owned(),
+                    message: "Hard tabs found".to_owned(),
                     fix: Some(Fix {
                         line_start: line_number,
                         line_end: line_number,
                         column_start: None,
                         column_end: None,
                         replacement: line.replace('\t', "    "),
-                        description: "Replace tabs with spaces".to_string(),
+                        description: "Replace tabs with spaces".to_owned(),
                     }),
                 });
             }

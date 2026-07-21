@@ -47,8 +47,8 @@ impl Rule for MD036 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Emphasis used instead of a heading".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Emphasis used instead of a heading".to_owned(),
                         fix: None,
                     });
                 }

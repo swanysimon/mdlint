@@ -80,7 +80,7 @@ impl Rule for MD029 {
                                 violations.push(Violation {
                                     line: line_num,
                                     column: Some(indent + 1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
                                         "Ordered list item prefix: expected {should_be}, found {num}"
                                     ),

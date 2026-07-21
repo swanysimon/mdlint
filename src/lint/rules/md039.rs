@@ -24,7 +24,7 @@ impl Rule for MD039 {
 
         // Regex to detect spaces inside link text: [ text](url) or [text ](url)
         // Use [^\]]+ to avoid matching across ] boundaries (e.g. task list checkboxes like [ ])
-        let pattern = Regex::new(r"\[( [^\]]+|[^\]]+ )\]\([^\)]+\)").unwrap();
+        let pattern = Regex::new(r"\[( [^\]]+|[^\]]+ )\]\([^\)]+\)").expect("valid regex");
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
@@ -40,8 +40,8 @@ impl Rule for MD039 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(mat.start() + 1),
-                            rule: self.name().to_string(),
-                            message: "Spaces inside link text".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Spaces inside link text".to_owned(),
                             fix: None,
                         });
                     }
@@ -49,8 +49,8 @@ impl Rule for MD039 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(mat.start() + 1),
-                            rule: self.name().to_string(),
-                            message: "Spaces inside link text".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Spaces inside link text".to_owned(),
                             fix: None,
                         });
                     }

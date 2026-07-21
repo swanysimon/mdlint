@@ -49,16 +49,16 @@ impl Rule for MD041 {
                         violations.push(Violation {
                             line: heading_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "First line in file should be a level {} heading",
                                 match expected_level {
-                                    HeadingLevel::H1 => 1,
-                                    HeadingLevel::H2 => 2,
-                                    HeadingLevel::H3 => 3,
-                                    HeadingLevel::H4 => 4,
-                                    HeadingLevel::H5 => 5,
-                                    HeadingLevel::H6 => 6,
+                                    HeadingLevel::H1 => 1u8,
+                                    HeadingLevel::H2 => 2u8,
+                                    HeadingLevel::H3 => 3u8,
+                                    HeadingLevel::H4 => 4u8,
+                                    HeadingLevel::H5 => 5u8,
+                                    HeadingLevel::H6 => 6u8,
                                 }
                             ),
                             fix: None,
@@ -73,8 +73,8 @@ impl Rule for MD041 {
                     violations.push(Violation {
                         line: 1,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "First line in file should be a top-level heading".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "First line in file should be a top-level heading".to_owned(),
                         fix: None,
                     });
                     break;

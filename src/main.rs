@@ -1,22 +1,22 @@
-use clap::Parser;
+use clap::Parser as _;
 use mdlint::args::{CheckArgs, Cli, Command, FormatArgs, OutputFormat, TerminalColor};
 use mdlint::config::loader::{ConfigLoader, find_all_configs};
 use mdlint::config::{Config, merge_many_configs};
 use mdlint::error::Result;
 use mdlint::fix::Fixer;
-use mdlint::format::{DefaultFormatter, Formatter, GitlabFormatter, JsonFormatter};
+use mdlint::format::{DefaultFormatter, Formatter as _, GitlabFormatter, JsonFormatter};
 use mdlint::formatter;
 use mdlint::glob::FileWalker;
 use mdlint::lint::{LintEngine, LintResult};
 use mdlint::types::Violation;
 use std::env;
 use std::fs;
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal as _};
 use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    process::exit(run().map_or(2, i32::from));
+    process::exit(run().map_or(2i32, i32::from));
 }
 
 fn run() -> Result<bool> {
@@ -169,7 +169,7 @@ fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Resu
             }
             let content = fs::read_to_string(file_path)?;
             let violations = engine.lint_content(&content)?;
-            let source_lines = content.lines().map(str::to_string).collect();
+            let source_lines = content.lines().map(str::to_owned).collect();
             Ok((file_path.clone(), violations, source_lines))
         })
         .collect();
@@ -199,7 +199,7 @@ fn lint_files(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintRe
         if violations.is_empty() {
             lint_result.record_clean_file();
         } else {
-            let source_lines: Vec<String> = content.lines().map(str::to_string).collect();
+            let source_lines: Vec<String> = content.lines().map(str::to_owned).collect();
             lint_result.add_file_result(file_path.clone(), violations, source_lines);
         }
     }
@@ -221,7 +221,7 @@ fn should_use_color(color: &TerminalColor) -> bool {
     }
 }
 
-#[allow(clippy::similar_names)] // `fixer` and `fixes` are clearly distinct: one is the engine, one is the data
+#[expect(clippy::similar_names)] // `fixer` and `fixes` are clearly distinct: one is the engine, one is the data
 fn apply_fixes(lint_result: &LintResult) -> Result<()> {
     let fixer = Fixer::new();
 

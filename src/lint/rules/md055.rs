@@ -70,7 +70,7 @@ impl Rule for MD055 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Table pipe style should be consistent: expected {}, found {}",
                                     if first_leading {
@@ -93,7 +93,7 @@ impl Rule for MD055 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Table pipe style should be consistent: expected {}, found {}",
                                     if first_trailing {
@@ -120,8 +120,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should have leading pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should have leading pipe".to_owned(),
                         fix: None,
                     });
                 }
@@ -129,8 +129,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should have trailing pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should have trailing pipe".to_owned(),
                         fix: None,
                     });
                 }
@@ -140,8 +140,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should not have leading pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should not have leading pipe".to_owned(),
                         fix: None,
                     });
                 }
@@ -149,8 +149,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should not have trailing pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should not have trailing pipe".to_owned(),
                         fix: None,
                     });
                 }

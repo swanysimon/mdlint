@@ -4,7 +4,7 @@ use std::path::Path;
 
 fn normalize_exclude_pattern(pattern: &str) -> String {
     if pattern.contains('*') || pattern.contains('?') || pattern.contains('[') {
-        pattern.to_string()
+        pattern.to_owned()
     } else {
         format!("**/{pattern}/**")
     }
@@ -16,7 +16,6 @@ pub struct GlobMatcher {
 }
 
 impl GlobMatcher {
-    #[allow(clippy::missing_errors_doc)]
     pub fn new(patterns: &[String]) -> Result<Self> {
         let mut include_builder = GlobSetBuilder::new();
         let mut exclude_builder = GlobSetBuilder::new();
@@ -74,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_include_pattern() {
-        let matcher = GlobMatcher::new(&["*.md".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["*.md".to_owned()]).unwrap();
 
         assert!(matcher.matches(Path::new("README.md")));
         assert!(matcher.matches(Path::new("docs/guide.md")));
@@ -83,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_exclude_pattern() {
-        let matcher = GlobMatcher::new(&["*.md".to_string(), "#node_modules".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["*.md".to_owned(), "#node_modules".to_owned()]).unwrap();
 
         assert!(matcher.matches(Path::new("README.md")));
         assert!(!matcher.matches(Path::new("node_modules/README.md")));
@@ -92,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_recursive_pattern() {
-        let matcher = GlobMatcher::new(&["**/*.md".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["**/*.md".to_owned()]).unwrap();
 
         assert!(matcher.matches(Path::new("README.md")));
         assert!(matcher.matches(Path::new("docs/guide.md")));
@@ -103,9 +102,9 @@ mod tests {
     #[test]
     fn test_multiple_excludes() {
         let matcher = GlobMatcher::new(&[
-            "**/*.md".to_string(),
-            "#node_modules".to_string(),
-            "#target".to_string(),
+            "**/*.md".to_owned(),
+            "#node_modules".to_owned(),
+            "#target".to_owned(),
         ])
         .unwrap();
 
@@ -128,10 +127,10 @@ mod tests {
         let empty_matcher = GlobMatcher::new(&[]).unwrap();
         assert!(!empty_matcher.has_patterns());
 
-        let include_matcher = GlobMatcher::new(&["*.md".to_string()]).unwrap();
+        let include_matcher = GlobMatcher::new(&["*.md".to_owned()]).unwrap();
         assert!(include_matcher.has_patterns());
 
-        let exclude_matcher = GlobMatcher::new(&["#node_modules".to_string()]).unwrap();
+        let exclude_matcher = GlobMatcher::new(&["#node_modules".to_owned()]).unwrap();
         assert!(exclude_matcher.has_patterns());
     }
 }

@@ -31,8 +31,8 @@ impl Rule for MD042 {
                     violations.push(Violation {
                         line,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "No empty links".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "No empty links".to_owned(),
                         fix: None,
                     });
                 }

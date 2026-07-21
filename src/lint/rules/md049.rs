@@ -47,32 +47,35 @@ impl Rule for MD049 {
             let mut i = 0;
 
             while i < chars.len() {
-                let ch = chars[i];
+                let ch = *chars.get(i).expect("i < chars.len()");
 
                 // Check for single * or _ (emphasis, not strong)
                 if (ch == '*' || ch == '_') && i + 1 < chars.len() {
                     // Make sure it's not strong (**  or __)
-                    let is_strong = (i + 1 < chars.len() && chars[i + 1] == ch)
-                        || (i > 0 && chars[i - 1] == ch);
+                    let is_strong = (i + 1 < chars.len() && chars.get(i + 1).copied() == Some(ch))
+                        || (i > 0 && chars.get(i - 1).copied() == Some(ch));
 
                     // For `_`, apply CommonMark left-flanking rule: the opening `_` must not
                     // be preceded by an alphanumeric character (spec section 6.2). This
                     // prevents snake_case words from being treated as emphasis.
-                    let can_open = ch == '*' || i == 0 || !chars[i - 1].is_alphanumeric();
+                    let can_open = ch == '*'
+                        || i == 0
+                        || !chars.get(i - 1).is_some_and(|c| c.is_alphanumeric());
 
                     if !is_strong && can_open {
                         // Find closing marker
                         for j in (i + 1)..chars.len() {
-                            if chars[j] == ch {
+                            if chars.get(j).copied() == Some(ch) {
                                 // Make sure closing is also not strong
-                                let close_is_strong = (j + 1 < chars.len() && chars[j + 1] == ch)
-                                    || (j > 0 && chars[j - 1] == ch);
+                                let close_is_strong = (j + 1 < chars.len()
+                                    && chars.get(j + 1).copied() == Some(ch))
+                                    || (j > 0 && chars.get(j - 1).copied() == Some(ch));
 
                                 // For `_`, apply CommonMark right-flanking rule: the closing
                                 // `_` must not be followed by an alphanumeric character.
                                 let can_close = ch == '*'
                                     || j + 1 >= chars.len()
-                                    || !chars[j + 1].is_alphanumeric();
+                                    || !chars.get(j + 1).is_some_and(|c| c.is_alphanumeric());
 
                                 if !close_is_strong && can_close {
                                     // Skip if this emphasis is inside code
@@ -88,7 +91,7 @@ impl Rule for MD049 {
                                         column_start: Some(col),
                                         column_end: Some(col),
                                         replacement: target.to_string(),
-                                        description: "Replace emphasis marker".to_string(),
+                                        description: "Replace emphasis marker".to_owned(),
                                     };
 
                                     if style == "consistent" {
@@ -97,7 +100,7 @@ impl Rule for MD049 {
                                                 violations.push(Violation {
                                                     line: line_number,
                                                     column: Some(i + 1),
-                                                    rule: self.name().to_string(),
+                                                    rule: self.name().to_owned(),
                                                     message: format!(
                                                         "Emphasis style should be consistent: expected '{first}', found '{ch}'"
                                                     ),
@@ -106,7 +109,7 @@ impl Rule for MD049 {
                                                 violations.push(Violation {
                                                     line: line_number,
                                                     column: Some(j + 1),
-                                                    rule: self.name().to_string(),
+                                                    rule: self.name().to_owned(),
                                                     message: format!(
                                                         "Emphasis style should be consistent: expected '{first}', found '{ch}'"
                                                     ),
@@ -122,7 +125,7 @@ impl Rule for MD049 {
                                             violations.push(Violation {
                                                 line: line_number,
                                                 column: Some(i + 1),
-                                                rule: self.name().to_string(),
+                                                rule: self.name().to_owned(),
                                                 message: format!(
                                                     "Emphasis style should be '{expected}', found '{ch}'"
                                                 ),
@@ -131,7 +134,7 @@ impl Rule for MD049 {
                                             violations.push(Violation {
                                                 line: line_number,
                                                 column: Some(j + 1),
-                                                rule: self.name().to_string(),
+                                                rule: self.name().to_owned(),
                                                 message: format!(
                                                     "Emphasis style should be '{expected}', found '{ch}'"
                                                 ),

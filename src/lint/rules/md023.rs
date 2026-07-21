@@ -42,7 +42,7 @@ impl Rule for MD023 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "Heading must start at the beginning of the line ({indent} space(s) before)"
                             ),
@@ -51,8 +51,8 @@ impl Rule for MD023 {
                                 line_end: line_number,
                                 column_start: None,
                                 column_end: None,
-                                replacement: trimmed.to_string(),
-                                description: "Remove leading whitespace".to_string(),
+                                replacement: trimmed.to_owned(),
+                                description: "Remove leading whitespace".to_owned(),
                             }),
                         });
                     }

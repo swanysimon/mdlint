@@ -23,7 +23,8 @@ impl Rule for MD034 {
         let mut violations = Vec::new();
 
         // Regex to match URLs that aren't already in markdown link syntax
-        let url_regex = Regex::new(r"(?:^|[^(\[<`])((https?|ftp)://[^\s)\]>]+)").unwrap();
+        let url_regex =
+            Regex::new(r"(?:^|[^(\[<`])((https?|ftp)://[^\s)\]>]+)").expect("valid regex");
 
         // Get code lines to skip (both blocks and inline code can contain URLs)
         let code_lines = parser.get_code_line_numbers();
@@ -44,7 +45,7 @@ impl Rule for MD034 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(url_match.start() + 1),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!("Bare URL used: {url}"),
                         fix: None,
                     });

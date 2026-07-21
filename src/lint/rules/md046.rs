@@ -41,7 +41,7 @@ impl Rule for MD046 {
                                 violations.push(Violation {
                                     line,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
                                         "Code block style should be consistent: expected {first}, found {current_style}"
                                     ),
@@ -55,9 +55,9 @@ impl Rule for MD046 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "Code block style should be 'indented', found 'fenced'"
-                                .to_string(),
+                                .to_owned(),
                             fix: None,
                         });
                     }
@@ -71,7 +71,7 @@ impl Rule for MD046 {
                                 violations.push(Violation {
                                     line,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
                                         "Code block style should be consistent: expected {first}, found {current_style}"
                                     ),
@@ -85,9 +85,9 @@ impl Rule for MD046 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "Code block style should be 'fenced', found 'indented'"
-                                .to_string(),
+                                .to_owned(),
                             fix: None,
                         });
                     }

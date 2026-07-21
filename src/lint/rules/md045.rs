@@ -41,8 +41,8 @@ impl Rule for MD045 {
                         violations.push(Violation {
                             line: image_start_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
-                            message: "Images should have alternate text (alt text)".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Images should have alternate text (alt text)".to_owned(),
                             fix: None,
                         });
                     }

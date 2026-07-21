@@ -95,7 +95,7 @@ pub enum Command {
 }
 
 #[derive(Args, Debug)]
-pub struct ServerArgs {}
+pub struct ServerArgs;
 
 #[derive(Args, Debug)]
 #[allow(clippy::struct_excessive_bools)] // clap CLI structs use bools for flags, not state machines

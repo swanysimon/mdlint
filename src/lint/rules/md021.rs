@@ -28,13 +28,13 @@ impl Rule for MD021 {
             // Check if this is a closed ATX heading
             if trimmed.starts_with('#') && trimmed.ends_with('#') {
                 let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                if parts.len() >= 2 && parts.last().unwrap().chars().all(|c| c == '#') {
-                    let closing_hashes = parts.last().unwrap();
+                if parts.len() >= 2 && parts.last().is_some_and(|p| p.chars().all(|c| c == '#')) {
+                    let closing_hashes = parts.last().expect("len >= 2 checked");
 
                     // Find position of closing hashes
                     if let Some(pos) = trimmed.rfind(closing_hashes) {
                         // Count spaces before closing hashes
-                        let mut space_count = 0;
+                        let mut space_count = 0usize;
                         let mut check_pos = pos;
                         while check_pos > 0 {
                             check_pos -= 1;
@@ -54,10 +54,10 @@ impl Rule for MD021 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message:
                                     "Multiple spaces inside hashes on closed atx style heading"
-                                        .to_string(),
+                                        .to_owned(),
                                 fix: Some(Fix {
                                     line_start: line_number,
                                     line_end: line_number,
@@ -65,7 +65,7 @@ impl Rule for MD021 {
                                     column_end: None,
                                     replacement,
                                     description: "Replace multiple spaces with single space"
-                                        .to_string(),
+                                        .to_owned(),
                                 }),
                             });
                         }

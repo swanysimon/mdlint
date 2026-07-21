@@ -103,7 +103,10 @@ impl Rule for MD030 {
 
             // Check unordered list markers
             if trimmed.starts_with('*') || trimmed.starts_with('+') || trimmed.starts_with('-') {
-                let marker_char = trimmed.chars().next().unwrap();
+                let marker_char = trimmed
+                    .chars()
+                    .next()
+                    .expect("non-empty, starts_with checked");
                 let after_marker = &trimmed[1..];
                 let space_count = after_marker.chars().take_while(|&c| c == ' ').count();
 
@@ -122,7 +125,7 @@ impl Rule for MD030 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(line.len() - trimmed.len() + 2),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "Expected {expected} space(s) after list marker, found {space_count}"
                             ),
@@ -163,7 +166,7 @@ impl Rule for MD030 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(line.len() - trimmed.len() + dot_pos + 2),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Expected {expected} space(s) after list marker, found {space_count}"
                                 ),
@@ -202,7 +205,7 @@ fn is_horizontal_rule(line: &str) -> bool {
         return false;
     }
 
-    let first_char = chars[0];
+    let first_char = chars.first().copied().expect("len >= 3 checked");
     if first_char != '-' && first_char != '*' && first_char != '_' {
         return false;
     }

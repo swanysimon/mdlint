@@ -34,7 +34,7 @@ impl Rule for MD001 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "Heading level skipped from h{prev_level} to h{current_level}"
                             ),

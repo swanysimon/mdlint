@@ -35,7 +35,7 @@ impl Rule for MD025 {
                     violations.push(Violation {
                         line,
                         column: Some(1),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!(
                             "Multiple top-level headings (first h1 at line {first_line})"
                         ),

@@ -40,7 +40,12 @@ impl Rule for MD032 {
             }
             let trimmed = line.trim_start();
             let list_marker = get_list_marker(trimmed);
-            let is_indented = !line.is_empty() && line.chars().next().unwrap().is_whitespace();
+            let is_indented = !line.is_empty()
+                && line
+                    .chars()
+                    .next()
+                    .expect("non-empty, checked above")
+                    .is_whitespace();
 
             if let Some(marker) = list_marker {
                 if !in_list {
@@ -51,7 +56,7 @@ impl Rule for MD032 {
 
                     // Check if previous line is blank (unless it's the first line)
                     if line_num > 0 {
-                        let prev_line = &lines[line_num - 1];
+                        let prev_line = lines.get(line_num - 1).expect("line_num > 0");
                         if !prev_line.trim().is_empty() {
                             // Detect broken ordered list continuation: a line that
                             // looks like an ordered list item (e.g. "6.") following
@@ -63,18 +68,18 @@ impl Rule for MD032 {
                                 violations.push(Violation {
                                     line: line_num, // previous line (0-indexed → 1-indexed)
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: "Line breaks ordered list continuation; subsequent \
                                          numbered items are parsed as text, not list items"
-                                        .to_string(),
+                                        .to_owned(),
                                     fix: None,
                                 });
                             } else {
                                 violations.push(Violation {
                                     line: line_num + 1,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
-                                    message: "List should be surrounded by blank lines".to_string(),
+                                    rule: self.name().to_owned(),
+                                    message: "List should be surrounded by blank lines".to_owned(),
                                     fix: None,
                                 });
                             }
@@ -86,16 +91,16 @@ impl Rule for MD032 {
                     violations.push(Violation {
                         line: last_list_line + 1,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "List should be surrounded by blank lines".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "List should be surrounded by blank lines".to_owned(),
                         fix: None,
                     });
                     // Also this new list needs a blank line before it (report at new list line)
                     violations.push(Violation {
                         line: line_num + 1,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "List should be surrounded by blank lines".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "List should be surrounded by blank lines".to_owned(),
                         fix: None,
                     });
                     current_marker = Some(marker);
@@ -116,8 +121,8 @@ impl Rule for MD032 {
                 violations.push(Violation {
                     line: line_num + 1, // The line after the list
                     column: Some(1),
-                    rule: self.name().to_string(),
-                    message: "List should be surrounded by blank lines".to_string(),
+                    rule: self.name().to_owned(),
+                    message: "List should be surrounded by blank lines".to_owned(),
                     fix: None,
                 });
             } else if in_list && line.trim().is_empty() {

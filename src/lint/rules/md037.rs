@@ -35,8 +35,8 @@ impl MD037 {
                     violations.push(Violation {
                         line,
                         column: Some(col),
-                        rule: "MD037".to_string(),
-                        message: "Spaces inside emphasis markers".to_string(),
+                        rule: "MD037".to_owned(),
+                        message: "Spaces inside emphasis markers".to_owned(),
                         fix: None,
                     });
 
@@ -46,8 +46,8 @@ impl MD037 {
                     violations.push(Violation {
                         line: end_line,
                         column: Some(end_col),
-                        rule: "MD037".to_string(),
-                        message: "Spaces inside emphasis markers".to_string(),
+                        rule: "MD037".to_owned(),
+                        message: "Spaces inside emphasis markers".to_owned(),
                         fix: None,
                     });
                 }
@@ -123,8 +123,8 @@ impl MD037 {
                     violations.push(Violation {
                         line,
                         column: Some(col),
-                        rule: "MD037".to_string(),
-                        message: "Spaces inside emphasis markers".to_string(),
+                        rule: "MD037".to_owned(),
+                        message: "Spaces inside emphasis markers".to_owned(),
                         fix: None,
                     });
 
@@ -134,8 +134,8 @@ impl MD037 {
                     violations.push(Violation {
                         line: end_line,
                         column: Some(end_col),
-                        rule: "MD037".to_string(),
-                        message: "Spaces inside emphasis markers".to_string(),
+                        rule: "MD037".to_owned(),
+                        message: "Spaces inside emphasis markers".to_owned(),
                         fix: None,
                     });
                 }

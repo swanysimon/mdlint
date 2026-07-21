@@ -80,10 +80,10 @@ fn check_fix_removes_trailing_spaces() {
     let violations = engine.lint_content(content).unwrap();
     let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
     assert!(!fixes.is_empty(), "MD009 should produce an inline fix");
-    let fixed = Fixer::new()
+    let result = Fixer::new()
         .apply_fixes_to_content(content, &fixes)
         .unwrap();
-    assert_eq!(fixed, "# Heading\n\nSome text\nMore text\n");
+    assert_eq!(result, "# Heading\n\nSome text\nMore text\n");
 }
 
 #[test]
@@ -104,10 +104,10 @@ fn check_fix_replaces_hard_tabs() {
     let violations = engine.lint_content(content).unwrap();
     let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
     assert!(!fixes.is_empty(), "MD010 should produce an inline fix");
-    let fixed = Fixer::new()
+    let result = Fixer::new()
         .apply_fixes_to_content(content, &fixes)
         .unwrap();
-    assert!(!fixed.contains('\t'), "tabs should be replaced after fix");
+    assert!(!result.contains('\t'), "tabs should be replaced after fix");
 }
 
 #[test]

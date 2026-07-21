@@ -8,7 +8,6 @@ use documents::DocumentStore;
 use lsp_server::{Connection, IoThreads, Message};
 
 /// Start an LSP server on stdio.
-#[allow(clippy::missing_errors_doc)]
 pub fn run_server() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
     run_server_with_connection(&connection, Some(io_threads))
@@ -17,7 +16,6 @@ pub fn run_server() -> Result<()> {
 /// Run the LSP event loop on an existing connection.
 ///
 /// Exposed for integration testing via `Connection::memory()`.
-#[allow(clippy::missing_errors_doc)]
 pub fn run_server_with_connection(
     connection: &Connection,
     io_threads: Option<IoThreads>,

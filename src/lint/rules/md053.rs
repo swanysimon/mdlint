@@ -55,7 +55,7 @@ impl Rule for MD053 {
                 violations.push(Violation {
                     line: *line_number,
                     column: Some(1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!("Link reference definition '{label}' is defined but not used"),
                     fix: None,
                 });

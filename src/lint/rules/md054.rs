@@ -29,7 +29,7 @@ impl Rule for MD054 {
             return Vec::new();
         }
 
-        let style = style.unwrap();
+        let style = style.expect("checked is_none above");
         let mut violations = Vec::new();
         let mut first_style: Option<&str> = None;
 
@@ -54,7 +54,7 @@ impl Rule for MD054 {
                             violations.push(Violation {
                                     line: parser.offset_to_line(range.start),
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
                                         "Link/image style should be consistent: expected '{first}', found '{current_style}'"
                                     ),
@@ -68,7 +68,7 @@ impl Rule for MD054 {
                     violations.push(Violation {
                         line: parser.offset_to_line(range.start),
                         column: Some(1),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!(
                             "Link/image style should be '{style}', found '{current_style}'"
                         ),

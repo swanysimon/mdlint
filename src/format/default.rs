@@ -32,7 +32,7 @@ impl DefaultFormatter {
         if self.use_color {
             format!("\x1b[{color_code}m{text}\x1b[0m")
         } else {
-            text.to_string()
+            text.to_owned()
         }
     }
 
@@ -62,7 +62,8 @@ impl Formatter for DefaultFormatter {
 
             // File path header
             let path_display = file_result.path.display();
-            writeln!(output, "{}", self.yellow(&path_display.to_string())).unwrap();
+            writeln!(output, "{}", self.yellow(&path_display.to_string()))
+                .expect("writing to String is infallible");
 
             // Shorten file path
             let path_relative = file_result
@@ -85,18 +86,20 @@ impl Formatter for DefaultFormatter {
                     self.red(&violation.rule),
                     violation.message
                 )
-                .unwrap();
+                .expect("writing to String is infallible");
 
                 // Source snippet
                 if self.show_context {
                     let line_idx = violation.line.saturating_sub(1);
                     if let Some(src) = file_result.source_lines.get(line_idx) {
                         let src_trimmed = src.trim_end();
-                        writeln!(output, "       | {src_trimmed}").unwrap();
+                        writeln!(output, "       | {src_trimmed}")
+                            .expect("writing to String is infallible");
                         if let Some(col) = violation.column {
                             // Point at the column with a caret (col is 1-indexed)
                             let spaces = " ".repeat(col.saturating_sub(1));
-                            writeln!(output, "       | {}{}", spaces, self.red("^")).unwrap();
+                            writeln!(output, "       | {}{}", spaces, self.red("^"))
+                                .expect("writing to String is infallible");
                         }
                     }
                 }
@@ -110,13 +113,13 @@ impl Formatter for DefaultFormatter {
         let total = result.total_files_checked;
         if result.total_errors == 0 {
             let msg = format!("Checked {total} file(s), no errors found.");
-            writeln!(output, "{}", self.gray(&msg)).unwrap();
+            writeln!(output, "{}", self.gray(&msg)).expect("writing to String is infallible");
         } else {
             let summary = format!(
                 "Found {} error(s) in {} file(s) ({} checked)",
                 result.total_errors, files_with_errors, total
             );
-            writeln!(output, "{}", self.red(&summary)).unwrap();
+            writeln!(output, "{}", self.red(&summary)).expect("writing to String is infallible");
         }
 
         output
@@ -146,8 +149,8 @@ mod tests {
         Violation {
             line,
             column: col,
-            rule: rule.to_string(),
-            message: msg.to_string(),
+            rule: rule.to_owned(),
+            message: msg.to_owned(),
             fix: None,
         }
     }
@@ -215,9 +218,9 @@ mod tests {
         let formatter = DefaultFormatter::new(false);
         let mut result = LintResult::new();
         let source_lines = vec![
-            "# Good Heading".to_string(),
-            "#Bad heading".to_string(),
-            "More text".to_string(),
+            "# Good Heading".to_owned(),
+            "#Bad heading".to_owned(),
+            "More text".to_owned(),
         ];
         result.add_file_result(
             PathBuf::from("test.md"),

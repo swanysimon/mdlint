@@ -19,7 +19,6 @@ impl LintEngine {
         Self { config, registry }
     }
 
-    #[allow(clippy::missing_errors_doc)]
     pub fn lint_content(&self, content: &str) -> Result<Vec<Violation>> {
         let parser = MarkdownParser::new(content);
         let mut violations: Vec<Violation> = self
@@ -53,9 +52,7 @@ impl LintEngine {
             Some(RuleConfig::Config(cfg)) => {
                 // Convert TOML config to JSON for rule consumption
                 let mut table = toml::map::Map::new();
-                for (k, v) in cfg.clone() {
-                    table.insert(k, v);
-                }
+                table.extend(cfg.clone());
                 let toml_value = toml::Value::Table(table);
                 let json_value: Value = toml_to_json(toml_value);
 
@@ -77,7 +74,6 @@ impl LintEngine {
         rule.check(parser, config_value.as_ref())
     }
 
-    #[allow(clippy::missing_errors_doc)]
     pub fn lint_file(&self, path: &Path) -> Result<Vec<Violation>> {
         let content = std::fs::read_to_string(path)?;
         self.lint_content(&content)
@@ -120,7 +116,7 @@ fn parse_inline_config(content: &str) -> HashMap<String, HashSet<usize>> {
             }
             DirectiveKind::Enable => {
                 let to_enable = rules_or_all(rule_names);
-                if to_enable.contains(&"*".to_string()) {
+                if to_enable.contains(&"*".to_owned()) {
                     for (rule, start) in active.drain() {
                         ranges.entry(rule).or_default().push((start, line_num - 1));
                     }
@@ -175,12 +171,12 @@ fn extract_directive(line: &str) -> Option<(DirectiveKind, Vec<String>)> {
 }
 
 fn parse_rule_names(s: &str) -> Vec<String> {
-    s.split_whitespace().map(str::to_string).collect()
+    s.split_whitespace().map(str::to_owned).collect()
 }
 
 fn rules_or_all(rules: Vec<String>) -> Vec<String> {
     if rules.is_empty() {
-        vec!["*".to_string()]
+        vec!["*".to_owned()]
     } else {
         rules
     }
@@ -192,7 +188,7 @@ fn toml_to_json(toml_val: toml::Value) -> Value {
         toml::Value::String(s) => Value::String(s),
         toml::Value::Integer(i) => Value::Number(i.into()),
         toml::Value::Float(f) => {
-            Value::Number(serde_json::Number::from_f64(f).unwrap_or_else(|| 0.into()))
+            Value::Number(serde_json::Number::from_f64(f).unwrap_or_else(|| 0i32.into()))
         }
         toml::Value::Boolean(b) => Value::Bool(b),
         toml::Value::Array(arr) => Value::Array(arr.into_iter().map(toml_to_json).collect()),

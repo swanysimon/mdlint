@@ -44,11 +44,11 @@ impl Rule for MD012 {
                         violations.push(Violation {
                             line: blank_start_line + i,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "{} [Expected: {}; Actual: {}]",
                                 self.description(),
-                                1,
+                                1usize,
                                 consecutive_blank
                             ),
                             fix: Some(Fix {
@@ -57,7 +57,7 @@ impl Rule for MD012 {
                                 column_start: None,
                                 column_end: None,
                                 replacement: String::new(),
-                                description: "Remove excess blank line".to_string(),
+                                description: "Remove excess blank line".to_owned(),
                             }),
                         });
                     }
@@ -73,15 +73,15 @@ impl Rule for MD012 {
                 violations.push(Violation {
                     line: blank_start_line + i,
                     column: Some(1),
-                    rule: self.name().to_string(),
-                    message: format!("Expected: {}; Actual: {}", 1, consecutive_blank),
+                    rule: self.name().to_owned(),
+                    message: format!("Expected: {}; Actual: {}", 1usize, consecutive_blank),
                     fix: Some(Fix {
                         line_start: blank_start_line + i,
                         line_end: blank_start_line + i,
                         column_start: None,
                         column_end: None,
                         replacement: String::new(),
-                        description: "Remove excess blank line".to_string(),
+                        description: "Remove excess blank line".to_owned(),
                     }),
                 });
             }

@@ -46,7 +46,7 @@ impl Rule for MD035 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Horizontal rule style should be consistent: expected {first_style}, found {current_style}"
                                 ),
@@ -55,9 +55,8 @@ impl Rule for MD035 {
                                     line_end: line_number,
                                     column_start: None,
                                     column_end: None,
-                                    replacement: "---".to_string(),
-                                    description: "Replace with canonical horizontal rule"
-                                        .to_string(),
+                                    replacement: "---".to_owned(),
+                                    description: "Replace with canonical horizontal rule".to_owned(),
                                 }),
                             });
                         }
@@ -68,7 +67,7 @@ impl Rule for MD035 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!(
                             "Horizontal rule style should be '{style}', found '{current_style}'"
                         ),
@@ -77,8 +76,8 @@ impl Rule for MD035 {
                             line_end: line_number,
                             column_start: None,
                             column_end: None,
-                            replacement: style.to_string(),
-                            description: "Replace with required horizontal rule style".to_string(),
+                            replacement: style.to_owned(),
+                            description: "Replace with required horizontal rule style".to_owned(),
                         }),
                     });
                 }
@@ -105,7 +104,7 @@ fn is_horizontal_rule(line: &str) -> bool {
         return false;
     }
 
-    let first_char = chars[0];
+    let first_char = chars.first().copied().expect("len >= 3 checked");
     if first_char != '-' && first_char != '*' && first_char != '_' {
         return false;
     }
@@ -114,7 +113,7 @@ fn is_horizontal_rule(line: &str) -> bool {
 }
 
 fn get_hr_style(line: &str) -> String {
-    line.trim().to_string()
+    line.trim().to_owned()
 }
 
 #[cfg(test)]

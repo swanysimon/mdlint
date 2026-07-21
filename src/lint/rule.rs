@@ -29,7 +29,7 @@ impl RuleRegistry {
     }
 
     pub fn register(&mut self, rule: Box<dyn Rule + Send + Sync>) {
-        self.rules.insert(rule.name().to_string(), rule);
+        self.rules.insert(rule.name().to_owned(), rule);
     }
 
     #[must_use]

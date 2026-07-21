@@ -45,7 +45,7 @@ impl Rule for MD009 {
                 violations.push(Violation {
                     line: line_num + 1,
                     column: Some(trimmed.len() + 1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!("Trailing spaces ({trailing_spaces} spaces)"),
                     fix: Some(Fix {
                         line_start: line_num + 1,
@@ -53,7 +53,7 @@ impl Rule for MD009 {
                         column_start: Some(trimmed.len() + 1),
                         column_end: Some(line.len()),
                         replacement: String::new(),
-                        description: "Remove trailing spaces".to_string(),
+                        description: "Remove trailing spaces".to_owned(),
                     }),
                 });
             }

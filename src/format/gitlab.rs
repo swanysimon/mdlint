@@ -31,7 +31,7 @@ fn file_violations(file_result: &FileResult, path_relative: &str) -> Vec<GitlabV
                 check_name: violation.rule.clone(),
                 fingerprint: create_fingerprint(&key),
                 location: GitlabLocation {
-                    path: path_relative.to_string(),
+                    path: path_relative.to_owned(),
                     lines: GitlabLines {
                         begin: violation.line,
                     },
@@ -132,8 +132,8 @@ mod tests {
             vec![Violation {
                 line: 5,
                 column: Some(10),
-                rule: "MD001".to_string(),
-                message: "Test message".to_string(),
+                rule: "MD001".to_owned(),
+                message: "Test message".to_owned(),
                 fix: None,
             }],
             vec![],
@@ -160,8 +160,8 @@ mod tests {
             vec![Violation {
                 line: 1,
                 column: None,
-                rule: "MD001".to_string(),
-                message: "Test".to_string(),
+                rule: "MD001".to_owned(),
+                message: "Test".to_owned(),
                 fix: None,
             }],
             vec![],
@@ -183,15 +183,15 @@ mod tests {
             vec![Violation {
                 line: 1,
                 column: Some(1),
-                rule: "MD009".to_string(),
-                message: "Trailing spaces".to_string(),
+                rule: "MD009".to_owned(),
+                message: "Trailing spaces".to_owned(),
                 fix: Some(crate::types::Fix {
                     line_start: 1,
                     line_end: 1,
                     column_start: None,
                     column_end: None,
-                    replacement: "fixed".to_string(),
-                    description: "Remove trailing spaces".to_string(),
+                    replacement: "fixed".to_owned(),
+                    description: "Remove trailing spaces".to_owned(),
                 }),
             }],
             vec![],

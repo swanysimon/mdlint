@@ -35,15 +35,15 @@ impl Rule for MD047 {
             violations.push(Violation {
                 line: lines.len(),
                 column: Some(1),
-                rule: self.name().to_string(),
-                message: "Files should end with a single newline character".to_string(),
+                rule: self.name().to_owned(),
+                message: "Files should end with a single newline character".to_owned(),
                 fix: Some(Fix {
                     line_start: lines.len(),
                     line_end: lines.len(),
                     column_start: None,
                     column_end: None,
                     replacement: format!("{last_line}\n"),
-                    description: "Add newline at end of file".to_string(),
+                    description: "Add newline at end of file".to_owned(),
                 }),
             });
         } else if content.ends_with("\n\n") {
@@ -63,8 +63,8 @@ impl Rule for MD047 {
                 violations.push(Violation {
                     line: lines.len(),
                     column: Some(1),
-                    rule: self.name().to_string(),
-                    message: "Files should end with a single newline character".to_string(),
+                    rule: self.name().to_owned(),
+                    message: "Files should end with a single newline character".to_owned(),
                     fix: Some(Fix {
                         line_start: last_content_line_idx.max(1),
                         line_end: lines.len(),
@@ -73,9 +73,9 @@ impl Rule for MD047 {
                         replacement: if last_content_line_idx > 0 {
                             format!("{last_content_line}\n")
                         } else {
-                            "\n".to_string()
+                            "\n".to_owned()
                         },
-                        description: "Remove extra newlines at end of file".to_string(),
+                        description: "Remove extra newlines at end of file".to_owned(),
                     }),
                 });
             }

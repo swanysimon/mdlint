@@ -19,17 +19,15 @@ impl Fixer {
     }
 
     /// Apply fixes to a file and return the fixed content
-    #[allow(clippy::missing_errors_doc)]
     pub fn apply_fixes(&self, path: &Path, fixes: &[Fix]) -> Result<String> {
         let content = fs::read_to_string(path)?;
         self.apply_fixes_to_content(&content, fixes)
     }
 
     /// Apply fixes to content string
-    #[allow(clippy::missing_errors_doc)]
     pub fn apply_fixes_to_content(&self, content: &str, fixes: &[Fix]) -> Result<String> {
         if fixes.is_empty() {
-            return Ok(content.to_string());
+            return Ok(content.to_owned());
         }
 
         // Detect line ending style
@@ -37,10 +35,7 @@ impl Fixer {
         let had_trailing_newline = content.ends_with('\n');
 
         // Split into lines
-        let mut lines: Vec<String> = content
-            .lines()
-            .map(std::string::ToString::to_string)
-            .collect();
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
 
         // Sort fixes in reverse order (by line, then by column) to apply from end to start
         let mut sorted_fixes = fixes.to_vec();
@@ -60,7 +55,7 @@ impl Fixer {
         // Check for overlapping fixes
         if has_overlaps(&sorted_fixes) {
             return Err(MarkdownlintError::Fix(
-                "Cannot apply fixes: overlapping fix ranges detected".to_string(),
+                "Cannot apply fixes: overlapping fix ranges detected".to_owned(),
             ));
         }
 
@@ -79,7 +74,6 @@ impl Fixer {
     }
 
     /// Apply fixes from a `FileResult` and write to disk
-    #[allow(clippy::missing_errors_doc)]
     pub fn apply_file_fixes(&self, file_result: &FileResult) -> Result<()> {
         let fixes: Vec<Fix> = file_result
             .violations
@@ -118,14 +112,10 @@ fn detect_line_ending(content: &str) -> &str {
 
 /// Check if any fixes overlap
 fn has_overlaps(fixes: &[Fix]) -> bool {
-    for i in 0..fixes.len() {
-        for j in (i + 1)..fixes.len() {
-            if fixes_overlap(&fixes[i], &fixes[j]) {
-                return true;
-            }
-        }
-    }
-    false
+    fixes
+        .iter()
+        .enumerate()
+        .any(|(i, a)| fixes.iter().skip(i + 1).any(|b| fixes_overlap(a, b)))
 }
 
 /// Check if two fixes overlap
@@ -178,7 +168,9 @@ fn apply_single_fix(lines: &mut Vec<String>, fix: &Fix) -> Result<()> {
     if start_line == end_line
         && let (Some(col_start), Some(col_end)) = (fix.column_start, fix.column_end)
     {
-        let line = &lines[start_line];
+        let line = lines
+            .get(start_line)
+            .expect("start_line bounds checked above");
         let chars: Vec<char> = line.chars().collect();
 
         if col_start > chars.len() || col_end > chars.len() {
@@ -191,9 +183,20 @@ fn apply_single_fix(lines: &mut Vec<String>, fix: &Fix) -> Result<()> {
         }
 
         // Build new line with replacement
-        let before: String = chars[..col_start.saturating_sub(1)].iter().collect();
-        let after: String = chars[col_end..].iter().collect();
-        lines[start_line] = format!("{}{}{}", before, fix.replacement, after);
+        let before: String = chars
+            .get(..col_start.saturating_sub(1))
+            .expect("col_start bounds checked above")
+            .iter()
+            .collect();
+        let after: String = chars
+            .get(col_end..)
+            .expect("col_end bounds checked above")
+            .iter()
+            .collect();
+        *lines
+            .get_mut(start_line)
+            .expect("start_line bounds checked above") =
+            format!("{}{}{}", before, fix.replacement, after);
         return Ok(());
     }
 
@@ -203,15 +206,14 @@ fn apply_single_fix(lines: &mut Vec<String>, fix: &Fix) -> Result<()> {
             // Empty replacement with no column range = "delete this line".
             lines.remove(start_line);
         } else {
-            lines[start_line].clone_from(&fix.replacement);
+            lines
+                .get_mut(start_line)
+                .expect("start_line bounds checked above")
+                .clone_from(&fix.replacement);
         }
     } else {
         // Multi-line replacement
-        let replacement_lines: Vec<String> = fix
-            .replacement
-            .lines()
-            .map(std::string::ToString::to_string)
-            .collect();
+        let replacement_lines: Vec<String> = fix.replacement.lines().map(str::to_owned).collect();
 
         // Remove old lines and insert new ones
         lines.splice(start_line..=end_line, replacement_lines);
@@ -244,8 +246,8 @@ mod tests {
             line_end: 2,
             column_start: None,
             column_end: None,
-            replacement: "REPLACED".to_string(),
-            description: "Test".to_string(),
+            replacement: "REPLACED".to_owned(),
+            description: "Test".to_owned(),
         };
 
         let fixer = Fixer::new();
@@ -261,8 +263,8 @@ mod tests {
             line_end: 1,
             column_start: Some(7), // "world" starts at column 7 (1-indexed)
             column_end: Some(11),  // ends at column 11
-            replacement: "Rust".to_string(),
-            description: "Test".to_string(),
+            replacement: "Rust".to_owned(),
+            description: "Test".to_owned(),
         };
 
         let fixer = Fixer::new();
@@ -279,21 +281,21 @@ mod tests {
                 line_end: 1,
                 column_start: None,
                 column_end: None,
-                replacement: "FIRST".to_string(),
-                description: "Test".to_string(),
+                replacement: "FIRST".to_owned(),
+                description: "Test".to_owned(),
             },
             Fix {
                 line_start: 3,
                 line_end: 3,
                 column_start: None,
                 column_end: None,
-                replacement: "THIRD".to_string(),
-                description: "Test".to_string(),
+                replacement: "THIRD".to_owned(),
+                description: "Test".to_owned(),
             },
         ];
 
-        let fixer = Fixer::new();
-        let result = fixer.apply_fixes_to_content(content, &fixes).unwrap();
+        let runner = Fixer::new();
+        let result = runner.apply_fixes_to_content(content, &fixes).unwrap();
         assert_eq!(result, "FIRST\nline 2\nTHIRD");
     }
 
@@ -305,8 +307,8 @@ mod tests {
             line_end: 2,
             column_start: None,
             column_end: None,
-            replacement: "FIXED".to_string(),
-            description: "Test".to_string(),
+            replacement: "FIXED".to_owned(),
+            description: "Test".to_owned(),
         };
 
         let fixer = Fixer::new();

@@ -70,7 +70,7 @@ impl Rule for MD007 {
                 violations.push(Violation {
                     line: line_number,
                     column: Some(1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!(
                         "Unordered list indentation should be {expected_indent} spaces (found {indent})"
                     ),

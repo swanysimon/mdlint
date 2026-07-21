@@ -140,7 +140,7 @@ impl Rule for MD013 {
                 violations.push(Violation {
                     line: line_number,
                     column: Some(limit + 1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!("Line exceeds maximum length ({line_len} > {limit})"),
                     fix: None,
                 });

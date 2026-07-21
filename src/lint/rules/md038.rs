@@ -50,8 +50,8 @@ impl Rule for MD038 {
                         violations.push(Violation {
                             line,
                             column: Some(column),
-                            rule: self.name().to_string(),
-                            message: "Spaces inside code span elements".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Spaces inside code span elements".to_owned(),
                             fix: None,
                         });
                     }
@@ -65,8 +65,8 @@ impl Rule for MD038 {
                         violations.push(Violation {
                             line,
                             column: Some(column),
-                            rule: self.name().to_string(),
-                            message: "Spaces inside code span elements".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Spaces inside code span elements".to_owned(),
                             fix: None,
                         });
                     }

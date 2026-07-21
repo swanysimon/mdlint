@@ -12,7 +12,6 @@ pub enum ConfigLoader {
 }
 
 impl ConfigLoader {
-    #[allow(clippy::missing_errors_doc)]
     pub fn load(&self) -> Result<Config> {
         match self {
             ConfigLoader::Detect => {
@@ -25,7 +24,6 @@ impl ConfigLoader {
     }
 }
 
-#[allow(clippy::missing_errors_doc)]
 pub fn discover_config(start_dir: &Path) -> Result<Config> {
     let config_file = iter::successors(Some(start_dir.to_path_buf()), |path| {
         path.parent().map(std::path::Path::to_path_buf)
@@ -38,7 +36,6 @@ pub fn discover_config(start_dir: &Path) -> Result<Config> {
     }
 }
 
-#[allow(clippy::missing_errors_doc)]
 pub fn find_all_configs(start_dir: &Path) -> Result<Vec<(PathBuf, Config)>> {
     let mut configs = Vec::new();
     let mut current = start_dir.to_path_buf();
@@ -109,7 +106,7 @@ style = "atx"
         let mut file = fs::File::create(&config_path).unwrap();
         write!(
             file,
-            r"
+            "
 gitignore = true
 default_enabled = true
 

@@ -17,12 +17,10 @@ impl FileWalker {
         Self { respect_gitignore }
     }
 
-    #[allow(clippy::missing_errors_doc)]
     pub fn find_markdown_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
         self.walk_files(root, None)
     }
 
-    #[allow(clippy::missing_errors_doc)]
     pub fn find_files_with_matcher(
         &self,
         root: &Path,
@@ -151,7 +149,7 @@ mod tests {
         fs::File::create(docs_dir.join("guide.md")).unwrap();
         fs::File::create(temp_dir.path().join("CHANGELOG.md")).unwrap();
 
-        let matcher = GlobMatcher::new(&["docs/**/*.md".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["docs/**/*.md".to_owned()]).unwrap();
         let walker = FileWalker::new(false);
         let files = walker
             .find_files_with_matcher(temp_dir.path(), &matcher)

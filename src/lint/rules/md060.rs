@@ -46,7 +46,7 @@ impl Rule for MD060 {
                                     violations.push(Violation {
                                         line: line_number,
                                         column: Some(1),
-                                        rule: self.name().to_string(),
+                                        rule: self.name().to_owned(),
                                         message: format!(
                                             "Table column {} alignment should be consistent: expected '{}', found '{}'",
                                             i + 1,
@@ -68,7 +68,7 @@ impl Rule for MD060 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Table column {} should use '{}' alignment, found '{}'",
                                     i + 1,

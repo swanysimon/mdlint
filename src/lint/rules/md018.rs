@@ -49,15 +49,15 @@ impl Rule for MD018 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(hash_count + 1),
-                            rule: self.name().to_string(),
-                            message: "No space after hash on atx style heading".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "No space after hash on atx style heading".to_owned(),
                             fix: Some(Fix {
                                 line_start: line_number,
                                 line_end: line_number,
                                 column_start: None,
                                 column_end: None,
                                 replacement,
-                                description: "Add space after hash".to_string(),
+                                description: "Add space after hash".to_owned(),
                             }),
                         });
                     }

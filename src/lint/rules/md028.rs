@@ -50,8 +50,8 @@ impl Rule for MD028 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Blank line inside blockquote".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Blank line inside blockquote".to_owned(),
                         fix: None,
                     });
                     // After reporting violation, don't check subsequent blank lines

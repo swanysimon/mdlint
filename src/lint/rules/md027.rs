@@ -43,7 +43,7 @@ impl Rule for MD027 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(line.len() - trimmed.len() + 2),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!(
                             "Multiple spaces after blockquote symbol ({space_count} spaces)"
                         ),
@@ -53,7 +53,7 @@ impl Rule for MD027 {
                             column_start: None,
                             column_end: None,
                             replacement,
-                            description: "Replace multiple spaces with single space".to_string(),
+                            description: "Replace multiple spaces with single space".to_owned(),
                         }),
                     });
                 }

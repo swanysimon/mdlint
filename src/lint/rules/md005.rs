@@ -66,7 +66,7 @@ impl Rule for MD005 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
+                        rule: self.name().to_owned(),
                         message: format!(
                             "List item indentation mismatch: expected {expected_indent} spaces, found {indent}"
                         ),

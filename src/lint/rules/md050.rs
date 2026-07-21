@@ -49,14 +49,22 @@ impl Rule for MD050 {
             while i + 1 < chars.len() {
                 // Check for ** or __
                 if i + 1 < chars.len() {
-                    let two_char = format!("{}{}", chars[i], chars[i + 1]);
+                    let two_char = format!(
+                        "{}{}",
+                        chars.get(i).expect("i + 1 < chars.len()"),
+                        chars.get(i + 1).expect("i + 1 < chars.len()")
+                    );
 
                     if two_char == "**" || two_char == "__" {
                         // Find closing marker
                         let mut found_close = false;
                         for j in (i + 2)..chars.len().saturating_sub(1) {
                             if j + 1 < chars.len() {
-                                let close_two = format!("{}{}", chars[j], chars[j + 1]);
+                                let close_two = format!(
+                                    "{}{}",
+                                    chars.get(j).expect("j + 1 < chars.len()"),
+                                    chars.get(j + 1).expect("j + 1 < chars.len()")
+                                );
                                 if close_two == two_char {
                                     // Skip if this emphasis is inside code
                                     if is_in_code(line_number, i) {
@@ -78,8 +86,8 @@ impl Rule for MD050 {
                                         line_end: line_number,
                                         column_start: Some(col),
                                         column_end: Some(col + 1),
-                                        replacement: target.to_string(),
-                                        description: "Replace strong marker".to_string(),
+                                        replacement: target.to_owned(),
+                                        description: "Replace strong marker".to_owned(),
                                     };
 
                                     if style == "consistent" {
@@ -91,7 +99,7 @@ impl Rule for MD050 {
                                                 violations.push(Violation {
                                                     line: line_number,
                                                     column: Some(i + 1),
-                                                    rule: self.name().to_string(),
+                                                    rule: self.name().to_owned(),
                                                     message: format!(
                                                         "Strong style should be consistent: expected '{expected_marker}', found '{two_char}'"
                                                     ),
@@ -100,7 +108,7 @@ impl Rule for MD050 {
                                                 violations.push(Violation {
                                                     line: line_number,
                                                     column: Some(j + 1),
-                                                    rule: self.name().to_string(),
+                                                    rule: self.name().to_owned(),
                                                     message: format!(
                                                         "Strong style should be consistent: expected '{expected_marker}', found '{close_two}'"
                                                     ),
@@ -118,7 +126,7 @@ impl Rule for MD050 {
                                             violations.push(Violation {
                                                 line: line_number,
                                                 column: Some(i + 1),
-                                                rule: self.name().to_string(),
+                                                rule: self.name().to_owned(),
                                                 message: format!(
                                                     "Strong style should be '{expected_marker}', found '{two_char}'"
                                                 ),
@@ -127,7 +135,7 @@ impl Rule for MD050 {
                                             violations.push(Violation {
                                                 line: line_number,
                                                 column: Some(j + 1),
-                                                rule: self.name().to_string(),
+                                                rule: self.name().to_owned(),
                                                 message: format!(
                                                     "Strong style should be '{expected_marker}', found '{close_two}'"
                                                 ),

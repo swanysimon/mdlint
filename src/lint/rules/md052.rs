@@ -42,7 +42,7 @@ impl Rule for MD052 {
                 violations.push(Violation {
                     line: parser.offset_to_line(range.start),
                     column: Some(1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!("Reference {item_type} label '{id}' is not defined"),
                     fix: None,
                 });

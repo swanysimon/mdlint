@@ -51,7 +51,7 @@ impl Rule for MD026 {
                         violations.push(Violation {
                             line: current_heading_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!("Trailing punctuation in heading: '{last_char}'"),
                             fix: None,
                         });

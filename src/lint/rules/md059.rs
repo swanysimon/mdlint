@@ -56,7 +56,7 @@ impl Rule for MD059 {
                         violations.push(Violation {
                             line: link_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "Link text '{}' is not descriptive; use meaningful text",
                                 link_text.trim()

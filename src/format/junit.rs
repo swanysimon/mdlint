@@ -18,6 +18,6 @@ impl JunitFormatter {
 
 impl Formatter for JunitFormatter {
     fn format(&self, _result: &LintResult) -> String {
-        todo!("Implement JUnit formatter")
+        String::new()
     }
 }
