@@ -24,8 +24,23 @@ pub fn format(input: &str) -> String {
         .map(|i| matches!(events.get(i + 1), Some(Event::Start(Tag::List(None)))))
         .collect();
 
-    for (event, next_is_ul) in events.into_iter().zip(lookahead) {
+    // Precompute the first character of the immediately following Text event, if
+    // any.  pulldown-cmark splits a run like `Ⓐ~A` into three Text events; the
+    // `_`/`~` flanking check in on_text needs the char *after* the current event
+    // to match its cross-event handling of the char *before* (via self.inline).
+    // Only an adjacent Text event contributes an alphanumeric neighbour; any other
+    // event (emphasis marker, code, break, block end) is a non-alphanumeric
+    // boundary, represented as None.
+    let next_text_char: Vec<Option<char>> = (0..events.len())
+        .map(|i| match events.get(i + 1) {
+            Some(Event::Text(t)) => t.chars().next(),
+            _ => None,
+        })
+        .collect();
+
+    for ((event, next_is_ul), next_char) in events.into_iter().zip(lookahead).zip(next_text_char) {
         state.next_is_unordered_list = next_is_ul;
+        state.next_text_char = next_char;
         state.process(event);
     }
 
@@ -75,6 +90,10 @@ struct FormatterState {
     // two adjacent unordered lists so we can insert a separator.
     next_is_unordered_list: bool,
 
+    // First char of the next Text event, or None if the next event is not Text.
+    // Supplies cross-event right-flank context for the `_`/`~` escape check.
+    next_text_char: Option<char>,
+
     // Table state
     table_alignments: Vec<Alignment>,
     table_head_cells: Vec<String>,
@@ -98,6 +117,7 @@ impl FormatterState {
             list_item_widths: Vec::new(),
             link_stack: Vec::new(),
             next_is_unordered_list: false,
+            next_text_char: None,
             table_alignments: Vec::new(),
             table_head_cells: Vec::new(),
             table_data_rows: Vec::new(),
@@ -314,12 +334,11 @@ impl FormatterState {
                 let text = std::mem::take(&mut self.inline);
                 let hashes = "#".repeat(level as usize);
                 self.write_bq_prefix();
-                // Collapse hard breaks (`\\\n`) and soft breaks (`\n`) to spaces, then trim.
-                // Trim must come after replacement: a leading hard break produces a leading
-                // space after replacement that trim() removes.  Trimming first would leave
-                // the bare `\` of the hard-break marker in the output unescaped, breaking
-                // idempotency on re-parse.
-                let heading_raw = text.replace("\\\n", " ").replace('\n', " ");
+                // Collapse hard and soft breaks to spaces, then trim.  Trim must
+                // come after: a leading break produces a leading space that trim()
+                // removes; trimming first would strip a hard-break marker's `\`,
+                // leaving it unescaped and breaking idempotency on re-parse.
+                let heading_raw = collapse_heading_breaks(&text);
                 let heading_text = heading_raw.trim();
                 writeln!(self.out, "{hashes} {heading_text}").expect("writing to String is infallible");
                 self.needs_blank = true;
@@ -499,13 +518,27 @@ impl FormatterState {
                 match ch {
                     '\\' => s.push_str("\\\\"),
                     '`' => s.push_str("\\`"),
+                    // A literal `<` in a Text event (pulldown only emits `<` as text
+                    // when it does NOT already open a tag).  Left bare, adjacent text
+                    // can reconstruct an autolink or HTML tag on re-parse (e.g.
+                    // `<#@a>` → email autolink), changing meaning.  `\<` renders as
+                    // `<` and can never start a tag, so escape unconditionally.
+                    '<' => s.push_str("\\<"),
                     '_' | '~' => {
                         let prev = if i > 0 {
                             chars.get(i - 1).copied()
                         } else {
                             prev_inline_char
                         };
-                        let next = chars.get(i + 1).copied();
+                        // For the last char of the event, the right neighbour is
+                        // the first char of the next Text event (if any) so that a
+                        // run split across events (e.g. `Ⓐ~A` → three events) is
+                        // judged the same as the merged form on re-parse.
+                        let next = chars.get(i + 1).copied().or(if i + 1 == chars.len() {
+                            self.next_text_char
+                        } else {
+                            None
+                        });
                         // Only leave bare when flanked by alphanumeric on BOTH sides.
                         if prev.is_some_and(char::is_alphanumeric)
                             && next.is_some_and(char::is_alphanumeric)
@@ -656,6 +689,42 @@ impl FormatterState {
         }
         format!("{trimmed}\n")
     }
+}
+
+/// Collapse the break markers inside a heading's inline buffer to single spaces.
+///
+/// A heading cannot span lines, so both soft breaks (`\n`) and hard breaks
+/// (`\` + `\n`, emitted by `on_start`/`HardBreak`) become spaces.  The subtlety
+/// is telling a hard-break `\` apart from a literal backslash in the heading
+/// text: `on_text` always doubles content backslashes, so a run of backslashes
+/// originating from content is even-length.  A hard break adds exactly one more,
+/// making the run before the newline odd.  We therefore keep floor(n/2) escaped
+/// backslashes (the content) and drop the trailing odd one (the marker) before
+/// replacing the newline with a space.
+fn collapse_heading_breaks(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            let mut run = 1usize;
+            while chars.peek() == Some(&'\\') {
+                chars.next();
+                run += 1;
+            }
+            // An odd run immediately before a newline ends in a hard-break marker;
+            // emit the content pairs and drop the marker backslash.
+            let is_hard_break = run % 2 == 1 && chars.peek() == Some(&'\n');
+            let content_backslashes = if is_hard_break { run - 1 } else { run };
+            for _ in 0..content_backslashes {
+                out.push('\\');
+            }
+        } else if ch == '\n' {
+            out.push(' ');
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// Escape `line` so that it round-trips through pulldown-cmark as plain text.
@@ -911,6 +980,63 @@ mod tests {
     fn test_multiple_spaces_after_hash_collapsed() {
         assert_formats_to("#  Heading", "# Heading\n");
         assert_formats_to("##   Wide", "## Wide\n");
+    }
+
+    // Headings: a literal backslash in heading text stays escaped and idempotent.
+    // Regression: `#\t0\\\ra` — the `\r` softens to a break, and the collapse of
+    // break markers must not consume one of the doubled content backslashes.
+    #[test]
+    fn test_heading_literal_backslash_idempotent() {
+        assert_formats_to("#\t0\\\ra", "# 0\\\\ a\n");
+        assert_formats_to("# a\\b", "# a\\\\b\n");
+    }
+
+    // A genuine hard break inside a heading collapses to a single space with no
+    // stray backslash left behind.
+    #[test]
+    fn test_heading_hard_break_collapses() {
+        assert_formats_to("# a\\\nb", "# a\\\\\n\nb\n");
+    }
+
+    // `_`/`~` flanked by alphanumerics across a pulldown-cmark event split must
+    // stay bare and idempotent.  Regression: `Ⓐ~A` splits into three Text events;
+    // the lone `~` event has no in-event right neighbour, so without cross-event
+    // lookahead it escaped on pass 1 then un-escaped on pass 2.
+    #[test]
+    fn test_intraword_tilde_across_event_split() {
+        assert_formats_to("Ⓐ~A", "Ⓐ~A\n");
+        // Not flanked on both sides → still escaped.
+        assert_formats_to("Ⓐ~", "Ⓐ\\~\n");
+        assert_formats_to("~A", "\\~A\n");
+    }
+
+    // A literal `<` in text must be escaped so adjacent characters can't
+    // reconstruct an autolink or HTML tag on re-parse.  Regression: `<#\@a>`
+    // dropped the backslash and re-parsed as an email autolink, changing meaning.
+    // Genuine autolinks/HTML arrive as Link/Html events, not Text, so they are
+    // unaffected.
+    #[test]
+    fn test_literal_angle_bracket_escaped() {
+        assert_formats_to("<#\\@a>", "\\<#@a>\n");
+        assert_formats_to("x<y", "x\\<y\n");
+        // Real autolink and inline HTML are preserved, not escaped.
+        assert_formats_to(
+            "<https://example.com>",
+            "[https://example.com](https://example.com)\n",
+        );
+        assert_formats_to("<div>hi</div>", "<div>hi</div>\n");
+    }
+
+    #[test]
+    fn test_collapse_heading_breaks_unit() {
+        // Soft break → space.
+        assert_eq!(collapse_heading_breaks("a\nb"), "a b");
+        // Hard-break marker (odd run before newline) dropped; newline → space.
+        assert_eq!(collapse_heading_breaks("a\\\nb"), "a b");
+        // Doubled content backslash (even run) before a soft break: keep both, then space.
+        assert_eq!(collapse_heading_breaks("a\\\\\nb"), "a\\\\ b");
+        // Literal backslash not before a newline is untouched.
+        assert_eq!(collapse_heading_breaks("a\\\\b"), "a\\\\b");
     }
 
     // Blank lines: multiple consecutive blank lines collapsed to one

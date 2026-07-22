@@ -29,3 +29,6 @@ cc 36960a1dca71a3c5dae27a2e702ea3eeb5933ada52344acf067a76c467d6c5a8 # shrinks to
 cc 2d76fdd31854f09207f6f5eac1cc8494f4d3b9845925902a93e1b6855855093a # shrinks to s = "*\u{85}\u{b}"
 cc 8e7daa6b97c3c0a88c978ef653d8bbef7f01aaa54fc901200ee501ca0d86d542 # shrinks to s = ">\u{85}"
 cc bd3348f8eb22cc15f1f818d07d182e58cf8bd17981ff10d44b530d1f4ea0c377 # shrinks to s = "[\0\\]:¡"
+cc 775584889b13b66caab14312b94fea04ac0f051eb08126ab508996b8c316b5dc # shrinks to s = "#\t0\\\ra"
+cc 93cbd871c4cfed4c6c8cba29fc7835990a95b10bee92b3e7d1d4fc73fb71a610 # shrinks to s = "Ⓐ~A"
+cc 78ddeb00afa61895bcabf2d9ed03e4d2f51b0d50ce6611597f773aeaa092bc3a # shrinks to s = "<#\\@a>"
