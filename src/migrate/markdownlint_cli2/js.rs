@@ -102,8 +102,15 @@ fn scrape_js(content: &str, path: &Path) -> Result<Cli2Source> {
 
     let object_text = extract_object_literal(content).ok_or_else(unparsable)?;
     let relaxed = relax_to_json(&object_text);
-    let document: HashMap<String, Value> =
-        serde_json::from_str(&relaxed).map_err(|_| unparsable())?;
+    let document: HashMap<String, Value> = serde_json::from_str(&relaxed).map_err(|e| {
+        MarkdownlintError::Migrate(format!(
+            "Could not parse {path:?} as a static object literal ({e}). JS configs that use \
+             variables, function calls, or computed values cannot be migrated \
+             automatically without Node.js — install Node for full fidelity, or run \
+             `console.log(JSON.stringify(config))` in your config and save the output \
+             as a `.json` file, then migrate that instead."
+        ))
+    })?;
 
     Ok(document_to_source(document))
 }

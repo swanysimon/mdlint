@@ -92,7 +92,7 @@ pub enum Command {
     Format(FormatArgs),
     /// Start an LSP server communicating over stdio.
     Server(ServerArgs),
-    /// Migrate a configuration from another Markdown tool to mdlint.toml.
+    /// [Experimental] Migrate a configuration from another Markdown tool to mdlint.toml.
     Migrate(MigrateArgs),
 }
 
@@ -105,7 +105,7 @@ pub struct MigrateArgs {
         long,
         value_name = "SOURCE",
         default_value_t = MigrateFrom::MarkdownlintCli2,
-        help = "[Experimental] Migrate the configuration from other markdown tools"
+        help = "Tool to migrate the configuration from"
     )]
     pub from: MigrateFrom,
 

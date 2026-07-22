@@ -153,6 +153,20 @@ fn cli2_defaults() -> Vec<(&'static str, RuleConfig)> {
                 T::String("consistent".to_string()),
             )])),
         ),
+        (
+            "MD026",
+            RuleConfig::Config(HashMap::from([(
+                "punctuation".to_string(),
+                T::String(".,;:!。，；：！".to_string()),
+            )])),
+        ),
+        (
+            "MD060",
+            RuleConfig::Config(HashMap::from([(
+                "style".to_string(),
+                T::String("any".to_string()),
+            )])),
+        ),
     ]
 }
 
@@ -346,6 +360,18 @@ mod tests {
                 "{code} should be pinned to consistent"
             );
         }
+
+        // MD026: cli2 default omits ?; mdlint default includes it.
+        let md026 = result.config.rules.get("MD026").unwrap();
+        assert!(
+            matches!(md026, RuleConfig::Config(p) if p.get("punctuation") == Some(&toml::Value::String(".,;:!。，；：！".to_string())))
+        );
+
+        // MD060: cli2 default is "any"; mdlint default is "consistent".
+        let md060 = result.config.rules.get("MD060").unwrap();
+        assert!(
+            matches!(md060, RuleConfig::Config(p) if p.get("style") == Some(&toml::Value::String("any".to_string())))
+        );
     }
 
     #[test]

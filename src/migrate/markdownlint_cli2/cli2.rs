@@ -1,5 +1,4 @@
 use crate::error::{MarkdownlintError, Result};
-use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
@@ -7,8 +6,7 @@ use std::path::Path;
 /// Loosely-typed view of a markdownlint-cli2 config file. Only the fields mdlint can
 /// translate are modeled; `globs`, `customRules`, and `outputFormatters` have no mdlint
 /// equivalent and are intentionally left unmapped.
-#[derive(Deserialize, Default)]
-#[serde(default)]
+#[derive(Default)]
 pub struct Cli2Source {
     pub config: Option<HashMap<String, Value>>,
     pub ignores: Option<Vec<String>>,
