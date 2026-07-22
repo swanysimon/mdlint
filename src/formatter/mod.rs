@@ -295,12 +295,19 @@ impl FormatterState {
         match tag {
             TagEnd::Paragraph => {
                 let text = std::mem::take(&mut self.inline);
-                if self.list_depth == 0 {
-                    self.write_bq_prefix();
+                // pulldown-cmark may emit a paragraph containing only Unicode
+                // whitespace (e.g. NEL U+0085) that is not a CommonMark line
+                // ending — finish() strips it via trim_end(), leaving an empty
+                // line that turns a blockquote into an empty one on re-parse.
+                // Skip the emission entirely; invisible content is no content.
+                if !text.trim().is_empty() {
+                    if self.list_depth == 0 {
+                        self.write_bq_prefix();
+                    }
+                    let prefix = "  ".repeat(self.list_depth);
+                    self.flush_inline_text(&text, &prefix);
+                    self.needs_blank = true;
                 }
-                let prefix = "  ".repeat(self.list_depth);
-                self.flush_inline_text(&text, &prefix);
-                self.needs_blank = true;
                 self.in_tight_item = false;
             }
             TagEnd::Heading(level) => {
@@ -594,6 +601,16 @@ impl FormatterState {
             if lines.peek().is_none() && line.is_empty() {
                 // Trailing empty string from split: don't emit an extra newline.
                 break;
+            }
+            // Skip blank or whitespace-only continuation lines.  Inside a paragraph
+            // a blank line is impossible in real Markdown (it ends the paragraph).
+            // These arise from: (a) consecutive breaks (HardBreak + SoftBreak with
+            // no text) whose combined `\n`s produce an empty slot when split; or (b)
+            // lines consisting entirely of Unicode whitespace, which finish()'s
+            // trim_end() reduces to blank anyway.  Both cases strand any preceding
+            // hard-break marker as a literal `\` that on_text doubles on re-parse.
+            if line.trim_end().is_empty() {
+                continue;
             }
             self.out.push_str(continuation_prefix);
             self.out.push_str(&bq);
@@ -1157,6 +1174,27 @@ mod tests {
         // bare "*\n" which re-parses as an empty list item on the next pass.
         // The fix: needs_line_escape checks against the trimmed form of the line.
         assert_formats_to("*\u{85}\u{b}", "\\*\n");
+    }
+
+    #[test]
+    fn test_blockquote_nel_idempotent() {
+        // ">\u{85}": cmark emits BlockQuote > Paragraph > Text("\u{85}") — NEL is
+        // Unicode whitespace that finish() strips, leaving ">" which re-parses as
+        // an empty blockquote → second pass returns "".
+        let once = format(">\u{85}");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: blockquote + NEL");
+    }
+
+    #[test]
+    fn test_hard_break_followed_by_vt_in_paragraph() {
+        // "\\\r\u{b}\r¡": cmark emits HardBreak + SoftBreak (VT stripped) + Text("¡").
+        // The two consecutive breaks produce an empty continuation slot when split on
+        // '\n', which emits a blank line that breaks the paragraph on re-parse — the
+        // preceding `\` is then doubled by on_text on the second pass.
+        let once = format("\\\r\u{b}\r¡");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: hard-break + VT continuation");
     }
 
     #[test]
