@@ -8,11 +8,11 @@ use std::collections::HashSet;
 pub struct MD030;
 
 impl Rule for MD030 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD030"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Spaces after list markers"
     }
 
@@ -20,25 +20,27 @@ impl Rule for MD030 {
         &["ol", "ul", "whitespace"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
+    #[allow(clippy::too_many_lines)] // rule logic requires checking multiple interacting config flags
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let ul_single = config
             .and_then(|c| c.get("ul_single"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let _ul_multi = config
             .and_then(|c| c.get("ul_multi"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let ol_single = config
             .and_then(|c| c.get("ol_single"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let _ol_multi = config
             .and_then(|c| c.get("ol_multi"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let mut violations = Vec::new();
@@ -101,7 +103,10 @@ impl Rule for MD030 {
 
             // Check unordered list markers
             if trimmed.starts_with('*') || trimmed.starts_with('+') || trimmed.starts_with('-') {
-                let marker_char = trimmed.chars().next().unwrap();
+                let marker_char = trimmed
+                    .chars()
+                    .next()
+                    .expect("non-empty, starts_with checked");
                 let after_marker = &trimmed[1..];
                 let space_count = after_marker.chars().take_while(|&c| c == ' ').count();
 
@@ -115,16 +120,14 @@ impl Rule for MD030 {
                         let leading_spaces = &line[..line.len() - trimmed.len()];
                         let content = after_marker[space_count..].trim_start();
                         let spaces = " ".repeat(expected);
-                        let replacement =
-                            format!("{}{}{}{}", leading_spaces, marker_char, spaces, content);
+                        let replacement = format!("{leading_spaces}{marker_char}{spaces}{content}");
 
                         violations.push(Violation {
                             line: line_number,
                             column: Some(line.len() - trimmed.len() + 2),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
-                                "Expected {} space(s) after list marker, found {}",
-                                expected, space_count
+                                "Expected {expected} space(s) after list marker, found {space_count}"
                             ),
                             fix: Some(Fix {
                                 line_start: line_number,
@@ -132,7 +135,7 @@ impl Rule for MD030 {
                                 column_start: None,
                                 column_end: None,
                                 replacement,
-                                description: format!("Adjust spacing to {} space(s)", expected),
+                                description: format!("Adjust spacing to {expected} space(s)"),
                             }),
                         });
                     }
@@ -158,16 +161,14 @@ impl Rule for MD030 {
                             let marker = &trimmed[..=dot_pos];
                             let content = after_dot[space_count..].trim_start();
                             let spaces = " ".repeat(expected);
-                            let replacement =
-                                format!("{}{}{}{}", leading_spaces, marker, spaces, content);
+                            let replacement = format!("{leading_spaces}{marker}{spaces}{content}");
 
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(line.len() - trimmed.len() + dot_pos + 2),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "Expected {} space(s) after list marker, found {}",
-                                    expected, space_count
+                                    "Expected {expected} space(s) after list marker, found {space_count}"
                                 ),
                                 fix: Some(Fix {
                                     line_start: line_number,
@@ -175,7 +176,7 @@ impl Rule for MD030 {
                                     column_start: None,
                                     column_end: None,
                                     replacement,
-                                    description: format!("Adjust spacing to {} space(s)", expected),
+                                    description: format!("Adjust spacing to {expected} space(s)"),
                                 }),
                             });
                         }
@@ -204,7 +205,7 @@ fn is_horizontal_rule(line: &str) -> bool {
         return false;
     }
 
-    let first_char = chars[0];
+    let first_char = chars.first().copied().expect("len >= 3 checked");
     if first_char != '-' && first_char != '*' && first_char != '_' {
         return false;
     }

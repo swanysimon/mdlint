@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD001;
 
 impl Rule for MD001 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD001"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Heading levels should only increment by one level at a time"
     }
 
@@ -34,10 +34,9 @@ impl Rule for MD001 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
-                                "Heading level skipped from h{} to h{}",
-                                prev_level, current_level
+                                "Heading level skipped from h{prev_level} to h{current_level}"
                             ),
                             fix: None,
                         });

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(clippy::struct_excessive_bools)] // config struct mirrors TOML fields 1:1; bools are the right representation
 pub struct Config {
     /// Rule configuration: rule name -> config
     #[serde(default)]
@@ -73,6 +74,7 @@ pub enum RuleConfig {
 // Legacy field mappings for backward compatibility with old config structure
 impl Config {
     /// Legacy accessor for config field (now called rules)
+    #[must_use]
     pub fn config(&self) -> &HashMap<String, RuleConfig> {
         &self.rules
     }

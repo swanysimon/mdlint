@@ -14,6 +14,7 @@ pub struct GitlabFormatter {
 }
 
 impl GitlabFormatter {
+    #[must_use]
     pub fn new(pretty: bool) -> Self {
         Self { pretty }
     }
@@ -30,7 +31,7 @@ fn file_violations(file_result: &FileResult, path_relative: &str) -> Vec<GitlabV
                 check_name: violation.rule.clone(),
                 fingerprint: create_fingerprint(&key),
                 location: GitlabLocation {
-                    path: path_relative.to_string(),
+                    path: path_relative.to_owned(),
                     lines: GitlabLines {
                         begin: violation.line,
                     },
@@ -49,7 +50,7 @@ fn create_fingerprint(input: &str) -> String {
     let mut hasher = DefaultHasher::new();
     input.hash(&mut hasher);
     let hash_value = hasher.finish();
-    format!("{:x}", hash_value)
+    format!("{hash_value:x}")
 }
 
 #[derive(Serialize)]
@@ -89,8 +90,7 @@ impl Formatter for GitlabFormatter {
                 let path_relative = file_result
                     .path
                     .strip_prefix(&current_dir)
-                    .map(|rel_path| rel_path.to_path_buf())
-                    .unwrap_or_else(|_| file_result.path.clone())
+                    .map_or_else(|_| file_result.path.clone(), std::path::Path::to_path_buf)
                     .display()
                     .to_string();
 
@@ -100,10 +100,10 @@ impl Formatter for GitlabFormatter {
 
         if self.pretty {
             serde_json::to_string_pretty(&violations)
-                .unwrap_or_else(|e| format!("{{\"error\": \"Failed to serialize JSON: {}\"}}", e))
+                .unwrap_or_else(|e| format!("{{\"error\": \"Failed to serialize JSON: {e}\"}}"))
         } else {
             serde_json::to_string(&violations)
-                .unwrap_or_else(|e| format!("{{\"error\": \"Failed to serialize JSON: {}\"}}", e))
+                .unwrap_or_else(|e| format!("{{\"error\": \"Failed to serialize JSON: {e}\"}}"))
         }
     }
 }
@@ -132,8 +132,8 @@ mod tests {
             vec![Violation {
                 line: 5,
                 column: Some(10),
-                rule: "MD001".to_string(),
-                message: "Test message".to_string(),
+                rule: "MD001".to_owned(),
+                message: "Test message".to_owned(),
                 fix: None,
             }],
             vec![],
@@ -144,7 +144,7 @@ mod tests {
 
         assert!(output.contains("\"description\":\"Test message\""));
         assert!(output.contains("\"check_name\":\"MD001\""));
-        assert!(output.contains(&format!("\"fingerprint\":\"{}\"", fingerprint)));
+        assert!(output.contains(&format!("\"fingerprint\":\"{fingerprint}\"")));
         assert!(output.contains("\"location\":{\"path\":\"test.md\","));
         assert!(output.contains("\"lines\":{\"begin\":5"));
         assert!(output.contains("\"severity\":\"major\""));
@@ -160,8 +160,8 @@ mod tests {
             vec![Violation {
                 line: 1,
                 column: None,
-                rule: "MD001".to_string(),
-                message: "Test".to_string(),
+                rule: "MD001".to_owned(),
+                message: "Test".to_owned(),
                 fix: None,
             }],
             vec![],
@@ -170,7 +170,7 @@ mod tests {
         let output = formatter.format(&result);
 
         // Pretty print should have indentation
-        assert!(output.contains("  ") || output.contains("\n"));
+        assert!(output.contains("  ") || output.contains('\n'));
     }
 
     #[test]
@@ -183,15 +183,15 @@ mod tests {
             vec![Violation {
                 line: 1,
                 column: Some(1),
-                rule: "MD009".to_string(),
-                message: "Trailing spaces".to_string(),
+                rule: "MD009".to_owned(),
+                message: "Trailing spaces".to_owned(),
                 fix: Some(crate::types::Fix {
                     line_start: 1,
                     line_end: 1,
                     column_start: None,
                     column_end: None,
-                    replacement: "fixed".to_string(),
-                    description: "Remove trailing spaces".to_string(),
+                    replacement: "fixed".to_owned(),
+                    description: "Remove trailing spaces".to_owned(),
                 }),
             }],
             vec![],

@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD006;
 
 impl Rule for MD006 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD006"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Consider starting bulleted lists at the beginning of the line"
     }
 

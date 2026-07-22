@@ -8,11 +8,11 @@ use std::collections::HashSet;
 pub struct MD053;
 
 impl Rule for MD053 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD053"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Link and image reference definitions should be needed"
     }
 
@@ -31,10 +31,10 @@ impl Rule for MD053 {
         let mut used_labels: HashSet<String> = HashSet::new();
 
         for event in parser.parse() {
-            let (link_type, id) = match event {
-                Event::Start(Tag::Link { link_type, id, .. }) => (link_type, id),
-                Event::Start(Tag::Image { link_type, id, .. }) => (link_type, id),
-                _ => continue,
+            let Event::Start(Tag::Link { link_type, id, .. } | Tag::Image { link_type, id, .. }) =
+                event
+            else {
+                continue;
             };
             if matches!(
                 link_type,
@@ -51,15 +51,12 @@ impl Rule for MD053 {
 
         // Find unused definitions
         for (label, line_number) in defined_labels {
-            if !used_labels.contains(label.as_str()) {
+            if !used_labels.contains(label.to_lowercase().as_str()) {
                 violations.push(Violation {
                     line: *line_number,
                     column: Some(1),
-                    rule: self.name().to_string(),
-                    message: format!(
-                        "Link reference definition '{}' is defined but not used",
-                        label
-                    ),
+                    rule: self.name().to_owned(),
+                    message: format!("Link reference definition '{label}' is defined but not used"),
                     fix: None,
                 });
             }
@@ -147,5 +144,20 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_shortcut_reference_used_multiple_times() {
+        // Regression: [Textual] used twice, definition at end — MD053 must not
+        // flag it as unused.
+        let content = "# Title\n\n[Textual] is great.\n\nMore text.\n\n[Textual] again.\n\n[Textual]: https://textual.textualize.io/";
+        let parser = MarkdownParser::new(content);
+        let rule = MD053;
+        let violations = rule.check(&parser, None);
+        assert_eq!(
+            violations.len(),
+            0,
+            "shortcut ref used multiple times should not be flagged"
+        );
     }
 }

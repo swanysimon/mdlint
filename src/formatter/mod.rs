@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 /// Format a Markdown document to canonical style.
@@ -8,6 +10,7 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagE
 /// - Uses ATX-style headings
 /// - Uses `-` for unordered list markers
 /// - Uses backtick fences for code blocks
+#[must_use]
 pub fn format(input: &str) -> String {
     if input.trim().is_empty() {
         return String::new();
@@ -21,8 +24,23 @@ pub fn format(input: &str) -> String {
         .map(|i| matches!(events.get(i + 1), Some(Event::Start(Tag::List(None)))))
         .collect();
 
-    for (event, next_is_ul) in events.into_iter().zip(lookahead) {
+    // Precompute the first character of the immediately following Text event, if
+    // any.  pulldown-cmark splits a run like `Ⓐ~A` into three Text events; the
+    // `_`/`~` flanking check in on_text needs the char *after* the current event
+    // to match its cross-event handling of the char *before* (via self.inline).
+    // Only an adjacent Text event contributes an alphanumeric neighbour; any other
+    // event (emphasis marker, code, break, block end) is a non-alphanumeric
+    // boundary, represented as None.
+    let next_text_char: Vec<Option<char>> = (0..events.len())
+        .map(|i| match events.get(i + 1) {
+            Some(Event::Text(t)) => t.chars().next(),
+            _ => None,
+        })
+        .collect();
+
+    for ((event, next_is_ul), next_char) in events.into_iter().zip(lookahead).zip(next_text_char) {
         state.next_is_unordered_list = next_is_ul;
+        state.next_text_char = next_char;
         state.process(event);
     }
 
@@ -37,6 +55,7 @@ fn mk_options() -> Options {
         | Options::ENABLE_HEADING_ATTRIBUTES
 }
 
+#[allow(clippy::struct_excessive_bools)] // each bool is a distinct formatting phase flag
 struct FormatterState {
     out: String,
     /// Whether the next block element should be preceded by a blank line.
@@ -71,6 +90,10 @@ struct FormatterState {
     // two adjacent unordered lists so we can insert a separator.
     next_is_unordered_list: bool,
 
+    // First char of the next Text event, or None if the next event is not Text.
+    // Supplies cross-event right-flank context for the `_`/`~` escape check.
+    next_text_char: Option<char>,
+
     // Table state
     table_alignments: Vec<Alignment>,
     table_head_cells: Vec<String>,
@@ -94,6 +117,7 @@ impl FormatterState {
             list_item_widths: Vec::new(),
             link_stack: Vec::new(),
             next_is_unordered_list: false,
+            next_text_char: None,
             table_alignments: Vec::new(),
             table_head_cells: Vec::new(),
             table_data_rows: Vec::new(),
@@ -129,7 +153,7 @@ impl FormatterState {
                 self.needs_blank = true;
             }
             Event::FootnoteReference(label) => {
-                self.inline.push_str(&format!("[^{}]", label));
+                write!(self.inline, "[^{label}]").expect("writing to String is infallible");
             }
             Event::TaskListMarker(checked) => {
                 if checked {
@@ -142,6 +166,7 @@ impl FormatterState {
         }
     }
 
+    #[allow(clippy::too_many_lines)] // exhaustive match over pulldown-cmark Tag variants
     fn on_start(&mut self, tag: Tag<'_>) {
         match tag {
             Tag::Paragraph => {
@@ -225,11 +250,11 @@ impl FormatterState {
                 let indent = "  ".repeat(self.list_depth.saturating_sub(1));
                 let marker = match self.list_starts.last_mut() {
                     Some(Some(n)) => {
-                        let s = format!("{}{}. ", indent, n);
+                        let s = format!("{indent}{n}. ");
                         *n += 1;
                         s
                     }
-                    _ => format!("{}- ", indent),
+                    _ => format!("{indent}- "),
                 };
                 if let Some(w) = self.list_item_widths.last_mut() {
                     *w = marker.len();
@@ -265,11 +290,11 @@ impl FormatterState {
                 self.emit_blank_if_needed();
                 // Write the label prefix; body will be flushed inline.
                 self.write_bq_prefix();
-                self.out.push_str(&format!("[^{}]: ", label));
+                write!(self.out, "[^{label}]: ").expect("writing to String is infallible");
             }
             Tag::Table(alignments) => {
                 self.emit_blank_if_needed();
-                self.table_alignments = alignments.to_vec();
+                self.table_alignments.clone_from(&alignments);
                 self.table_head_cells = Vec::new();
                 self.table_data_rows = Vec::new();
                 self.current_row_cells = Vec::new();
@@ -281,37 +306,41 @@ impl FormatterState {
             Tag::TableRow => {
                 self.current_row_cells = Vec::new();
             }
-            Tag::TableCell => {
-                // inline content accumulates in self.inline; flushed at End(TableCell)
-            }
             _ => {}
         }
     }
 
+    #[allow(clippy::too_many_lines)] // exhaustive match over pulldown-cmark TagEnd variants
     fn on_end(&mut self, tag: TagEnd) {
         match tag {
             TagEnd::Paragraph => {
                 let text = std::mem::take(&mut self.inline);
-                if self.list_depth == 0 {
-                    self.write_bq_prefix();
+                // pulldown-cmark may emit a paragraph containing only Unicode
+                // whitespace (e.g. NEL U+0085) that is not a CommonMark line
+                // ending — finish() strips it via trim_end(), leaving an empty
+                // line that turns a blockquote into an empty one on re-parse.
+                // Skip the emission entirely; invisible content is no content.
+                if !text.trim().is_empty() {
+                    if self.list_depth == 0 {
+                        self.write_bq_prefix();
+                    }
+                    let prefix = "  ".repeat(self.list_depth);
+                    self.flush_inline_text(&text, &prefix);
+                    self.needs_blank = true;
                 }
-                let prefix = "  ".repeat(self.list_depth);
-                self.flush_inline_text(&text, &prefix);
-                self.needs_blank = true;
                 self.in_tight_item = false;
             }
             TagEnd::Heading(level) => {
                 let text = std::mem::take(&mut self.inline);
                 let hashes = "#".repeat(level as usize);
                 self.write_bq_prefix();
-                // Collapse hard breaks (`\\\n`) and soft breaks (`\n`) to spaces, then trim.
-                // Trim must come after replacement: a leading hard break produces a leading
-                // space after replacement that trim() removes.  Trimming first would leave
-                // the bare `\` of the hard-break marker in the output unescaped, breaking
-                // idempotency on re-parse.
-                let heading_raw = text.replace("\\\n", " ").replace('\n', " ");
+                // Collapse hard and soft breaks to spaces, then trim.  Trim must
+                // come after: a leading break produces a leading space that trim()
+                // removes; trimming first would strip a hard-break marker's `\`,
+                // leaving it unescaped and breaking idempotency on re-parse.
+                let heading_raw = collapse_heading_breaks(&text);
                 let heading_text = heading_raw.trim();
-                self.out.push_str(&format!("{} {}\n", hashes, heading_text));
+                writeln!(self.out, "{hashes} {heading_text}").expect("writing to String is infallible");
                 self.needs_blank = true;
             }
             TagEnd::CodeBlock => {
@@ -360,21 +389,12 @@ impl FormatterState {
             TagEnd::Emphasis => self.inline.push('*'),
             TagEnd::Strong => self.inline.push_str("**"),
             TagEnd::Strikethrough => self.inline.push_str("~~"),
-            TagEnd::Link => {
+            TagEnd::Link | TagEnd::Image => {
                 if let Some((dest, title)) = self.link_stack.pop() {
                     if title.is_empty() {
-                        self.inline.push_str(&format!("]({})", dest));
+                        write!(self.inline, "]({dest})").expect("writing to String is infallible");
                     } else {
-                        self.inline.push_str(&format!("]({} \"{}\")", dest, title));
-                    }
-                }
-            }
-            TagEnd::Image => {
-                if let Some((dest, title)) = self.link_stack.pop() {
-                    if title.is_empty() {
-                        self.inline.push_str(&format!("]({})", dest));
-                    } else {
-                        self.inline.push_str(&format!("]({} \"{}\")", dest, title));
+                        write!(self.inline, "]({dest} \"{title}\")").expect("writing to String is infallible");
                     }
                 }
             }
@@ -498,13 +518,27 @@ impl FormatterState {
                 match ch {
                     '\\' => s.push_str("\\\\"),
                     '`' => s.push_str("\\`"),
+                    // A literal `<` in a Text event (pulldown only emits `<` as text
+                    // when it does NOT already open a tag).  Left bare, adjacent text
+                    // can reconstruct an autolink or HTML tag on re-parse (e.g.
+                    // `<#@a>` → email autolink), changing meaning.  `\<` renders as
+                    // `<` and can never start a tag, so escape unconditionally.
+                    '<' => s.push_str("\\<"),
                     '_' | '~' => {
                         let prev = if i > 0 {
-                            Some(chars[i - 1])
+                            chars.get(i - 1).copied()
                         } else {
                             prev_inline_char
                         };
-                        let next = chars.get(i + 1).copied();
+                        // For the last char of the event, the right neighbour is
+                        // the first char of the next Text event (if any) so that a
+                        // run split across events (e.g. `Ⓐ~A` → three events) is
+                        // judged the same as the merged form on re-parse.
+                        let next = chars.get(i + 1).copied().or(if i + 1 == chars.len() {
+                            self.next_text_char
+                        } else {
+                            None
+                        });
                         // Only leave bare when flanked by alphanumeric on BOTH sides.
                         if prev.is_some_and(char::is_alphanumeric)
                             && next.is_some_and(char::is_alphanumeric)
@@ -601,6 +635,16 @@ impl FormatterState {
                 // Trailing empty string from split: don't emit an extra newline.
                 break;
             }
+            // Skip blank or whitespace-only continuation lines.  Inside a paragraph
+            // a blank line is impossible in real Markdown (it ends the paragraph).
+            // These arise from: (a) consecutive breaks (HardBreak + SoftBreak with
+            // no text) whose combined `\n`s produce an empty slot when split; or (b)
+            // lines consisting entirely of Unicode whitespace, which finish()'s
+            // trim_end() reduces to blank anyway.  Both cases strand any preceding
+            // hard-break marker as a literal `\` that on_text doubles on re-parse.
+            if line.trim_end().is_empty() {
+                continue;
+            }
             self.out.push_str(continuation_prefix);
             self.out.push_str(&bq);
             if needs_line_escape(line, true) {
@@ -635,106 +679,99 @@ impl FormatterState {
             .iter()
             .position(|l| !l.is_empty())
             .unwrap_or(result.len());
-        let joined = result[start..].join("\n");
+        let joined = result
+            .get(start..)
+            .expect("start bounded by result.len()")
+            .join("\n");
         let trimmed = joined.trim_end_matches('\n');
         if trimmed.is_empty() {
             return String::new();
         }
-        format!("{}\n", trimmed)
+        format!("{trimmed}\n")
     }
 }
 
-/// Produce the escaped form of `line` when `needs_line_escape` returns true.
+/// Collapse the break markers inside a heading's inline buffer to single spaces.
 ///
-/// All block-trigger patterns whose first character is ASCII punctuation (`>`, `*`,
-/// `-`, `+`, `_`, `#`, `=`, `<`) are correctly escaped by prepending `\` — that
-/// gives a valid backslash escape that round-trips through pulldown-cmark.
+/// A heading cannot span lines, so both soft breaks (`\n`) and hard breaks
+/// (`\` + `\n`, emitted by `on_start`/`HardBreak`) become spaces.  The subtlety
+/// is telling a hard-break `\` apart from a literal backslash in the heading
+/// text: `on_text` always doubles content backslashes, so a run of backslashes
+/// originating from content is even-length.  A hard break adds exactly one more,
+/// making the run before the newline odd.  We therefore keep floor(n/2) escaped
+/// backslashes (the content) and drop the trailing odd one (the marker) before
+/// replacing the newline with a space.
+fn collapse_heading_breaks(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            let mut run = 1usize;
+            while chars.peek() == Some(&'\\') {
+                chars.next();
+                run += 1;
+            }
+            // An odd run immediately before a newline ends in a hard-break marker;
+            // emit the content pairs and drop the marker backslash.
+            let is_hard_break = run % 2 == 1 && chars.peek() == Some(&'\n');
+            let content_backslashes = if is_hard_break { run - 1 } else { run };
+            for _ in 0..content_backslashes {
+                out.push('\\');
+            }
+        } else if ch == '\n' {
+            out.push(' ');
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Escape `line` so that it round-trips through pulldown-cmark as plain text.
 ///
-/// The exception is ordered-list markers: `0.` or `12.` start with a digit, and
-/// `\0` is NOT a valid CommonMark escape sequence (digits are not ASCII punctuation).
-/// A literal `\` before a digit is emitted as-is by pulldown-cmark, then the
-/// formatter doubles it on the second pass, breaking idempotency.  The fix: place
-/// the backslash before the `.` or `)` that follows the digits instead — `0\.` —
-/// which IS a valid escape and renders identically.
+/// All block-trigger patterns whose first character is ASCII punctuation are
+/// escaped by prepending `\`.  The exception is ordered-list markers (`0.`,
+/// `12.`): digits are not ASCII punctuation, so `\0` is not a valid `CommonMark`
+/// escape and would be doubled on re-parse.  Instead we place the backslash
+/// before the `.` or `)` — `0\.` — which is valid and renders identically.
 fn escape_line(line: &str) -> String {
-    let digits_len = line.chars().take_while(|c| c.is_ascii_digit()).count();
+    let digits_len = line.chars().take_while(char::is_ascii_digit).count();
     if digits_len > 0 {
-        // Ordered-list marker: `0.` → `0\.`, `12)` → `12\)`, etc.
         format!("{}\\{}", &line[..digits_len], &line[digits_len..])
     } else {
         format!("\\{line}")
     }
 }
 
-/// Returns true if `line` starts with a sequence that would be re-interpreted
-/// as a structural Markdown block element on re-parse, and therefore needs a
-/// leading `\` escape.  This matters for first lines of paragraphs and for
-/// soft-break continuation lines that are emitted as separate output lines.
+/// Returns true if `line`, when emitted as the start of a new output line,
+/// would be re-interpreted as a structural block element on re-parse.
 ///
-/// When `is_continuation` is true, the line is a soft-break continuation
-/// inside a paragraph.  In CommonMark only `1.` / `1)` can interrupt a
-/// paragraph, so other ordered-list markers (2., 6., etc.) must NOT be
-/// escaped — escaping them hides real formatting problems from the linter.
+/// Uses pulldown-cmark itself as the oracle: if parsing `line` in isolation
+/// does not produce `Start(Paragraph)` as its first event, the line will be
+/// misread — escape it.  This delegates all structural detection to the same
+/// parser that the formatter and linter use, so new `CommonMark` edge cases are
+/// handled automatically without manual pattern maintenance.
+///
+/// The one exception kept as a manual check is the setext heading underline on
+/// a continuation line (`===`, `--` etc.): these parse as plain paragraphs in
+/// isolation but turn the *preceding* output line into a heading when emitted
+/// together.  That context-sensitivity cannot be detected by a single-line parse.
+///
+/// On continuation lines (`is_continuation = true`), ordered-list markers other
+/// than `1.`/`1)` do NOT interrupt a paragraph (`CommonMark` spec §5.2) and must
+/// not be escaped — escaping them hides broken-list errors from the linter.
+/// Since cmark parses `2. foo` in isolation as a list item, we suppress the
+/// escape for those cases here.
 fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
-    // finish() strips trailing Unicode whitespace via trim_end() from each output
-    // line. Check against that trimmed form so structural patterns hidden behind
-    // trailing Unicode whitespace (e.g. "*\u{85}\u{b}" → "*") are still caught.
+    // finish() strips trailing Unicode whitespace; check the trimmed form so
+    // structural patterns hidden behind trailing Unicode whitespace are caught.
     let line = line.trim_end();
     if line.is_empty() {
         return false;
     }
 
-    // Blockquote marker
-    if line.starts_with('>') {
-        return true;
-    }
-
-    // Unordered list marker: *, -, or + followed by space/tab or end of line.
-    // Also catches thematic breaks that start with * or - (e.g. `* * *`, `- - -`).
-    if let Some(rest) = line.strip_prefix(['*', '-', '+'])
-        && (rest.is_empty() || rest.starts_with([' ', '\t']))
-    {
-        return true;
-    }
-
-    // Thematic break: three or more of the same char (-, *, _) with optional spaces.
-    // Catches `---`, `___`, `* * *`, etc.  The * and - cases with trailing space are
-    // already caught above; this covers `---` and `___` and variants without spaces.
-    let first = line.chars().next().unwrap();
-    if matches!(first, '-' | '*' | '_') {
-        let all_valid = line.chars().all(|c| c == first || c == ' ' || c == '\t');
-        let count = line.chars().filter(|&c| c == first).count();
-        if all_valid && count >= 3 {
-            return true;
-        }
-    }
-
-    let after_hashes = line.trim_start_matches('#');
-    if after_hashes.len() < line.len()
-        && (after_hashes.is_empty() || after_hashes.starts_with([' ', '\t']))
-    {
-        return true;
-    }
-
-    // Ordered list marker: one or more ASCII digits followed by . or ) and then space/tab/end.
-    // On continuation lines only `1.` / `1)` can interrupt a paragraph (CommonMark spec §5.2),
-    // so we must not escape other numbers — doing so hides broken-list errors from the linter.
-    let digits: String = line.chars().take_while(|c| c.is_ascii_digit()).collect();
-    if !digits.is_empty() {
-        let rest = &line[digits.len()..];
-        if let Some(after_marker) = rest.strip_prefix(['.', ')'])
-            && (after_marker.is_empty() || after_marker.starts_with([' ', '\t']))
-            && (!is_continuation || digits == "1")
-        {
-            return true;
-        }
-    }
-
-    // Setext heading underlines: a continuation line consisting entirely of
-    // `=` (h1) or `-` (h2) characters would turn the preceding text line
-    // into a heading on re-parse, breaking idempotency.  Single `-` is
-    // already caught above (list marker); `---`+ is caught (thematic break).
-    // All-`=` lines and `--` are not covered by those rules.
+    // Setext heading underlines are context-sensitive: `===` / `--` alone parse
+    // as paragraphs, but after a text line they become headings.
     if is_continuation {
         let trimmed = line.trim_end_matches([' ', '\t']);
         if !trimmed.is_empty()
@@ -744,34 +781,27 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
         }
     }
 
-    // HTML block openers:
-    // Type 2: <!--
-    // Type 3: <?
-    // Type 4: <! followed by an ASCII uppercase letter
-    // Type 5: <![CDATA[
-    if line.starts_with("<!--") || line.starts_with("<?") || line.starts_with("<![CDATA[") {
-        return true;
-    }
-    if let Some(rest) = line.strip_prefix("<!")
-        && rest.starts_with(|c: char| c.is_ascii_uppercase())
-    {
-        return true;
-    }
-    // Type 1: <script, <pre, <style, <textarea (case-insensitive) + whitespace / > / end
-    let lower: String = line
-        .chars()
-        .take(12)
-        .collect::<String>()
-        .to_ascii_lowercase();
-    for tag in &["<script", "<pre", "<style", "<textarea"] {
-        if let Some(rest) = lower.strip_prefix(tag)
-            && (rest.is_empty() || rest.starts_with([' ', '\t', '>']))
-        {
-            return true;
+    // On continuation lines, only `1.`/`1)` can interrupt a paragraph — don't
+    // escape other ordered-list numbers even though cmark would flag them.
+    if is_continuation {
+        let digits_len = line.chars().take_while(char::is_ascii_digit).count();
+        if digits_len > 0 {
+            let rest = &line[digits_len..];
+            if let Some(after) = rest.strip_prefix(['.', ')'])
+                && (after.is_empty() || after.starts_with([' ', '\t']))
+                && &line[..digits_len] != "1"
+            {
+                return false;
+            }
         }
     }
 
-    false
+    // Delegate all other structural detection to cmark: if the line does not
+    // parse as a paragraph in isolation, it must be escaped.
+    !matches!(
+        Parser::new_ext(line, mk_options()).next(),
+        Some(Event::Start(Tag::Paragraph))
+    )
 }
 
 #[cfg(test)]
@@ -950,6 +980,63 @@ mod tests {
     fn test_multiple_spaces_after_hash_collapsed() {
         assert_formats_to("#  Heading", "# Heading\n");
         assert_formats_to("##   Wide", "## Wide\n");
+    }
+
+    // Headings: a literal backslash in heading text stays escaped and idempotent.
+    // Regression: `#\t0\\\ra` — the `\r` softens to a break, and the collapse of
+    // break markers must not consume one of the doubled content backslashes.
+    #[test]
+    fn test_heading_literal_backslash_idempotent() {
+        assert_formats_to("#\t0\\\ra", "# 0\\\\ a\n");
+        assert_formats_to("# a\\b", "# a\\\\b\n");
+    }
+
+    // A genuine hard break inside a heading collapses to a single space with no
+    // stray backslash left behind.
+    #[test]
+    fn test_heading_hard_break_collapses() {
+        assert_formats_to("# a\\\nb", "# a\\\\\n\nb\n");
+    }
+
+    // `_`/`~` flanked by alphanumerics across a pulldown-cmark event split must
+    // stay bare and idempotent.  Regression: `Ⓐ~A` splits into three Text events;
+    // the lone `~` event has no in-event right neighbour, so without cross-event
+    // lookahead it escaped on pass 1 then un-escaped on pass 2.
+    #[test]
+    fn test_intraword_tilde_across_event_split() {
+        assert_formats_to("Ⓐ~A", "Ⓐ~A\n");
+        // Not flanked on both sides → still escaped.
+        assert_formats_to("Ⓐ~", "Ⓐ\\~\n");
+        assert_formats_to("~A", "\\~A\n");
+    }
+
+    // A literal `<` in text must be escaped so adjacent characters can't
+    // reconstruct an autolink or HTML tag on re-parse.  Regression: `<#\@a>`
+    // dropped the backslash and re-parsed as an email autolink, changing meaning.
+    // Genuine autolinks/HTML arrive as Link/Html events, not Text, so they are
+    // unaffected.
+    #[test]
+    fn test_literal_angle_bracket_escaped() {
+        assert_formats_to("<#\\@a>", "\\<#@a>\n");
+        assert_formats_to("x<y", "x\\<y\n");
+        // Real autolink and inline HTML are preserved, not escaped.
+        assert_formats_to(
+            "<https://example.com>",
+            "[https://example.com](https://example.com)\n",
+        );
+        assert_formats_to("<div>hi</div>", "<div>hi</div>\n");
+    }
+
+    #[test]
+    fn test_collapse_heading_breaks_unit() {
+        // Soft break → space.
+        assert_eq!(collapse_heading_breaks("a\nb"), "a b");
+        // Hard-break marker (odd run before newline) dropped; newline → space.
+        assert_eq!(collapse_heading_breaks("a\\\nb"), "a b");
+        // Doubled content backslash (even run) before a soft break: keep both, then space.
+        assert_eq!(collapse_heading_breaks("a\\\\\nb"), "a\\\\ b");
+        // Literal backslash not before a newline is untouched.
+        assert_eq!(collapse_heading_breaks("a\\\\b"), "a\\\\b");
     }
 
     // Blank lines: multiple consecutive blank lines collapsed to one
@@ -1160,6 +1247,27 @@ mod tests {
         // bare "*\n" which re-parses as an empty list item on the next pass.
         // The fix: needs_line_escape checks against the trimmed form of the line.
         assert_formats_to("*\u{85}\u{b}", "\\*\n");
+    }
+
+    #[test]
+    fn test_blockquote_nel_idempotent() {
+        // ">\u{85}": cmark emits BlockQuote > Paragraph > Text("\u{85}") — NEL is
+        // Unicode whitespace that finish() strips, leaving ">" which re-parses as
+        // an empty blockquote → second pass returns "".
+        let once = format(">\u{85}");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: blockquote + NEL");
+    }
+
+    #[test]
+    fn test_hard_break_followed_by_vt_in_paragraph() {
+        // "\\\r\u{b}\r¡": cmark emits HardBreak + SoftBreak (VT stripped) + Text("¡").
+        // The two consecutive breaks produce an empty continuation slot when split on
+        // '\n', which emits a blank line that breaks the paragraph on re-parse — the
+        // preceding `\` is then doubled by on_text on the second pass.
+        let once = format("\\\r\u{b}\r¡");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: hard-break + VT continuation");
     }
 
     #[test]

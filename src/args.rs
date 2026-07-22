@@ -21,6 +21,7 @@ const STYLES: Styles = Styles::styled()
     after_help = "For help with a specific command, see: `mdlint help <command>`",
     styles = STYLES,
 )]
+#[allow(clippy::struct_excessive_bools)] // clap CLI structs use bools for flags, not state machines
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -96,7 +97,7 @@ pub enum Command {
 }
 
 #[derive(Args, Debug)]
-pub struct ServerArgs {}
+pub struct ServerArgs;
 
 #[derive(Args, Debug)]
 pub struct MigrateArgs {
@@ -145,6 +146,7 @@ impl Display for MigrateFrom {
 }
 
 #[derive(Args, Debug)]
+#[allow(clippy::struct_excessive_bools)] // clap CLI structs use bools for flags, not state machines
 pub struct CheckArgs {
     #[arg(
         value_name = "FILES",
@@ -220,6 +222,7 @@ pub struct CheckArgs {
 }
 
 impl CheckArgs {
+    #[must_use]
     pub fn files(&self) -> Vec<PathBuf> {
         if self.files.is_empty() {
             vec![PathBuf::from(".")]
@@ -228,10 +231,12 @@ impl CheckArgs {
         }
     }
 
+    #[must_use]
     pub fn should_respect_ignore(&self) -> bool {
         !self.no_respect_ignore
     }
 
+    #[must_use]
     pub fn should_fix(&self) -> Option<bool> {
         match (self.fix, self.no_fix) {
             (true, _) => Some(true),
@@ -276,6 +281,7 @@ pub struct FormatArgs {
 }
 
 impl FormatArgs {
+    #[must_use]
     pub fn files(&self) -> Vec<PathBuf> {
         if self.files.is_empty() {
             vec![PathBuf::from(".")]
@@ -284,6 +290,7 @@ impl FormatArgs {
         }
     }
 
+    #[must_use]
     pub fn should_respect_ignore(&self) -> bool {
         !self.no_respect_ignore
     }

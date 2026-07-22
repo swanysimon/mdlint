@@ -6,10 +6,10 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::OnceLock;
 
-const NODE_EVAL_SCRIPT: &str = r#"import(process.argv[1]).then(m => {
+const NODE_EVAL_SCRIPT: &str = r"import(process.argv[1]).then(m => {
   const cfg = m.default ?? m;
   process.stdout.write(JSON.stringify(cfg));
-}).catch(e => { console.error(e.message); process.exit(1); });"#;
+}).catch(e => { console.error(e.message); process.exit(1); });";
 
 fn node_available() -> bool {
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
@@ -65,8 +65,7 @@ fn try_node_eval(path: &Path) -> Option<Result<Cli2Source>> {
                 .map(document_to_source)
                 .map_err(|e| {
                     MarkdownlintError::Migrate(format!(
-                        "Node evaluated {:?} but its output was not valid JSON: {}",
-                        path, e
+                        "Node evaluated {path:?} but its output was not valid JSON: {e}"
                     ))
                 })
         }
@@ -76,8 +75,7 @@ fn try_node_eval(path: &Path) -> Option<Result<Cli2Source>> {
             String::from_utf8_lossy(&output.stderr).trim()
         ))),
         Err(e) => Err(MarkdownlintError::Migrate(format!(
-            "Failed to run node for {:?}: {}",
-            path, e
+            "Failed to run node for {path:?}: {e}"
         ))),
     };
 
@@ -94,12 +92,11 @@ fn try_node_eval(path: &Path) -> Option<Result<Cli2Source>> {
 fn scrape_js(content: &str, path: &Path) -> Result<Cli2Source> {
     let unparsable = || {
         MarkdownlintError::Migrate(format!(
-            "Could not parse {:?} as a static object literal. JS configs that use \
+            "Could not parse {path:?} as a static object literal. JS configs that use \
              variables, function calls, or computed values cannot be migrated \
              automatically without Node.js — install Node for full fidelity, or run \
              `console.log(JSON.stringify(config))` in your config and save the output \
-             as a `.json` file, then migrate that instead.",
-            path
+             as a `.json` file, then migrate that instead."
         ))
     };
 
@@ -168,7 +165,7 @@ fn extract_object_literal(content: &str) -> Option<String> {
             '}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Some(content[brace_start..brace_start + offset + 1].to_string());
+                    return Some(content[brace_start..=(brace_start + offset)].to_string());
                 }
             }
             _ => {}
@@ -258,7 +255,7 @@ mod tests {
 
     #[test]
     fn parses_simple_cjs_export() {
-        let content = r#"
+        let content = r"
             // comment
             module.exports = {
                 config: {
@@ -268,7 +265,7 @@ mod tests {
                 ignores: ['dist/**'],
                 fix: true,
             };
-        "#;
+        ";
         let (source, _warnings) =
             parse_js(content, &PathBuf::from(".markdownlint-cli2.cjs")).unwrap();
         assert_eq!(source.fix, Some(true));
@@ -278,23 +275,23 @@ mod tests {
 
     #[test]
     fn unparsable_js_returns_error() {
-        let content = r#"
+        let content = r"
             const base = require('./base');
             module.exports = { ...base, config: someFunction() };
-        "#;
+        ";
         let result = parse_js(content, &PathBuf::from(".markdownlint-cli2.cjs"));
         assert!(result.is_err());
     }
 
     #[test]
     fn falls_back_to_scrape_without_node() {
-        let content = r#"
+        let content = r"
             module.exports = {
                 config: { default: true, MD013: { line_length: 100 } },
                 ignores: ['dist/**'],
                 fix: true,
             };
-        "#;
+        ";
         let source = scrape_js(content, &PathBuf::from(".markdownlint-cli2.cjs")).unwrap();
         assert_eq!(source.fix, Some(true));
         assert!(source.config.unwrap().contains_key("MD013"));
@@ -316,10 +313,10 @@ mod tests {
         let config_path = dir.path().join(".markdownlint-cli2.cjs");
         std::fs::write(
             &config_path,
-            r#"
+            r"
             const base = require('./base');
             module.exports = { ...base, ignores: ['dist/**'] };
-            "#,
+            ",
         )
         .unwrap();
 

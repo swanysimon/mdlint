@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD036;
 
 impl Rule for MD036 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD036"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Emphasis used instead of a heading"
     }
 
@@ -47,8 +47,8 @@ impl Rule for MD036 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Emphasis used instead of a heading".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Emphasis used instead of a heading".to_owned(),
                         fix: None,
                     });
                 }

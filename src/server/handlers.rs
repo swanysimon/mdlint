@@ -76,7 +76,7 @@ fn did_close(conn: &Connection, notif: &Notification, docs: &mut DocumentStore) 
         version: None,
     };
     let _ = conn.sender.send(Message::Notification(Notification::new(
-        "textDocument/publishDiagnostics".to_string(),
+        "textDocument/publishDiagnostics".to_owned(),
         empty,
     )));
 }
@@ -91,7 +91,7 @@ fn formatting(conn: &Connection, req: &Request, docs: &DocumentStore) {
         send_error(conn, req.id.clone(), -32602, "Document not found");
         return;
     };
-    let content = content.to_string();
+    let content = content.to_owned();
     let formatted = formatter::format(&content);
     let edits: Vec<TextEdit> = if formatted == content {
         vec![]
@@ -113,7 +113,7 @@ fn code_action(conn: &Connection, req: &Request, docs: &DocumentStore) {
         let _ = conn.sender.send(Message::Response(resp));
         return;
     };
-    let content = content.to_string();
+    let content = content.to_owned();
     let config = load_config(uri);
     let violations = LintEngine::new(config)
         .lint_content(&content)
@@ -125,6 +125,7 @@ fn code_action(conn: &Connection, req: &Request, docs: &DocumentStore) {
 
 // lsp-types requires HashMap<Uri, _> in WorkspaceEdit; Uri has interior mutability by design.
 #[allow(clippy::mutable_key_type)]
+#[allow(clippy::cast_possible_truncation)] // LSP positions are u32; line counts in real files fit
 fn violations_to_actions(
     uri: &Uri,
     content: &str,
@@ -171,7 +172,7 @@ pub fn publish_diagnostics(conn: &Connection, uri: &Uri, content: &str, config: 
         version: None,
     };
     let _ = conn.sender.send(Message::Notification(Notification::new(
-        "textDocument/publishDiagnostics".to_string(),
+        "textDocument/publishDiagnostics".to_owned(),
         params,
     )));
 }
@@ -185,6 +186,6 @@ fn load_config(uri: &Uri) -> Config {
 }
 
 fn send_error(conn: &Connection, id: lsp_server::RequestId, code: i32, message: &str) {
-    let resp = Response::new_err(id, code, message.to_string());
+    let resp = Response::new_err(id, code, message.to_owned());
     let _ = conn.sender.send(Message::Response(resp));
 }

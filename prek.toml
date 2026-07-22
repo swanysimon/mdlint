@@ -34,36 +34,36 @@ types = ["shell"]
 priority = 3
 
 [[repos.hooks]]
-id = "tombi-check"
-name = "check toml"
-entry = "tombi check"
-language = "system"
-pass_filenames = false
-types = ["toml"]
-priority = 3
-
-[[repos.hooks]]
 id = "tombi-fmt"
 name = "format toml"
 entry = "tombi format"
 language = "system"
 pass_filenames = false
 types = ["toml"]
-priority = 4
+priority = 3
 
 [[repos.hooks]]
-id = "clippy"
-name = "clippy"
-entry = "cargo clippy --fix --allow-dirty --all-targets"
+id = "tombi-check"
+name = "check toml"
+entry = "tombi check"
 language = "system"
 pass_filenames = false
-types = ["rust"]
+types = ["toml"]
 priority = 4
 
 [[repos.hooks]]
 id = "rustfmt"
 name = "format rust"
 entry = "cargo fmt --"
+language = "system"
+pass_filenames = false
+types = ["rust"]
+priority = 4
+
+[[repos.hooks]]
+id = "clippy"
+name = "clippy"
+entry = "cargo clippy --fix --allow-dirty --all-targets"
 language = "system"
 pass_filenames = false
 types = ["rust"]
@@ -79,15 +79,6 @@ types_or = ["markdown", "rust"]
 priority = 6
 
 [[repos.hooks]]
-id = "mdlint-check"
-name = "check markdown (dogfood)"
-entry = "cargo run -- check"
-language = "system"
-pass_filenames = false
-types_or = ["markdown", "rust"]
-priority = 6
-
-[[repos.hooks]]
 id = "mdlint-format"
 name = "format markdown (dogfood)"
 entry = "cargo run -- format"
@@ -95,3 +86,12 @@ language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
 priority = 7
+
+[[repos.hooks]]
+id = "mdlint-check"
+name = "check markdown (dogfood)"
+entry = "cargo run -- check"
+language = "system"
+pass_filenames = false
+types_or = ["markdown", "rust"]
+priority = 8

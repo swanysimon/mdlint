@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD009;
 
 impl Rule for MD009 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD009"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Trailing spaces"
     }
 
@@ -18,15 +18,16 @@ impl Rule for MD009 {
         &["whitespace"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let br_spaces = config
             .and_then(|c| c.get("br_spaces"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(2) as usize;
 
         let strict = config
             .and_then(|c| c.get("strict"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         let mut violations = Vec::new();
@@ -44,15 +45,15 @@ impl Rule for MD009 {
                 violations.push(Violation {
                     line: line_num + 1,
                     column: Some(trimmed.len() + 1),
-                    rule: self.name().to_string(),
-                    message: format!("Trailing spaces ({} spaces)", trailing_spaces),
+                    rule: self.name().to_owned(),
+                    message: format!("Trailing spaces ({trailing_spaces} spaces)"),
                     fix: Some(Fix {
                         line_start: line_num + 1,
                         line_end: line_num + 1,
                         column_start: Some(trimmed.len() + 1),
                         column_end: Some(line.len()),
                         replacement: String::new(),
-                        description: "Remove trailing spaces".to_string(),
+                        description: "Remove trailing spaces".to_owned(),
                     }),
                 });
             }

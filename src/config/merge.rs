@@ -1,6 +1,7 @@
 use crate::config::types::{Config, RuleConfig};
 use std::collections::HashMap;
 
+#[must_use]
 pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
     // Extend custom rules
     if !override_cfg.custom_rules.is_empty() {
@@ -31,21 +32,21 @@ pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
     }
 
     // Merge rule configurations
-    for (rule_name, rule_config) in override_cfg.rules {
-        base.rules.insert(rule_name, rule_config);
-    }
+    base.rules.extend(override_cfg.rules);
 
     base
 }
 
+#[must_use]
+#[allow(clippy::implicit_hasher)] // binary-only crate; no benefit generalizing over BuildHasher
 pub fn merge_rule_configs(
     base: &HashMap<String, RuleConfig>,
     override_cfg: &HashMap<String, RuleConfig>,
 ) -> HashMap<String, RuleConfig> {
     let mut merged = base.clone();
 
-    for (rule_name, rule_config) in override_cfg {
-        merged.insert(rule_name.clone(), rule_config.clone());
+    for (k, v) in override_cfg {
+        merged.insert(k.clone(), v.clone());
     }
 
     merged
@@ -93,12 +94,12 @@ mod tests {
     fn test_merge_configs_rules() {
         let mut base = Config::default();
         base.rules
-            .insert("MD001".to_string(), RuleConfig::Enabled(true));
+            .insert("MD001".to_owned(), RuleConfig::Enabled(true));
 
         let mut override_cfg = Config::default();
         override_cfg
             .rules
-            .insert("MD002".to_string(), RuleConfig::Enabled(false));
+            .insert("MD002".to_owned(), RuleConfig::Enabled(false));
 
         let merged = merge_configs(base, override_cfg);
         assert_eq!(merged.rules.len(), 2);
@@ -109,7 +110,7 @@ mod tests {
         let mut config1 = Config::default();
         config1
             .rules
-            .insert("MD001".to_string(), RuleConfig::Enabled(true));
+            .insert("MD001".to_owned(), RuleConfig::Enabled(true));
 
         let config2 = Config {
             default_enabled: true,

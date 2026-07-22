@@ -53,7 +53,7 @@ fn is_usable_candidate(path: &Path) -> bool {
 
 pub fn migrate_file(path: &Path) -> Result<MigrationResult> {
     let content = fs::read_to_string(path)
-        .map_err(|e| MarkdownlintError::Migrate(format!("Failed to read {:?}: {}", path, e)))?;
+        .map_err(|e| MarkdownlintError::Migrate(format!("Failed to read {path:?}: {e}")))?;
 
     let is_package_json = path.file_name().and_then(|n| n.to_str()) == Some("package.json");
     let extension = path
@@ -69,8 +69,7 @@ pub fn migrate_file(path: &Path) -> Result<MigrationResult> {
         (false, "cjs" | "mjs" | "js") => js::parse_js(&content, path)?,
         (false, other) => {
             return Err(MarkdownlintError::Migrate(format!(
-                "Unsupported config file extension {:?}",
-                other
+                "Unsupported config file extension {other:?}"
             )));
         }
     };
@@ -192,8 +191,7 @@ fn build_config(source: Cli2Source) -> MigrationResult {
 
             let Some(code) = crate::migrate::rules::resolve_rule_code(&name) else {
                 warnings.push(format!(
-                    "Skipped rule {:?}: no mdlint implementation for this rule",
-                    name
+                    "Skipped rule {name:?}: no mdlint implementation for this rule"
                 ));
                 continue;
             };
@@ -208,7 +206,7 @@ fn build_config(source: Cli2Source) -> MigrationResult {
     // default_enabled get the cli2 default so behaviour is unchanged post-migration.
     for (code, default) in cli2_defaults() {
         match config.rules.get(code) {
-            Some(RuleConfig::Config(_)) | Some(RuleConfig::Enabled(false)) => {}
+            Some(RuleConfig::Config(_) | RuleConfig::Enabled(false)) => {}
             Some(RuleConfig::Enabled(true)) => {
                 config.rules.insert(code.to_string(), default);
             }

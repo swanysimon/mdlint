@@ -30,7 +30,7 @@ fn send_request(conn: &Connection, id: i32, method: &str, params: serde_json::Va
     conn.sender
         .send(Message::Request(Request {
             id: RequestId::from(id),
-            method: method.to_string(),
+            method: method.to_owned(),
             params,
         }))
         .unwrap();
@@ -39,7 +39,7 @@ fn send_request(conn: &Connection, id: i32, method: &str, params: serde_json::Va
 fn send_notification(conn: &Connection, method: &str, params: serde_json::Value) {
     conn.sender
         .send(Message::Notification(Notification {
-            method: method.to_string(),
+            method: method.to_owned(),
             params,
         }))
         .unwrap();
@@ -86,7 +86,7 @@ fn lsp_full_lifecycle() {
     let (server_conn, client_conn) = Connection::memory();
 
     let server_thread =
-        thread::spawn(move || run_server_with_connection(server_conn, None).unwrap());
+        thread::spawn(move || run_server_with_connection(&server_conn, None).unwrap());
 
     // 1. Initialize handshake
     initialize(&client_conn);

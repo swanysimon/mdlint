@@ -14,6 +14,7 @@ pub struct FrontMatter {
     pub end_line: usize,
 }
 
+#[must_use]
 pub fn detect_front_matter(content: &str) -> Option<FrontMatter> {
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {
@@ -36,7 +37,7 @@ fn detect_filetype_front_matter(
         FrontMatterType::Yaml => YAML_FRONT_MATTER,
         FrontMatterType::Toml => TOML_FRONT_MATTER,
     };
-    if lines[0] != front_matter {
+    if lines.first().copied() != Some(front_matter) {
         return None;
     }
 
@@ -44,7 +45,7 @@ fn detect_filetype_front_matter(
         if *line != front_matter {
             continue;
         }
-        let content = lines[1..i].join("\n");
+        let content = lines.get(1..i).unwrap_or_default().join("\n");
         return Some(FrontMatter {
             matter_type,
             content,
@@ -59,9 +60,12 @@ fn detect_filetype_front_matter(
 pub fn strip_front_matter(content: &str) -> String {
     if let Some(front_matter) = detect_front_matter(content) {
         let lines: Vec<&str> = content.lines().collect();
-        lines[front_matter.end_line..].join("\n")
+        lines
+            .get(front_matter.end_line..)
+            .expect("end_line bounded by doc length")
+            .join("\n")
     } else {
-        content.to_string()
+        content.to_owned()
     }
 }
 

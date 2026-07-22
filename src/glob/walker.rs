@@ -12,6 +12,7 @@ pub struct FileWalker {
 }
 
 impl FileWalker {
+    #[must_use]
     pub fn new(respect_gitignore: bool) -> Self {
         Self { respect_gitignore }
     }
@@ -43,7 +44,7 @@ impl FileWalker {
         let mut files = Vec::new();
         for entry in builder.build() {
             let entry = entry.map_err(|e| {
-                MarkdownlintError::Io(std::io::Error::other(format!("Walk error: {}", e)))
+                MarkdownlintError::Io(std::io::Error::other(format!("Walk error: {e}")))
             })?;
             if !(entry.file_type().is_some_and(|ft| ft.is_file())) {
                 continue;
@@ -70,8 +71,7 @@ impl FileWalker {
 fn is_markdown_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
-        .map(|ext| MARKDOWN_EXTENSIONS.contains(&ext))
-        .unwrap_or(false)
+        .is_some_and(|ext| MARKDOWN_EXTENSIONS.contains(&ext))
 }
 
 #[cfg(test)]
@@ -149,7 +149,7 @@ mod tests {
         fs::File::create(docs_dir.join("guide.md")).unwrap();
         fs::File::create(temp_dir.path().join("CHANGELOG.md")).unwrap();
 
-        let matcher = GlobMatcher::new(&["docs/**/*.md".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["docs/**/*.md".to_owned()]).unwrap();
         let walker = FileWalker::new(false);
         let files = walker
             .find_files_with_matcher(temp_dir.path(), &matcher)

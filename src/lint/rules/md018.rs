@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD018;
 
 impl Rule for MD018 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD018"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "No space after hash on atx style heading"
     }
 
@@ -44,20 +44,20 @@ impl Rule for MD018 {
                         // Insert space after the hashes
                         let hashes = "#".repeat(hash_count);
                         let rest = &trimmed[hash_count..];
-                        let replacement = format!("{} {}", hashes, rest);
+                        let replacement = format!("{hashes} {rest}");
 
                         violations.push(Violation {
                             line: line_number,
                             column: Some(hash_count + 1),
-                            rule: self.name().to_string(),
-                            message: "No space after hash on atx style heading".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "No space after hash on atx style heading".to_owned(),
                             fix: Some(Fix {
                                 line_start: line_number,
                                 line_end: line_number,
                                 column_start: None,
                                 column_end: None,
                                 replacement,
-                                description: "Add space after hash".to_string(),
+                                description: "Add space after hash".to_owned(),
                             }),
                         });
                     }

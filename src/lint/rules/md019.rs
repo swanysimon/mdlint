@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD019;
 
 impl Rule for MD019 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD019"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Multiple spaces after hash on atx style heading"
     }
 
@@ -45,15 +45,14 @@ impl Rule for MD019 {
                         // Replace multiple spaces with single space
                         let hashes = "#".repeat(hash_count);
                         let rest = after_hashes[space_count..].trim_start();
-                        let replacement = format!("{} {}", hashes, rest);
+                        let replacement = format!("{hashes} {rest}");
 
                         violations.push(Violation {
                             line: line_number,
                             column: Some(hash_count + 2),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
-                                "Multiple spaces after hash on atx style heading ({} spaces)",
-                                space_count
+                                "Multiple spaces after hash on atx style heading ({space_count} spaces)"
                             ),
                             fix: Some(Fix {
                                 line_start: line_number,
@@ -61,8 +60,7 @@ impl Rule for MD019 {
                                 column_start: None,
                                 column_end: None,
                                 replacement,
-                                description: "Replace multiple spaces with single space"
-                                    .to_string(),
+                                description: "Replace multiple spaces with single space".to_owned(),
                             }),
                         });
                     }

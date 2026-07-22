@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD045;
 
 impl Rule for MD045 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD045"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Images should have alternate text (alt text)"
     }
 
@@ -41,8 +41,8 @@ impl Rule for MD045 {
                         violations.push(Violation {
                             line: image_start_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
-                            message: "Images should have alternate text (alt text)".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Images should have alternate text (alt text)".to_owned(),
                             fix: None,
                         });
                     }

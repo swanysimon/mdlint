@@ -3,6 +3,7 @@ use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range,
 use std::path::PathBuf;
 
 /// Convert UTF-8 character index to UTF-16 code unit offset within a line.
+#[allow(clippy::cast_possible_truncation)] // UTF-16 code units per char is 1 or 2; sum fits u32
 fn char_idx_to_utf16(line_text: &str, char_idx: usize) -> u32 {
     line_text
         .chars()
@@ -14,6 +15,7 @@ fn char_idx_to_utf16(line_text: &str, char_idx: usize) -> u32 {
 /// Convert a `Violation` to an LSP `Diagnostic`.
 ///
 /// mdlint uses 1-indexed lines and columns; LSP uses 0-indexed UTF-16 positions.
+#[allow(clippy::cast_possible_truncation)] // LSP positions are u32; line counts in real files fit
 pub fn violation_to_diagnostic(v: &Violation, content: &str) -> Diagnostic {
     let lines: Vec<&str> = content.lines().collect();
     let lsp_line = v.line.saturating_sub(1) as u32;
@@ -23,8 +25,7 @@ pub fn violation_to_diagnostic(v: &Violation, content: &str) -> Diagnostic {
             let char_idx = col.saturating_sub(1);
             lines
                 .get(v.line.saturating_sub(1))
-                .map(|line| char_idx_to_utf16(line, char_idx))
-                .unwrap_or(0)
+                .map_or(0, |line| char_idx_to_utf16(line, char_idx))
         }
     };
     let position = Position {
@@ -38,7 +39,7 @@ pub fn violation_to_diagnostic(v: &Violation, content: &str) -> Diagnostic {
         },
         severity: Some(DiagnosticSeverity::WARNING),
         code: Some(NumberOrString::String(v.rule.clone())),
-        source: Some("mdlint".to_string()),
+        source: Some("mdlint".to_owned()),
         message: v.message.clone(),
         ..Default::default()
     }
@@ -48,6 +49,7 @@ pub fn violation_to_diagnostic(v: &Violation, content: &str) -> Diagnostic {
 ///
 /// Whole-line fixes (no column range) span from the start of `line_start`
 /// to the start of the line after `line_end`, capturing the newline.
+#[allow(clippy::cast_possible_truncation)] // LSP positions are u32; line counts in real files fit
 pub fn fix_to_text_edit(fix: &Fix, content: &str) -> TextEdit {
     let lines: Vec<&str> = content.lines().collect();
 
@@ -69,17 +71,15 @@ pub fn fix_to_text_edit(fix: &Fix, content: &str) -> TextEdit {
     } else {
         let start_line = fix.line_start.saturating_sub(1);
         let end_line = fix.line_end.saturating_sub(1);
-        let start_char_idx = fix.column_start.map(|c| c.saturating_sub(1)).unwrap_or(0);
-        let end_char_idx = fix.column_end.map(|c| c.saturating_sub(1)).unwrap_or(0);
+        let start_char_idx = fix.column_start.map_or(0, |c| c.saturating_sub(1));
+        let end_char_idx = fix.column_end.map_or(0, |c| c.saturating_sub(1));
 
         let start_utf16 = lines
             .get(start_line)
-            .map(|l| char_idx_to_utf16(l, start_char_idx))
-            .unwrap_or(0);
+            .map_or(0, |l| char_idx_to_utf16(l, start_char_idx));
         let end_utf16 = lines
             .get(end_line)
-            .map(|l| char_idx_to_utf16(l, end_char_idx))
-            .unwrap_or(0);
+            .map_or(0, |l| char_idx_to_utf16(l, end_char_idx));
 
         TextEdit {
             range: Range {
@@ -101,6 +101,7 @@ pub fn fix_to_text_edit(fix: &Fix, content: &str) -> TextEdit {
 ///
 /// The end range is `(line_count, 0)` — the start of the line after the last,
 /// which captures any trailing newline.
+#[allow(clippy::cast_possible_truncation)] // LSP positions are u32; line counts in real files fit
 pub fn whole_doc_edit(content: &str, formatted: &str) -> TextEdit {
     let line_count = content.lines().count() as u32;
     TextEdit {
@@ -114,7 +115,7 @@ pub fn whole_doc_edit(content: &str, formatted: &str) -> TextEdit {
                 character: 0,
             },
         },
-        new_text: formatted.to_string(),
+        new_text: formatted.to_owned(),
     }
 }
 
@@ -133,8 +134,8 @@ mod tests {
         Violation {
             line,
             column,
-            rule: "MD001".to_string(),
-            message: "test".to_string(),
+            rule: "MD001".to_owned(),
+            message: "test".to_owned(),
             fix: None,
         }
     }

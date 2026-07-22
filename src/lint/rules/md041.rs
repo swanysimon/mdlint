@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD041;
 
 impl Rule for MD041 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD041"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "First line in file should be a top-level heading"
     }
 
@@ -19,15 +19,15 @@ impl Rule for MD041 {
         &["headings"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; heading level is always ≤ 6
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
         let level = config
             .and_then(|c| c.get("level"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let expected_level = match level {
-            1 => HeadingLevel::H1,
             2 => HeadingLevel::H2,
             3 => HeadingLevel::H3,
             4 => HeadingLevel::H4,
@@ -49,16 +49,16 @@ impl Rule for MD041 {
                         violations.push(Violation {
                             line: heading_line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "First line in file should be a level {} heading",
                                 match expected_level {
-                                    HeadingLevel::H1 => 1,
-                                    HeadingLevel::H2 => 2,
-                                    HeadingLevel::H3 => 3,
-                                    HeadingLevel::H4 => 4,
-                                    HeadingLevel::H5 => 5,
-                                    HeadingLevel::H6 => 6,
+                                    HeadingLevel::H1 => 1u8,
+                                    HeadingLevel::H2 => 2u8,
+                                    HeadingLevel::H3 => 3u8,
+                                    HeadingLevel::H4 => 4u8,
+                                    HeadingLevel::H5 => 5u8,
+                                    HeadingLevel::H6 => 6u8,
                                 }
                             ),
                             fix: None,
@@ -73,8 +73,8 @@ impl Rule for MD041 {
                     violations.push(Violation {
                         line: 1,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "First line in file should be a top-level heading".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "First line in file should be a top-level heading".to_owned(),
                         fix: None,
                     });
                     break;

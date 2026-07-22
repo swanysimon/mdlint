@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD007;
 
 impl Rule for MD007 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD007"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Unordered list indentation"
     }
 
@@ -18,10 +18,11 @@ impl Rule for MD007 {
         &["bullet", "ul", "indentation"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let indent_size = config
             .and_then(|c| c.get("indent"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(2) as usize;
 
         let mut violations = Vec::new();
@@ -69,10 +70,9 @@ impl Rule for MD007 {
                 violations.push(Violation {
                     line: line_number,
                     column: Some(1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!(
-                        "Unordered list indentation should be {} spaces (found {})",
-                        expected_indent, indent
+                        "Unordered list indentation should be {expected_indent} spaces (found {indent})"
                     ),
                     fix: None,
                 });

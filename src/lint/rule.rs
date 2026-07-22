@@ -23,14 +23,16 @@ pub struct RuleRegistry {
 }
 
 impl RuleRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn register(&mut self, rule: Box<dyn Rule + Send + Sync>) {
-        self.rules.insert(rule.name().to_string(), rule);
+        self.rules.insert(rule.name().to_owned(), rule);
     }
 
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&dyn Rule> {
         self.rules.get(name).map(|r| r.as_ref() as &dyn Rule)
     }

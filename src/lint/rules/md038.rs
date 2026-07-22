@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD038;
 
 impl Rule for MD038 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD038"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Spaces inside code span elements"
     }
 
@@ -50,8 +50,8 @@ impl Rule for MD038 {
                         violations.push(Violation {
                             line,
                             column: Some(column),
-                            rule: self.name().to_string(),
-                            message: "Spaces inside code span elements".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Spaces inside code span elements".to_owned(),
                             fix: None,
                         });
                     }
@@ -65,8 +65,8 @@ impl Rule for MD038 {
                         violations.push(Violation {
                             line,
                             column: Some(column),
-                            rule: self.name().to_string(),
-                            message: "Spaces inside code span elements".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Spaces inside code span elements".to_owned(),
                             fix: None,
                         });
                     }

@@ -1,10 +1,10 @@
-use clap::Parser;
+use clap::Parser as _;
 use mdlint::args::{CheckArgs, Cli, Command, FormatArgs, OutputFormat, TerminalColor};
 use mdlint::config::loader::{ConfigLoader, find_all_configs};
 use mdlint::config::{Config, merge_many_configs};
 use mdlint::error::Result;
 use mdlint::fix::Fixer;
-use mdlint::format::{DefaultFormatter, Formatter, GitlabFormatter, JsonFormatter};
+use mdlint::format::{DefaultFormatter, Formatter as _, GitlabFormatter, JsonFormatter};
 use mdlint::formatter;
 use mdlint::glob::FileWalker;
 use mdlint::lint::{LintEngine, LintResult};
@@ -12,16 +12,12 @@ use mdlint::migrate::run_migrate;
 use mdlint::types::Violation;
 use std::env;
 use std::fs;
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal as _};
 use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    process::exit(
-        run()
-            .map(|had_errors| if had_errors { 1 } else { 0 })
-            .unwrap_or(2),
-    );
+    process::exit(run().map_or(2i32, i32::from));
 }
 
 fn run() -> Result<bool> {
@@ -31,7 +27,7 @@ fn run() -> Result<bool> {
 
     match &cli.command {
         Command::Check(args) => run_check(args, config, use_color, cli.verbose),
-        Command::Format(args) => run_format(args, config),
+        Command::Format(args) => run_format(args, &config),
         Command::Server(_) => mdlint::server::run_server().map(|()| false),
         Command::Migrate(args) => run_migrate(args),
     }
@@ -63,12 +59,12 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
         OutputFormat::Gitlab => GitlabFormatter::new(false).format(&lint_result),
         OutputFormat::Json => JsonFormatter::new(false).format(&lint_result),
     };
-    print!("{}", output);
+    print!("{output}");
 
     Ok(lint_result.has_errors())
 }
 
-fn run_format(args: &FormatArgs, config: Config) -> Result<bool> {
+fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
     let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
 
@@ -175,7 +171,7 @@ fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Resu
             }
             let content = fs::read_to_string(file_path)?;
             let violations = engine.lint_content(&content)?;
-            let source_lines = content.lines().map(str::to_string).collect();
+            let source_lines = content.lines().map(str::to_owned).collect();
             Ok((file_path.clone(), violations, source_lines))
         })
         .collect();
@@ -205,7 +201,7 @@ fn lint_files(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintRe
         if violations.is_empty() {
             lint_result.record_clean_file();
         } else {
-            let source_lines: Vec<String> = content.lines().map(str::to_string).collect();
+            let source_lines: Vec<String> = content.lines().map(str::to_owned).collect();
             lint_result.add_file_result(file_path.clone(), violations, source_lines);
         }
     }
@@ -227,6 +223,7 @@ fn should_use_color(color: &TerminalColor) -> bool {
     }
 }
 
+#[expect(clippy::similar_names)] // `fixer` and `fixes` are clearly distinct: one is the engine, one is the data
 fn apply_fixes(lint_result: &LintResult) -> Result<()> {
     let fixer = Fixer::new();
 

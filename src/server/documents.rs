@@ -41,7 +41,7 @@ mod tests {
     fn test_open_and_get() {
         let mut store = DocumentStore::new();
         let uri = test_uri();
-        store.open(uri.clone(), "# Hello".to_string());
+        store.open(uri.clone(), "# Hello".to_owned());
         assert_eq!(store.get(&uri), Some("# Hello"));
     }
 
@@ -49,8 +49,8 @@ mod tests {
     fn test_update() {
         let mut store = DocumentStore::new();
         let uri = test_uri();
-        store.open(uri.clone(), "# Hello".to_string());
-        store.update(&uri, "# World".to_string());
+        store.open(uri.clone(), "# Hello".to_owned());
+        store.update(&uri, "# World".to_owned());
         assert_eq!(store.get(&uri), Some("# World"));
     }
 
@@ -58,7 +58,7 @@ mod tests {
     fn test_close() {
         let mut store = DocumentStore::new();
         let uri = test_uri();
-        store.open(uri.clone(), "# Hello".to_string());
+        store.open(uri.clone(), "# Hello".to_owned());
         store.close(&uri);
         assert_eq!(store.get(&uri), None);
     }

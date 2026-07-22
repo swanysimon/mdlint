@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD052;
 
 impl Rule for MD052 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD052"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Reference links and images should use a label that is defined"
     }
 
@@ -42,7 +42,7 @@ impl Rule for MD052 {
                 violations.push(Violation {
                     line: parser.offset_to_line(range.start),
                     column: Some(1),
-                    rule: self.name().to_string(),
+                    rule: self.name().to_owned(),
                     message: format!("Reference {item_type} label '{id}' is not defined"),
                     fix: None,
                 });

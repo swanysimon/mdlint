@@ -21,6 +21,7 @@ pub struct MarkdownParser<'a> {
 }
 
 impl<'a> MarkdownParser<'a> {
+    #[must_use]
     pub fn new(content: &'a str) -> Self {
         let lines: Vec<&'a str> = content.lines().collect();
         let line_offsets = build_line_offsets(content);
@@ -38,21 +39,25 @@ impl<'a> MarkdownParser<'a> {
         }
     }
 
+    #[must_use]
     pub fn content(&self) -> &'a str {
         self.content
     }
 
+    #[must_use]
     pub fn lines(&self) -> &[&'a str] {
         &self.lines
     }
 
+    #[must_use]
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }
 
+    #[must_use]
     pub fn get_line(&self, line_num: usize) -> Option<&'a str> {
         if line_num > 0 && line_num <= self.lines.len() {
-            Some(self.lines[line_num - 1])
+            self.lines.get(line_num - 1).copied()
         } else {
             None
         }
@@ -79,10 +84,12 @@ impl<'a> MarkdownParser<'a> {
         .into_offset_iter()
     }
 
+    #[must_use]
     pub fn offset_to_line(&self, offset: usize) -> usize {
         self.offset_to_position(offset).0
     }
 
+    #[must_use]
     pub fn offset_to_position(&self, offset: usize) -> (usize, usize) {
         // partition_point returns the count of elements for which the predicate holds —
         // i.e. the index of the first line whose start offset exceeds `offset`.
@@ -91,57 +98,74 @@ impl<'a> MarkdownParser<'a> {
             return (1, 1);
         }
         let line_idx = i - 1; // 0-indexed
-        let column = offset - self.line_offsets[line_idx] + 1;
+        let column = offset
+            - self
+                .line_offsets
+                .get(line_idx)
+                .expect("line_idx = i-1, i from partition_point so valid")
+            + 1;
         (line_idx + 1, column) // 1-indexed
     }
 
     /// Returns the 1-indexed line numbers inside code blocks or inline code.
     /// Result is precomputed in `new()` — O(1) to access.
+    #[must_use]
     pub fn get_code_line_numbers(&self) -> &HashSet<usize> {
         &self.code_lines
     }
 
     /// Returns the 1-indexed line numbers inside code blocks only (not inline spans).
     /// Result is precomputed in `new()` — O(1) to access.
+    #[must_use]
     pub fn get_code_block_line_numbers(&self) -> &HashSet<usize> {
         &self.code_block_lines
     }
 
     /// Returns byte ranges (into the original content) for all code blocks and
     /// inline code spans. Result is precomputed in `new()` — O(1) to access.
+    #[must_use]
     pub fn get_code_ranges(&self) -> &[Range<usize>] {
         &self.code_ranges
     }
 
     /// Returns the 1-indexed line numbers that form link reference definitions
     /// (`[label]: url`). Result is precomputed in `new()` — O(1) to access.
+    #[must_use]
     pub fn get_ref_def_line_numbers(&self) -> &HashSet<usize> {
         &self.ref_def_lines
     }
 
     /// Returns a map of normalised (lowercase) label → 1-indexed line number for
     /// every link reference definition in the document.
+    #[must_use]
     pub fn get_ref_defs(&self) -> &HashMap<String, usize> {
         &self.ref_defs
     }
 
     /// Converts a (1-indexed) line number and 0-indexed byte offset within that
     /// line to an absolute byte offset in the content.
+    #[must_use]
     pub fn line_offset_to_absolute(&self, line_num: usize, byte_offset_in_line: usize) -> usize {
         if line_num == 0 || line_num > self.line_offsets.len() {
             return self.content.len();
         }
-        self.line_offsets[line_num - 1] + byte_offset_in_line
+        self.line_offsets
+            .get(line_num - 1)
+            .expect("line_num <= line_offsets.len() checked")
+            + byte_offset_in_line
     }
 
+    #[must_use]
     pub fn is_heading(&self, event: &Event) -> bool {
         matches!(event, Event::Start(Tag::Heading { .. }))
     }
 
+    #[must_use]
     pub fn is_code_block(&self, event: &Event) -> bool {
         matches!(event, Event::Start(Tag::CodeBlock(_)))
     }
 
+    #[must_use]
     pub fn is_list(&self, event: &Event) -> bool {
         matches!(event, Event::Start(Tag::List(_)))
     }
@@ -253,7 +277,7 @@ fn build_ref_def_info(
         for line in start..=end {
             line_set.insert(line);
         }
-        label_map.insert(label.to_string(), start);
+        label_map.insert(label.to_owned(), start);
     }
     (line_set, label_map)
 }

@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD040;
 
 impl Rule for MD040 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD040"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Fenced code blocks should have a language specified"
     }
 
@@ -25,7 +25,7 @@ impl Rule for MD040 {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .filter_map(|v| v.as_str().map(str::to_owned))
                     .collect()
             });
 
@@ -41,8 +41,8 @@ impl Rule for MD040 {
                     violations.push(Violation {
                         line,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Fenced code block should have a language specified".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Fenced code block should have a language specified".to_owned(),
                         fix: None,
                     });
                 } else if let Some(ref allowed) = allowed_languages {
@@ -51,8 +51,8 @@ impl Rule for MD040 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
-                            message: format!("Language '{}' is not in the allowed list", lang_str),
+                            rule: self.name().to_owned(),
+                            message: format!("Language '{lang_str}' is not in the allowed list"),
                             fix: None,
                         });
                     }

@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD048;
 
 impl Rule for MD048 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD048"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Code fence style"
     }
 
@@ -43,10 +43,9 @@ impl Rule for MD048 {
                                 violations.push(Violation {
                                     line: line_number,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
-                                        "Code fence style should be consistent: expected '{}', found '{}'",
-                                        first, fence_char
+                                        "Code fence style should be consistent: expected '{first}', found '{fence_char}'"
                                     ),
                                     fix: None,
                                 });
@@ -58,9 +57,9 @@ impl Rule for MD048 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "Code fence style should be 'tilde' (~), found backtick (`)"
-                                .to_string(),
+                                .to_owned(),
                             fix: None,
                         });
                     }
@@ -76,10 +75,9 @@ impl Rule for MD048 {
                                 violations.push(Violation {
                                     line: line_number,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
-                                        "Code fence style should be consistent: expected '{}', found '{}'",
-                                        first, fence_char
+                                        "Code fence style should be consistent: expected '{first}', found '{fence_char}'"
                                     ),
                                     fix: None,
                                 });
@@ -91,9 +89,9 @@ impl Rule for MD048 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "Code fence style should be 'backtick' (`), found tilde (~)"
-                                .to_string(),
+                                .to_owned(),
                             fix: None,
                         });
                     }

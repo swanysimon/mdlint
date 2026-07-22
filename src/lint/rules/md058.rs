@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD058;
 
 impl Rule for MD058 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD058"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Tables should be surrounded by blank lines"
     }
 
@@ -24,19 +24,21 @@ impl Rule for MD058 {
         let mut i = 0;
 
         while i < lines.len() {
-            let line = lines[i].trim();
+            let line = lines.get(i).expect("i < lines.len()").trim();
 
             // Check if this looks like a table start
             if line.contains('|') && !is_separator_line(line) {
                 // Check if next line is separator (confirming this is a table)
-                if i + 1 < lines.len() && is_separator_line(lines[i + 1].trim()) {
+                if i + 1 < lines.len()
+                    && is_separator_line(lines.get(i + 1).expect("i + 1 < lines.len()").trim())
+                {
                     // Found start of table, check for blank line before
-                    if i > 0 && !lines[i - 1].trim().is_empty() {
+                    if i > 0 && !lines.get(i - 1).expect("i > 0").trim().is_empty() {
                         violations.push(Violation {
                             line: i + 1,
                             column: Some(1),
-                            rule: self.name().to_string(),
-                            message: "Table should be surrounded by blank lines".to_string(),
+                            rule: self.name().to_owned(),
+                            message: "Table should be surrounded by blank lines".to_owned(),
                             fix: None,
                         });
                     }
@@ -45,7 +47,7 @@ impl Rule for MD058 {
                     // since Markdown spec treats following text as part of the table)
                     i += 2; // Skip header and separator
                     while i < lines.len() {
-                        let current = lines[i].trim();
+                        let current = lines.get(i).expect("i < lines.len()").trim();
                         if !current.contains('|') {
                             break;
                         }

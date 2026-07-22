@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD023;
 
 impl Rule for MD023 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD023"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Headings must start at the beginning of the line"
     }
 
@@ -42,18 +42,17 @@ impl Rule for MD023 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
-                                "Heading must start at the beginning of the line ({} space(s) before)",
-                                indent
+                                "Heading must start at the beginning of the line ({indent} space(s) before)"
                             ),
                             fix: Some(Fix {
                                 line_start: line_number,
                                 line_end: line_number,
                                 column_start: None,
                                 column_end: None,
-                                replacement: trimmed.to_string(),
-                                description: "Remove leading whitespace".to_string(),
+                                replacement: trimmed.to_owned(),
+                                description: "Remove leading whitespace".to_owned(),
                             }),
                         });
                     }

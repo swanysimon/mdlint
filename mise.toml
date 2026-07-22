@@ -1,6 +1,11 @@
 [tools]
-"github:crate-ci/cargo-release" = "1.1.2"
+cargo-release = "1.1.2"
 hadolint = "2.14.0"
 prek = "0.4.10"
 shellcheck = "0.11.0"
 tombi = "1.2.0"
+
+[tasks.proptest]
+description = "Run formatter property tests with a large case count"
+env = { PROPTEST_CASES = "100000" }
+run = "cargo test --test formatter_proptest"

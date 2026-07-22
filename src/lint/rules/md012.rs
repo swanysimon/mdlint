@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD012;
 
 impl Rule for MD012 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD012"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Multiple consecutive blank lines"
     }
 
@@ -18,10 +18,11 @@ impl Rule for MD012 {
         &["whitespace", "blank_lines"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let maximum = config
             .and_then(|c| c.get("maximum"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(1) as usize;
 
         let mut violations = Vec::new();
@@ -43,11 +44,11 @@ impl Rule for MD012 {
                         violations.push(Violation {
                             line: blank_start_line + i,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
                                 "{} [Expected: {}; Actual: {}]",
                                 self.description(),
-                                1,
+                                1usize,
                                 consecutive_blank
                             ),
                             fix: Some(Fix {
@@ -56,7 +57,7 @@ impl Rule for MD012 {
                                 column_start: None,
                                 column_end: None,
                                 replacement: String::new(),
-                                description: "Remove excess blank line".to_string(),
+                                description: "Remove excess blank line".to_owned(),
                             }),
                         });
                     }
@@ -72,15 +73,15 @@ impl Rule for MD012 {
                 violations.push(Violation {
                     line: blank_start_line + i,
                     column: Some(1),
-                    rule: self.name().to_string(),
-                    message: format!("Expected: {}; Actual: {}", 1, consecutive_blank),
+                    rule: self.name().to_owned(),
+                    message: format!("Expected: {}; Actual: {}", 1usize, consecutive_blank),
                     fix: Some(Fix {
                         line_start: blank_start_line + i,
                         line_end: blank_start_line + i,
                         column_start: None,
                         column_end: None,
                         replacement: String::new(),
-                        description: "Remove excess blank line".to_string(),
+                        description: "Remove excess blank line".to_owned(),
                     }),
                 });
             }

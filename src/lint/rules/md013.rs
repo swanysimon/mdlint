@@ -8,11 +8,11 @@ use std::collections::HashSet;
 pub struct MD013;
 
 impl Rule for MD013 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD013"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Line length"
     }
 
@@ -20,31 +20,33 @@ impl Rule for MD013 {
         &["line_length"]
     }
 
+    #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
+    #[allow(clippy::too_many_lines)] // rule logic requires checking multiple interacting config flags
+    #[allow(clippy::similar_names)] // `in_code_block` and `is_code_block` are distinct: one tracks parser state, one is a per-line flag
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let line_length = config
             .and_then(|c| c.get("line_length"))
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(120) as usize;
 
         let heading_line_length = config
             .and_then(|c| c.get("heading_line_length"))
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize)
-            .unwrap_or(80);
+            .and_then(serde_json::Value::as_u64)
+            .map_or(80, |v| v as usize);
 
         let check_code_blocks = config
             .and_then(|c| c.get("code_blocks"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
         let check_tables = config
             .and_then(|c| c.get("tables"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
         let check_headings = config
             .and_then(|c| c.get("headings"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
         let mut violations = Vec::new();
@@ -84,7 +86,7 @@ impl Rule for MD013 {
                     }
                     table_start_offset = None;
                 }
-                Event::Start(Tag::Link { .. }) | Event::Start(Tag::Image { .. }) => {
+                Event::Start(Tag::Link { .. } | Tag::Image { .. }) => {
                     // Check if this link/image is the only content on the line
                     if let Some(line_text) = parser.lines().get(line - 1) {
                         let trimmed = line_text.trim();
@@ -138,8 +140,8 @@ impl Rule for MD013 {
                 violations.push(Violation {
                     line: line_number,
                     column: Some(limit + 1),
-                    rule: self.name().to_string(),
-                    message: format!("Line exceeds maximum length ({} > {})", line_len, limit),
+                    rule: self.name().to_owned(),
+                    message: format!("Line exceeds maximum length ({line_len} > {limit})"),
                     fix: None,
                 });
             }

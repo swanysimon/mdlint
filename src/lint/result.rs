@@ -10,6 +10,7 @@ pub struct LintResult {
 }
 
 impl LintResult {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -42,6 +43,7 @@ impl LintResult {
         }
     }
 
+    #[must_use]
     pub fn has_errors(&self) -> bool {
         self.total_errors > 0
     }
@@ -61,22 +63,22 @@ mod tests {
                 Violation {
                     line: 3,
                     column: Some(1),
-                    rule: "MD047".to_string(),
-                    message: "Files should end with a single newline character".to_string(),
+                    rule: "MD047".to_owned(),
+                    message: "Files should end with a single newline character".to_owned(),
                     fix: None,
                 },
                 Violation {
                     line: 3,
                     column: Some(1),
-                    rule: "MD041".to_string(),
-                    message: "First line in file should be a level 1 heading".to_string(),
+                    rule: "MD041".to_owned(),
+                    message: "First line in file should be a level 1 heading".to_owned(),
                     fix: None,
                 },
                 Violation {
                     line: 2,
                     column: Some(1),
-                    rule: "MD012".to_string(),
-                    message: "Multiple consecutive blank lines".to_string(),
+                    rule: "MD012".to_owned(),
+                    message: "Multiple consecutive blank lines".to_owned(),
                     fix: None,
                 },
             ],

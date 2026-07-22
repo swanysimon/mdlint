@@ -14,5 +14,5 @@ pre-release-hook = ["./release.sh"]
 # pre-commit hook revision in READMEs
 [[pre-release-replacements]]
 file = "README.md"
-search = 'rev: v[0-9]+\.[0-9]+\.[0-9]+\s'
-replace = "rev: v{{version}}"
+search = 'rev: v[0-9]+\.[0-9]+\.[0-9]+\n'
+replace = "rev: v{{version}}\n"

@@ -13,11 +13,11 @@ enum HeadingStyle {
 }
 
 impl Rule for MD003 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD003"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Heading style should be consistent throughout the document"
     }
 
@@ -48,14 +48,18 @@ impl Rule for MD003 {
                 // ATX_CLOSED: should have text, then space(s), then hash(es)
                 // e.g., "## Heading 2 ##"
                 let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                if parts.len() >= 3 && parts.last().unwrap().chars().all(|c| c == '#') {
+                if parts.len() >= 3 && parts.last().is_some_and(|p| p.chars().all(|c| c == '#')) {
                     Some(HeadingStyle::AtxClosed)
                 } else {
                     Some(HeadingStyle::Atx)
                 }
             } else if !trimmed.is_empty() && line_num + 1 < parser.lines().len() {
                 // Check for setext (current line is heading text, next line is === or ---)
-                let next_line = parser.lines()[line_num + 1];
+                let next_line = parser
+                    .lines()
+                    .get(line_num + 1)
+                    .copied()
+                    .expect("bounds checked above");
                 let is_setext_underline =
                     (next_line.chars().all(|c| c == '=' || c.is_whitespace())
                         && next_line.contains('='))
@@ -79,10 +83,9 @@ impl Rule for MD003 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "Heading style should be consistent (expected {:?}, found {:?})",
-                                    first, current
+                                    "Heading style should be consistent (expected {first:?}, found {current:?})"
                                 ),
                                 fix: None,
                             });
@@ -102,10 +105,9 @@ impl Rule for MD003 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
-                                "Heading style should be {:?} but found {:?}",
-                                required_style, current
+                                "Heading style should be {required_style:?} but found {current:?}"
                             ),
                             fix: None,
                         });

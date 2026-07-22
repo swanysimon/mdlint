@@ -8,11 +8,11 @@ use std::collections::HashMap;
 pub struct MD051;
 
 impl Rule for MD051 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD051"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Link fragments should be valid"
     }
 
@@ -65,16 +65,15 @@ impl Rule for MD051 {
                     // Check if URL is a fragment-only link
                     if let Some(fragment) = link_url.strip_prefix('#') {
                         // Remove the '#'
-                        let fragment_id = fragment.to_string();
+                        let fragment_id = fragment.to_owned();
 
                         if !heading_ids.contains_key(&fragment_id) {
                             violations.push(Violation {
                                 line: link_line,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "Link fragment '{}' does not match any heading",
-                                    fragment
+                                    "Link fragment '{fragment}' does not match any heading"
                                 ),
                                 fix: None,
                             });
@@ -84,16 +83,15 @@ impl Rule for MD051 {
                         // For now, skip external links (only check internal fragments)
                         if !link_url.starts_with("http://") && !link_url.starts_with("https://") {
                             let fragment = &link_url[pos + 1..];
-                            let fragment_id = fragment.to_string();
+                            let fragment_id = fragment.to_owned();
 
                             if !heading_ids.contains_key(&fragment_id) {
                                 violations.push(Violation {
                                     line: link_line,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
-                                        "Link fragment '{}' does not match any heading",
-                                        fragment
+                                        "Link fragment '{fragment}' does not match any heading"
                                     ),
                                     fix: None,
                                 });

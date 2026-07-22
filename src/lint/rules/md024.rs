@@ -8,11 +8,11 @@ use std::collections::HashMap;
 pub struct MD024;
 
 impl Rule for MD024 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD024"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Multiple headings with the same content"
     }
 
@@ -23,7 +23,7 @@ impl Rule for MD024 {
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let siblings_only = config
             .and_then(|c| c.get("siblings_only"))
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         let mut violations = Vec::new();
@@ -53,7 +53,7 @@ impl Rule for MD024 {
                     current_heading_text.push('`');
                 }
                 Event::End(TagEnd::Heading(_)) if in_heading => {
-                    let text = current_heading_text.trim().to_string();
+                    let text = current_heading_text.trim().to_owned();
 
                     if siblings_only {
                         // Check if same level heading with same text exists
@@ -70,10 +70,9 @@ impl Rule for MD024 {
                             violations.push(Violation {
                                 line: current_heading_line,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "Multiple sibling headings with the same content: \"{}\" (first at line {})",
-                                    text, first_line
+                                    "Multiple sibling headings with the same content: \"{text}\" (first at line {first_line})"
                                 ),
                                 fix: None,
                             });
@@ -89,10 +88,9 @@ impl Rule for MD024 {
                             violations.push(Violation {
                                 line: current_heading_line,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "Multiple headings with the same content: \"{}\" (first at line {})",
-                                    text, first_line
+                                    "Multiple headings with the same content: \"{text}\" (first at line {first_line})"
                                 ),
                                 fix: None,
                             });

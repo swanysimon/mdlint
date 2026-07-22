@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD046;
 
 impl Rule for MD046 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD046"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Code block style"
     }
 
@@ -41,10 +41,9 @@ impl Rule for MD046 {
                                 violations.push(Violation {
                                     line,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
-                                        "Code block style should be consistent: expected {}, found {}",
-                                        first, current_style
+                                        "Code block style should be consistent: expected {first}, found {current_style}"
                                     ),
                                     fix: None,
                                 });
@@ -56,9 +55,9 @@ impl Rule for MD046 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "Code block style should be 'indented', found 'fenced'"
-                                .to_string(),
+                                .to_owned(),
                             fix: None,
                         });
                     }
@@ -72,10 +71,9 @@ impl Rule for MD046 {
                                 violations.push(Violation {
                                     line,
                                     column: Some(1),
-                                    rule: self.name().to_string(),
+                                    rule: self.name().to_owned(),
                                     message: format!(
-                                        "Code block style should be consistent: expected {}, found {}",
-                                        first, current_style
+                                        "Code block style should be consistent: expected {first}, found {current_style}"
                                     ),
                                     fix: None,
                                 });
@@ -87,9 +85,9 @@ impl Rule for MD046 {
                         violations.push(Violation {
                             line,
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: "Code block style should be 'fenced', found 'indented'"
-                                .to_string(),
+                                .to_owned(),
                             fix: None,
                         });
                     }

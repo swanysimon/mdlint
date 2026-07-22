@@ -4,7 +4,7 @@ use std::path::Path;
 
 fn normalize_exclude_pattern(pattern: &str) -> String {
     if pattern.contains('*') || pattern.contains('?') || pattern.contains('[') {
-        pattern.to_string()
+        pattern.to_owned()
     } else {
         format!("**/{pattern}/**")
     }
@@ -25,30 +25,30 @@ impl GlobMatcher {
                 let normalized = normalize_exclude_pattern(exclude_pattern);
                 let glob = Glob::new(&normalized).map_err(|e| {
                     MarkdownlintError::InvalidGlob(format!(
-                        "Invalid exclude pattern '{}': {}",
-                        exclude_pattern, e
+                        "Invalid exclude pattern '{exclude_pattern}': {e}"
                     ))
                 })?;
                 exclude_builder.add(glob);
             } else {
                 let glob = Glob::new(pattern).map_err(|e| {
-                    MarkdownlintError::InvalidGlob(format!("Invalid pattern '{}': {}", pattern, e))
+                    MarkdownlintError::InvalidGlob(format!("Invalid pattern '{pattern}': {e}"))
                 })?;
                 include_builder.add(glob);
             }
         }
 
         let includes = include_builder.build().map_err(|e| {
-            MarkdownlintError::InvalidGlob(format!("Failed to build include glob set: {}", e))
+            MarkdownlintError::InvalidGlob(format!("Failed to build include glob set: {e}"))
         })?;
 
         let excludes = exclude_builder.build().map_err(|e| {
-            MarkdownlintError::InvalidGlob(format!("Failed to build exclude glob set: {}", e))
+            MarkdownlintError::InvalidGlob(format!("Failed to build exclude glob set: {e}"))
         })?;
 
         Ok(Self { includes, excludes })
     }
 
+    #[must_use]
     pub fn matches(&self, path: &Path) -> bool {
         if self.excludes.is_match(path) {
             return false;
@@ -61,6 +61,7 @@ impl GlobMatcher {
         self.includes.is_match(path)
     }
 
+    #[must_use]
     pub fn has_patterns(&self) -> bool {
         !self.includes.is_empty() || !self.excludes.is_empty()
     }
@@ -72,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_include_pattern() {
-        let matcher = GlobMatcher::new(&["*.md".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["*.md".to_owned()]).unwrap();
 
         assert!(matcher.matches(Path::new("README.md")));
         assert!(matcher.matches(Path::new("docs/guide.md")));
@@ -81,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_exclude_pattern() {
-        let matcher = GlobMatcher::new(&["*.md".to_string(), "#node_modules".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["*.md".to_owned(), "#node_modules".to_owned()]).unwrap();
 
         assert!(matcher.matches(Path::new("README.md")));
         assert!(!matcher.matches(Path::new("node_modules/README.md")));
@@ -90,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_recursive_pattern() {
-        let matcher = GlobMatcher::new(&["**/*.md".to_string()]).unwrap();
+        let matcher = GlobMatcher::new(&["**/*.md".to_owned()]).unwrap();
 
         assert!(matcher.matches(Path::new("README.md")));
         assert!(matcher.matches(Path::new("docs/guide.md")));
@@ -101,9 +102,9 @@ mod tests {
     #[test]
     fn test_multiple_excludes() {
         let matcher = GlobMatcher::new(&[
-            "**/*.md".to_string(),
-            "#node_modules".to_string(),
-            "#target".to_string(),
+            "**/*.md".to_owned(),
+            "#node_modules".to_owned(),
+            "#target".to_owned(),
         ])
         .unwrap();
 
@@ -126,10 +127,10 @@ mod tests {
         let empty_matcher = GlobMatcher::new(&[]).unwrap();
         assert!(!empty_matcher.has_patterns());
 
-        let include_matcher = GlobMatcher::new(&["*.md".to_string()]).unwrap();
+        let include_matcher = GlobMatcher::new(&["*.md".to_owned()]).unwrap();
         assert!(include_matcher.has_patterns());
 
-        let exclude_matcher = GlobMatcher::new(&["#node_modules".to_string()]).unwrap();
+        let exclude_matcher = GlobMatcher::new(&["#node_modules".to_owned()]).unwrap();
         assert!(exclude_matcher.has_patterns());
     }
 }

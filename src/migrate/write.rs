@@ -8,7 +8,7 @@ const HEADER: &str = "\
 ";
 
 /// Render a `Config` as TOML, with `[rules.MDxxx]` sections in ascending numeric order
-/// (HashMap iteration order is otherwise unstable, which would make repeated
+/// (`HashMap` iteration order is otherwise unstable, which would make repeated
 /// migrations produce spurious diffs).
 pub fn render(config: &Config) -> String {
     let mut out = String::from(HEADER);
@@ -20,11 +20,11 @@ pub fn render(config: &Config) -> String {
     writeln!(out, "fix = {}", config.fix).unwrap();
 
     if let Some(front_matter) = &config.front_matter {
-        writeln!(out, "front_matter = {:?}", front_matter).unwrap();
+        writeln!(out, "front_matter = {front_matter:?}").unwrap();
     }
 
     if !config.exclude.is_empty() {
-        let quoted: Vec<String> = config.exclude.iter().map(|e| format!("{:?}", e)).collect();
+        let quoted: Vec<String> = config.exclude.iter().map(|e| format!("{e:?}")).collect();
         writeln!(out, "exclude = [{}]", quoted.join(", ")).unwrap();
     }
 
@@ -34,11 +34,11 @@ pub fn render(config: &Config) -> String {
     for code in rule_codes {
         let rule_config = &config.rules[code];
         out.push('\n');
-        writeln!(out, "[rules.{}]", code).unwrap();
+        writeln!(out, "[rules.{code}]").unwrap();
 
         match rule_config {
             RuleConfig::Enabled(enabled) => {
-                writeln!(out, "enabled = {}", enabled).unwrap();
+                writeln!(out, "enabled = {enabled}").unwrap();
             }
             RuleConfig::Config(params) => {
                 let mut keys: Vec<&String> = params.keys().collect();

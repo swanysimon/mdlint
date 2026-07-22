@@ -1,17 +1,18 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
+use pulldown_cmark::{Event, Tag, TagEnd};
 use regex::Regex;
 use serde_json::Value;
 
 pub struct MD034;
 
 impl Rule for MD034 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD034"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Bare URL used"
     }
 
@@ -22,33 +23,40 @@ impl Rule for MD034 {
     fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
 
-        // Regex to match URLs that aren't already in markdown link syntax
-        let url_regex = Regex::new(r"(?:^|[^(\[<`])((https?|ftp)://[^\s)\]>]+)").unwrap();
+        // A URL is bare only if it appears as plain text. Parsing the event
+        // stream (rather than scanning lines) makes that precise: text inside a
+        // link/image (`[text](url)`, `<url>` autolinks), inline code (`Event::Code`),
+        // raw HTML (`Event::Html`), and reference-definition URLs are never emitted
+        // as `Text` events, so they can't be mistaken for bare URLs — and a URL in
+        // link display text is no longer wrongly flagged.
+        let url_regex = Regex::new(r"(https?|ftp)://[^\s)\]>]+").expect("valid regex");
 
-        // Get code lines to skip (both blocks and inline code can contain URLs)
-        let code_lines = parser.get_code_line_numbers();
-        let ref_def_lines = parser.get_ref_def_line_numbers();
+        let content = parser.content();
+        let mut link_depth = 0u32;
+        let mut in_code_block = false;
 
-        for (line_num, line) in parser.lines().iter().enumerate() {
-            let line_number = line_num + 1;
-
-            // Skip code and link reference definitions — URLs in these are not bare
-            if code_lines.contains(&line_number) || ref_def_lines.contains(&line_number) {
-                continue;
-            }
-
-            // Skip lines that are inside markdown link syntax
-            for cap in url_regex.captures_iter(line) {
-                if let Some(url_match) = cap.get(1) {
-                    let url = url_match.as_str();
-                    violations.push(Violation {
-                        line: line_number,
-                        column: Some(url_match.start() + 1),
-                        rule: self.name().to_string(),
-                        message: format!("Bare URL used: {}", url),
-                        fix: None,
-                    });
+        for (event, range) in parser.parse_with_offsets() {
+            match event {
+                Event::Start(Tag::Link { .. } | Tag::Image { .. }) => link_depth += 1,
+                Event::End(TagEnd::Link | TagEnd::Image) => {
+                    link_depth = link_depth.saturating_sub(1);
                 }
+                Event::Start(Tag::CodeBlock(_)) => in_code_block = true,
+                Event::End(TagEnd::CodeBlock) => in_code_block = false,
+                Event::Text(_) if link_depth == 0 && !in_code_block => {
+                    let text = &content[range.clone()];
+                    for m in url_regex.find_iter(text) {
+                        let (line, column) = parser.offset_to_position(range.start + m.start());
+                        violations.push(Violation {
+                            line,
+                            column: Some(column),
+                            rule: self.name().to_owned(),
+                            message: format!("Bare URL used: {}", m.as_str()),
+                            fix: None,
+                        });
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -123,6 +131,73 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0, "URLs in inline code should be ignored");
+    }
+
+    #[test]
+    fn test_url_alone_in_backticks() {
+        let content = "`https://example.com`";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "URL alone in a code span should not be flagged"
+        );
+    }
+
+    #[test]
+    fn test_url_alone_in_angle_brackets() {
+        let content = "<https://example.com>";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "URL alone in angle brackets (autolink) should not be flagged"
+        );
+    }
+
+    #[test]
+    fn test_url_in_link_display_text() {
+        // A URL inside link display text is part of the link, not bare.
+        let content = "See [visit https://inner.example.com here](https://dest.example.com).";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            violations.len(),
+            0,
+            "URL in link display text should not be flagged as bare"
+        );
+    }
+
+    #[test]
+    fn test_parenthesized_bare_url() {
+        // A bare URL wrapped in prose parentheses is still bare.
+        let content = "A wrapped (https://paren.example.com) URL.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
+        assert!(violations[0].message.contains("https://paren.example.com"));
+    }
+
+    #[test]
+    fn test_bare_url_column() {
+        let content = "Visit https://example.com now";
+        let parser = MarkdownParser::new(content);
+        let rule = MD034;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
+        // "Visit " is 6 chars, URL starts at column 7 (1-indexed).
+        assert_eq!(violations[0].column, Some(7));
     }
 
     #[test]

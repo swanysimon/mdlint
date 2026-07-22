@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD033;
 
 impl Rule for MD033 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD033"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Inline HTML"
     }
 
@@ -25,7 +25,7 @@ impl Rule for MD033 {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_lowercase()))
+                    .filter_map(|v| v.as_str().map(str::to_lowercase))
                     .collect()
             })
             .unwrap_or_default();
@@ -55,8 +55,8 @@ impl Rule for MD033 {
                     violations.push(Violation {
                         line,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: format!("Inline HTML element: <{}>", tag_name),
+                        rule: self.name().to_owned(),
+                        message: format!("Inline HTML element: <{tag_name}>"),
                         fix: None,
                     });
                 }

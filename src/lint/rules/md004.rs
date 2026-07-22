@@ -13,11 +13,11 @@ enum ListMarker {
 }
 
 impl Rule for MD004 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD004"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Unordered list style should be consistent"
     }
 
@@ -65,10 +65,9 @@ impl Rule for MD004 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(indent_len + 1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "List marker style should be consistent (expected {:?}, found {:?})",
-                                    first, current_marker
+                                    "List marker style should be consistent (expected {first:?}, found {current_marker:?})"
                                 ),
                                 fix: Some(Fix {
                                     line_start: line_number,
@@ -76,7 +75,7 @@ impl Rule for MD004 {
                                     column_start: None,
                                     column_end: None,
                                     replacement,
-                                    description: "Replace list marker with dash".to_string(),
+                                    description: "Replace list marker with dash".to_owned(),
                                 }),
                             });
                         }
@@ -106,15 +105,15 @@ impl Rule for MD004 {
                         violations.push(Violation {
                             line: line_number,
                             column: Some(indent_len + 1),
-                            rule: self.name().to_string(),
-                            message: format!("List marker style should be {:?}", required_marker),
+                            rule: self.name().to_owned(),
+                            message: format!("List marker style should be {required_marker:?}"),
                             fix: Some(Fix {
                                 line_start: line_number,
                                 line_end: line_number,
                                 column_start: None,
                                 column_end: None,
                                 replacement,
-                                description: "Replace list marker with required style".to_string(),
+                                description: "Replace list marker with required style".to_owned(),
                             }),
                         });
                     }
@@ -200,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_markdown_syntax_in_code_block() {
-        let content = r#"# My Document
+        let content = "# My Document
 
 Here's a code block with markdown syntax:
 
@@ -211,7 +210,7 @@ Here's a code block with markdown syntax:
 ```
 
 - Real list item
-"#;
+";
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);
@@ -222,14 +221,14 @@ Here's a code block with markdown syntax:
 
     #[test]
     fn test_indented_code_block() {
-        let content = r#"Regular text
+        let content = "Regular text
 
     - This is an indented code block
     * Not a real list
     + Just code
 
 - Real list item
-"#;
+";
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);
@@ -252,7 +251,7 @@ Here's a code block with markdown syntax:
 
     #[test]
     fn test_dash_in_code_block_with_real_list() {
-        let content = r#"* List item 1
+        let content = "* List item 1
 
 ```python
 # Comment with -- dashes
@@ -260,7 +259,7 @@ value = 10 - 5  # subtraction
 ```
 
 + List item 2
-"#;
+";
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);

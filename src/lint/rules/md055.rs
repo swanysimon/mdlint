@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD055;
 
 impl Rule for MD055 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD055"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Table pipe style"
     }
 
@@ -18,6 +18,7 @@ impl Rule for MD055 {
         &["table"]
     }
 
+    #[allow(clippy::too_many_lines)] // rule logic requires tracking leading/trailing pipe state per row
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let style = config
             .and_then(|c| c.get("style"))
@@ -61,7 +62,6 @@ impl Rule for MD055 {
                             "leading_and_trailing" => (true, true),
                             "leading_only" => (true, false),
                             "trailing_only" => (false, true),
-                            "no_leading_or_trailing" => (false, false),
                             _ => (false, false),
                         };
 
@@ -70,7 +70,7 @@ impl Rule for MD055 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Table pipe style should be consistent: expected {}, found {}",
                                     if first_leading {
@@ -93,7 +93,7 @@ impl Rule for MD055 {
                             violations.push(Violation {
                                 line: line_number,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
                                     "Table pipe style should be consistent: expected {}, found {}",
                                     if first_trailing {
@@ -120,8 +120,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should have leading pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should have leading pipe".to_owned(),
                         fix: None,
                     });
                 }
@@ -129,8 +129,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should have trailing pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should have trailing pipe".to_owned(),
                         fix: None,
                     });
                 }
@@ -140,8 +140,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should not have leading pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should not have leading pipe".to_owned(),
                         fix: None,
                     });
                 }
@@ -149,8 +149,8 @@ impl Rule for MD055 {
                     violations.push(Violation {
                         line: line_number,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "Table should not have trailing pipe".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "Table should not have trailing pipe".to_owned(),
                         fix: None,
                     });
                 }

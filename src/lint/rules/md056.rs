@@ -6,11 +6,11 @@ use serde_json::Value;
 pub struct MD056;
 
 impl Rule for MD056 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD056"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Table column count"
     }
 
@@ -24,7 +24,7 @@ impl Rule for MD056 {
         let mut i = 0;
 
         while i < lines.len() {
-            let line = lines[i].trim();
+            let line = lines.get(i).expect("i < lines.len()").trim();
 
             // Check if this looks like a table row (contains pipes)
             if !line.contains('|') {
@@ -37,7 +37,7 @@ impl Rule for MD056 {
 
             // Check if next line is a separator (making this a table header)
             if i + 1 < lines.len() {
-                let next_line = lines[i + 1].trim();
+                let next_line = lines.get(i + 1).expect("i + 1 < lines.len()").trim();
                 if is_separator_line(next_line) {
                     // This is a table header, verify all subsequent rows
                     let expected_columns = row_columns;
@@ -47,10 +47,9 @@ impl Rule for MD056 {
                         violations.push(Violation {
                             line: i + 2, // +1 for 1-indexed, +1 for next line
                             column: Some(1),
-                            rule: self.name().to_string(),
+                            rule: self.name().to_owned(),
                             message: format!(
-                                "Table separator has {} columns, expected {}",
-                                separator_columns, expected_columns
+                                "Table separator has {separator_columns} columns, expected {expected_columns}"
                             ),
                             fix: None,
                         });
@@ -59,7 +58,7 @@ impl Rule for MD056 {
                     // Check data rows
                     i += 2; // Skip header and separator
                     while i < lines.len() {
-                        let data_line = lines[i].trim();
+                        let data_line = lines.get(i).expect("i < lines.len()").trim();
                         if !data_line.contains('|') || is_separator_line(data_line) {
                             break;
                         }
@@ -69,10 +68,9 @@ impl Rule for MD056 {
                             violations.push(Violation {
                                 line: i + 1,
                                 column: Some(1),
-                                rule: self.name().to_string(),
+                                rule: self.name().to_owned(),
                                 message: format!(
-                                    "Table row has {} columns, expected {}",
-                                    data_columns, expected_columns
+                                    "Table row has {data_columns} columns, expected {expected_columns}"
                                 ),
                                 fix: None,
                             });

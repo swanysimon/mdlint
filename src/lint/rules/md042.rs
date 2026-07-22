@@ -7,11 +7,11 @@ use serde_json::Value;
 pub struct MD042;
 
 impl Rule for MD042 {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "MD042"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "No empty links"
     }
 
@@ -31,8 +31,8 @@ impl Rule for MD042 {
                     violations.push(Violation {
                         line,
                         column: Some(1),
-                        rule: self.name().to_string(),
-                        message: "No empty links".to_string(),
+                        rule: self.name().to_owned(),
+                        message: "No empty links".to_owned(),
                         fix: None,
                     });
                 }

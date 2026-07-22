@@ -25,13 +25,13 @@ pub fn run_migrate(args: &MigrateArgs) -> Result<bool> {
     };
 
     for warning in &result.warnings {
-        eprintln!("warning: {}", warning);
+        eprintln!("warning: {warning}");
     }
 
     let rendered = write::render(&result.config);
 
     if args.dry_run {
-        print!("{}", rendered);
+        print!("{rendered}");
         return Ok(false);
     }
 
