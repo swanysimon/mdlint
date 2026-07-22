@@ -28,3 +28,4 @@ cc e526d46b85d0799cb1838776bd715b9e7f5482d45b2cc0708b6d4d1ccdd362ec # shrinks to
 cc 36960a1dca71a3c5dae27a2e702ea3eeb5933ada52344acf067a76c467d6c5a8 # shrinks to s = "*\r*\t"
 cc 2d76fdd31854f09207f6f5eac1cc8494f4d3b9845925902a93e1b6855855093a # shrinks to s = "*\u{85}\u{b}"
 cc 8e7daa6b97c3c0a88c978ef653d8bbef7f01aaa54fc901200ee501ca0d86d542 # shrinks to s = ">\u{85}"
+cc bd3348f8eb22cc15f1f818d07d182e58cf8bd17981ff10d44b530d1f4ea0c377 # shrinks to s = "[\0\\]:¡"

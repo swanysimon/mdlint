@@ -51,7 +51,7 @@ impl Rule for MD053 {
 
         // Find unused definitions
         for (label, line_number) in defined_labels {
-            if !used_labels.contains(label.as_str()) {
+            if !used_labels.contains(label.to_lowercase().as_str()) {
                 violations.push(Violation {
                     line: *line_number,
                     column: Some(1),
@@ -144,5 +144,20 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_shortcut_reference_used_multiple_times() {
+        // Regression: [Textual] used twice, definition at end — MD053 must not
+        // flag it as unused.
+        let content = "# Title\n\n[Textual] is great.\n\nMore text.\n\n[Textual] again.\n\n[Textual]: https://textual.textualize.io/";
+        let parser = MarkdownParser::new(content);
+        let rule = MD053;
+        let violations = rule.check(&parser, None);
+        assert_eq!(
+            violations.len(),
+            0,
+            "shortcut ref used multiple times should not be flagged"
+        );
     }
 }

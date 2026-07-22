@@ -658,97 +658,51 @@ impl FormatterState {
     }
 }
 
-/// Produce the escaped form of `line` when `needs_line_escape` returns true.
+/// Escape `line` so that it round-trips through pulldown-cmark as plain text.
 ///
-/// All block-trigger patterns whose first character is ASCII punctuation (`>`, `*`,
-/// `-`, `+`, `_`, `#`, `=`, `<`) are correctly escaped by prepending `\` — that
-/// gives a valid backslash escape that round-trips through pulldown-cmark.
-///
-/// The exception is ordered-list markers: `0.` or `12.` start with a digit, and
-/// `\0` is NOT a valid `CommonMark` escape sequence (digits are not ASCII punctuation).
-/// A literal `\` before a digit is emitted as-is by pulldown-cmark, then the
-/// formatter doubles it on the second pass, breaking idempotency.  The fix: place
-/// the backslash before the `.` or `)` that follows the digits instead — `0\.` —
-/// which IS a valid escape and renders identically.
+/// All block-trigger patterns whose first character is ASCII punctuation are
+/// escaped by prepending `\`.  The exception is ordered-list markers (`0.`,
+/// `12.`): digits are not ASCII punctuation, so `\0` is not a valid `CommonMark`
+/// escape and would be doubled on re-parse.  Instead we place the backslash
+/// before the `.` or `)` — `0\.` — which is valid and renders identically.
 fn escape_line(line: &str) -> String {
     let digits_len = line.chars().take_while(char::is_ascii_digit).count();
     if digits_len > 0 {
-        // Ordered-list marker: `0.` → `0\.`, `12)` → `12\)`, etc.
         format!("{}\\{}", &line[..digits_len], &line[digits_len..])
     } else {
         format!("\\{line}")
     }
 }
 
-/// Returns true if `line` starts with a sequence that would be re-interpreted
-/// as a structural Markdown block element on re-parse, and therefore needs a
-/// leading `\` escape.  This matters for first lines of paragraphs and for
-/// soft-break continuation lines that are emitted as separate output lines.
+/// Returns true if `line`, when emitted as the start of a new output line,
+/// would be re-interpreted as a structural block element on re-parse.
 ///
-/// When `is_continuation` is true, the line is a soft-break continuation
-/// inside a paragraph.  In `CommonMark` only `1.` / `1)` can interrupt a
-/// paragraph, so other ordered-list markers (2., 6., etc.) must NOT be
-/// escaped — escaping them hides real formatting problems from the linter.
+/// Uses pulldown-cmark itself as the oracle: if parsing `line` in isolation
+/// does not produce `Start(Paragraph)` as its first event, the line will be
+/// misread — escape it.  This delegates all structural detection to the same
+/// parser that the formatter and linter use, so new `CommonMark` edge cases are
+/// handled automatically without manual pattern maintenance.
+///
+/// The one exception kept as a manual check is the setext heading underline on
+/// a continuation line (`===`, `--` etc.): these parse as plain paragraphs in
+/// isolation but turn the *preceding* output line into a heading when emitted
+/// together.  That context-sensitivity cannot be detected by a single-line parse.
+///
+/// On continuation lines (`is_continuation = true`), ordered-list markers other
+/// than `1.`/`1)` do NOT interrupt a paragraph (`CommonMark` spec §5.2) and must
+/// not be escaped — escaping them hides broken-list errors from the linter.
+/// Since cmark parses `2. foo` in isolation as a list item, we suppress the
+/// escape for those cases here.
 fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
-    // finish() strips trailing Unicode whitespace via trim_end() from each output
-    // line. Check against that trimmed form so structural patterns hidden behind
-    // trailing Unicode whitespace (e.g. "*\u{85}\u{b}" → "*") are still caught.
+    // finish() strips trailing Unicode whitespace; check the trimmed form so
+    // structural patterns hidden behind trailing Unicode whitespace are caught.
     let line = line.trim_end();
     if line.is_empty() {
         return false;
     }
 
-    // Blockquote marker
-    if line.starts_with('>') {
-        return true;
-    }
-
-    // Unordered list marker: *, -, or + followed by space/tab or end of line.
-    // Also catches thematic breaks that start with * or - (e.g. `* * *`, `- - -`).
-    if let Some(rest) = line.strip_prefix(['*', '-', '+'])
-        && (rest.is_empty() || rest.starts_with([' ', '\t']))
-    {
-        return true;
-    }
-
-    // Thematic break: three or more of the same char (-, *, _) with optional spaces.
-    // Catches `---`, `___`, `* * *`, etc.  The * and - cases with trailing space are
-    // already caught above; this covers `---` and `___` and variants without spaces.
-    let first = line.chars().next().expect("non-empty, checked above");
-    if matches!(first, '-' | '*' | '_') {
-        let all_valid = line.chars().all(|c| c == first || c == ' ' || c == '\t');
-        let count = line.chars().filter(|&c| c == first).count();
-        if all_valid && count >= 3 {
-            return true;
-        }
-    }
-
-    let after_hashes = line.trim_start_matches('#');
-    if after_hashes.len() < line.len()
-        && (after_hashes.is_empty() || after_hashes.starts_with([' ', '\t']))
-    {
-        return true;
-    }
-
-    // Ordered list marker: one or more ASCII digits followed by . or ) and then space/tab/end.
-    // On continuation lines only `1.` / `1)` can interrupt a paragraph (CommonMark spec §5.2),
-    // so we must not escape other numbers — doing so hides broken-list errors from the linter.
-    let digits: String = line.chars().take_while(char::is_ascii_digit).collect();
-    if !digits.is_empty() {
-        let rest = &line[digits.len()..];
-        if let Some(after_marker) = rest.strip_prefix(['.', ')'])
-            && (after_marker.is_empty() || after_marker.starts_with([' ', '\t']))
-            && (!is_continuation || digits == "1")
-        {
-            return true;
-        }
-    }
-
-    // Setext heading underlines: a continuation line consisting entirely of
-    // `=` (h1) or `-` (h2) characters would turn the preceding text line
-    // into a heading on re-parse, breaking idempotency.  Single `-` is
-    // already caught above (list marker); `---`+ is caught (thematic break).
-    // All-`=` lines and `--` are not covered by those rules.
+    // Setext heading underlines are context-sensitive: `===` / `--` alone parse
+    // as paragraphs, but after a text line they become headings.
     if is_continuation {
         let trimmed = line.trim_end_matches([' ', '\t']);
         if !trimmed.is_empty()
@@ -758,34 +712,27 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
         }
     }
 
-    // HTML block openers:
-    // Type 2: <!--
-    // Type 3: <?
-    // Type 4: <! followed by an ASCII uppercase letter
-    // Type 5: <![CDATA[
-    if line.starts_with("<!--") || line.starts_with("<?") || line.starts_with("<![CDATA[") {
-        return true;
-    }
-    if let Some(rest) = line.strip_prefix("<!")
-        && rest.starts_with(|c: char| c.is_ascii_uppercase())
-    {
-        return true;
-    }
-    // Type 1: <script, <pre, <style, <textarea (case-insensitive) + whitespace / > / end
-    let lower: String = line
-        .chars()
-        .take(12)
-        .collect::<String>()
-        .to_ascii_lowercase();
-    for tag in &["<script", "<pre", "<style", "<textarea"] {
-        if let Some(rest) = lower.strip_prefix(tag)
-            && (rest.is_empty() || rest.starts_with([' ', '\t', '>']))
-        {
-            return true;
+    // On continuation lines, only `1.`/`1)` can interrupt a paragraph — don't
+    // escape other ordered-list numbers even though cmark would flag them.
+    if is_continuation {
+        let digits_len = line.chars().take_while(char::is_ascii_digit).count();
+        if digits_len > 0 {
+            let rest = &line[digits_len..];
+            if let Some(after) = rest.strip_prefix(['.', ')'])
+                && (after.is_empty() || after.starts_with([' ', '\t']))
+                && &line[..digits_len] != "1"
+            {
+                return false;
+            }
         }
     }
 
-    false
+    // Delegate all other structural detection to cmark: if the line does not
+    // parse as a paragraph in isolation, it must be escaped.
+    !matches!(
+        Parser::new_ext(line, mk_options()).next(),
+        Some(Event::Start(Tag::Paragraph))
+    )
 }
 
 #[cfg(test)]
