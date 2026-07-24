@@ -613,7 +613,23 @@ impl FormatterState {
         // nothing on the "next line" for the break to separate.
         let text = {
             let s = text.trim_end_matches(|c: char| c != '\n' && c.is_whitespace());
-            s.strip_suffix("\\\n").unwrap_or(text)
+            // Strip a trailing hard-break marker only when the backslash run before
+            // `\n` is odd: even runs are content pairs (`\\` = literal `\`) and must
+            // not be removed.  An odd run = zero or more content pairs + one marker.
+            if s.ends_with('\n') {
+                let run = s[..s.len() - 1]
+                    .chars()
+                    .rev()
+                    .take_while(|&c| c == '\\')
+                    .count();
+                if run % 2 == 1 {
+                    &s[..s.len() - 2]
+                } else {
+                    text
+                }
+            } else {
+                text
+            }
         };
         let bq = "> ".repeat(self.bq_depth);
         let mut lines = text.split('\n').peekable();
@@ -1257,6 +1273,15 @@ mod tests {
         let once = format(">\u{85}");
         let twice = format(&once);
         assert_eq!(once, twice, "idempotency: blockquote + NEL");
+    }
+
+    #[test]
+    fn test_trailing_backslash_in_paragraph_not_doubled() {
+        // Proptest regression: "¡\\\t\r\u{b}" — pulldown emits Text("¡\") + SoftBreak.
+        // on_text doubles the \ to \\; SoftBreak appends \n → inline = "¡\\\n".
+        // The trailing-hard-break strip must not fire on an even backslash run (\\
+        // = one literal \), only on an odd run (the extra \ is the break marker).
+        assert_formats_to("¡\\\t\r\x0B", "¡\\\\\n");
     }
 
     #[test]
