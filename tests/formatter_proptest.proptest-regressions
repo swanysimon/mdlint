@@ -32,3 +32,4 @@ cc bd3348f8eb22cc15f1f818d07d182e58cf8bd17981ff10d44b530d1f4ea0c377 # shrinks to
 cc 775584889b13b66caab14312b94fea04ac0f051eb08126ab508996b8c316b5dc # shrinks to s = "#\t0\\\ra"
 cc 93cbd871c4cfed4c6c8cba29fc7835990a95b10bee92b3e7d1d4fc73fb71a610 # shrinks to s = "Ⓐ~A"
 cc 78ddeb00afa61895bcabf2d9ed03e4d2f51b0d50ce6611597f773aeaa092bc3a # shrinks to s = "<#\\@a>"
+cc b2d4fabb9c4ff31f5285e40382825f48b74de9858fb3ff0e9ea472fd0571061e # shrinks to s = "¡\\\t\r\u{b}"

@@ -20,6 +20,9 @@ pub enum MarkdownlintError {
     #[error("Fix error: {0}")]
     Fix(String),
 
+    #[error("Migration error: {0}")]
+    Migrate(String),
+
     #[error("LSP error: {0}")]
     Lsp(String),
 }

@@ -8,6 +8,7 @@ use mdlint::format::{DefaultFormatter, Formatter as _, GitlabFormatter, JsonForm
 use mdlint::formatter;
 use mdlint::glob::FileWalker;
 use mdlint::lint::{LintEngine, LintResult};
+use mdlint::migrate::run_migrate;
 use mdlint::types::Violation;
 use std::env;
 use std::fs;
@@ -28,6 +29,7 @@ fn run() -> Result<bool> {
         Command::Check(args) => run_check(args, config, use_color, cli.verbose),
         Command::Format(args) => run_format(args, &config),
         Command::Server(_) => mdlint::server::run_server().map(|()| false),
+        Command::Migrate(args) => run_migrate(args),
     }
 }
 
