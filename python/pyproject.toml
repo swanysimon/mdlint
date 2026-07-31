@@ -3,7 +3,7 @@ name = "markdownlint-rs"
 version = "0.3.22"
 description = "Opinionated Markdown formatter and linter"
 readme = "README.md"
-requires-python = ">=3.14.6"
+requires-python = ">=3.10.0"
 license = { text = "Unlicense" }
 keywords = ["formatter", "linter", "markdown"]
 classifiers = [

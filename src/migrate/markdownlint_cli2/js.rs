@@ -21,7 +21,7 @@ fn node_available() -> bool {
     })
 }
 
-fn document_to_source(document: HashMap<String, Value>) -> Cli2Source {
+fn document_to_source(document: &HashMap<String, Value>) -> Cli2Source {
     Cli2Source {
         config: document
             .get("config")
@@ -62,20 +62,22 @@ fn try_node_eval(path: &Path) -> Option<Result<Cli2Source>> {
     let result = match output {
         Ok(output) if output.status.success() => {
             serde_json::from_slice::<HashMap<String, Value>>(&output.stdout)
-                .map(document_to_source)
+                .map(|document| document_to_source(&document))
                 .map_err(|e| {
                     MarkdownlintError::Migrate(format!(
-                        "Node evaluated {path:?} but its output was not valid JSON: {e}"
+                        "Node evaluated {} but its output was not valid JSON: {e}",
+                        path.display()
                     ))
                 })
         }
         Ok(output) => Err(MarkdownlintError::Migrate(format!(
-            "Node failed to evaluate {:?}: {}",
-            path,
+            "Node failed to evaluate {}: {}",
+            path.display(),
             String::from_utf8_lossy(&output.stderr).trim()
         ))),
         Err(e) => Err(MarkdownlintError::Migrate(format!(
-            "Failed to run node for {path:?}: {e}"
+            "Failed to run node for {}: {e}",
+            path.display()
         ))),
     };
 
@@ -92,11 +94,12 @@ fn try_node_eval(path: &Path) -> Option<Result<Cli2Source>> {
 fn scrape_js(content: &str, path: &Path) -> Result<Cli2Source> {
     let unparsable = || {
         MarkdownlintError::Migrate(format!(
-            "Could not parse {path:?} as a static object literal. JS configs that use \
+            "Could not parse {} as a static object literal. JS configs that use \
              variables, function calls, or computed values cannot be migrated \
              automatically without Node.js — install Node for full fidelity, or run \
              `console.log(JSON.stringify(config))` in your config and save the output \
-             as a `.json` file, then migrate that instead."
+             as a `.json` file, then migrate that instead.",
+            path.display()
         ))
     };
 
@@ -104,15 +107,16 @@ fn scrape_js(content: &str, path: &Path) -> Result<Cli2Source> {
     let relaxed = relax_to_json(&object_text);
     let document: HashMap<String, Value> = serde_json::from_str(&relaxed).map_err(|e| {
         MarkdownlintError::Migrate(format!(
-            "Could not parse {path:?} as a static object literal ({e}). JS configs that use \
+            "Could not parse {} as a static object literal ({e}). JS configs that use \
              variables, function calls, or computed values cannot be migrated \
              automatically without Node.js — install Node for full fidelity, or run \
              `console.log(JSON.stringify(config))` in your config and save the output \
-             as a `.json` file, then migrate that instead."
+             as a `.json` file, then migrate that instead.",
+            path.display()
         ))
     })?;
 
-    Ok(document_to_source(document))
+    Ok(document_to_source(&document))
 }
 
 /// Parse a `.cjs`/`.mjs` markdownlint-cli2 config, preferring a real Node.js evaluation

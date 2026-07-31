@@ -52,8 +52,9 @@ fn is_usable_candidate(path: &Path) -> bool {
 }
 
 pub fn migrate_file(path: &Path) -> Result<MigrationResult> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| MarkdownlintError::Migrate(format!("Failed to read {path:?}: {e}")))?;
+    let content = fs::read_to_string(path).map_err(|e| {
+        MarkdownlintError::Migrate(format!("Failed to read {}: {e}", path.display()))
+    })?;
 
     let is_package_json = path.file_name().and_then(|n| n.to_str()) == Some("package.json");
     let extension = path
@@ -220,14 +221,13 @@ fn build_config(source: Cli2Source) -> MigrationResult {
     // default_enabled get the cli2 default so behaviour is unchanged post-migration.
     for (code, default) in cli2_defaults() {
         match config.rules.get(code) {
-            Some(RuleConfig::Config(_) | RuleConfig::Enabled(false)) => {}
             Some(RuleConfig::Enabled(true)) => {
                 config.rules.insert(code.to_string(), default);
             }
             None if config.default_enabled => {
                 config.rules.insert(code.to_string(), default);
             }
-            None => {}
+            Some(RuleConfig::Config(_) | RuleConfig::Enabled(false)) | None => {}
         }
     }
 

@@ -77,14 +77,16 @@ pub fn strip_jsonc_comments(input: &str) -> String {
 
 pub fn parse_json(content: &str, path: &Path) -> Result<Cli2Source> {
     let stripped = strip_jsonc_comments(content);
-    let document: HashMap<String, Value> = serde_json::from_str(&stripped)
-        .map_err(|e| MarkdownlintError::Parse(format!("Failed to parse {path:?}: {e}")))?;
+    let document: HashMap<String, Value> = serde_json::from_str(&stripped).map_err(|e| {
+        MarkdownlintError::Parse(format!("Failed to parse {}: {e}", path.display()))
+    })?;
     Ok(document_to_source(document, path))
 }
 
 pub fn parse_yaml(content: &str, path: &Path) -> Result<Cli2Source> {
-    let document: HashMap<String, Value> = yaml_serde::from_str(content)
-        .map_err(|e| MarkdownlintError::Parse(format!("Failed to parse {path:?}: {e}")))?;
+    let document: HashMap<String, Value> = yaml_serde::from_str(content).map_err(|e| {
+        MarkdownlintError::Parse(format!("Failed to parse {}: {e}", path.display()))
+    })?;
     Ok(document_to_source(document, path))
 }
 
@@ -94,15 +96,18 @@ pub fn parse_yaml(content: &str, path: &Path) -> Result<Cli2Source> {
 /// is extracted and treated as a wrapper unconditionally rather than relying on the
 /// filename-based `is_cli2_wrapper` heuristic.
 pub fn parse_package_json(content: &str, path: &Path) -> Result<Cli2Source> {
-    let mut document: HashMap<String, Value> = serde_json::from_str(content)
-        .map_err(|e| MarkdownlintError::Parse(format!("Failed to parse {path:?}: {e}")))?;
+    let mut document: HashMap<String, Value> = serde_json::from_str(content).map_err(|e| {
+        MarkdownlintError::Parse(format!("Failed to parse {}: {e}", path.display()))
+    })?;
     let field = document.remove("markdownlint-cli2").ok_or_else(|| {
         MarkdownlintError::Migrate(format!(
-            "{path:?} has no \"markdownlint-cli2\" field to migrate"
+            "{} has no \"markdownlint-cli2\" field to migrate",
+            path.display()
         ))
     })?;
-    let wrapper: HashMap<String, Value> = serde_json::from_value(field)
-        .map_err(|e| MarkdownlintError::Parse(format!("Failed to parse {path:?}: {e}")))?;
+    let wrapper: HashMap<String, Value> = serde_json::from_value(field).map_err(|e| {
+        MarkdownlintError::Parse(format!("Failed to parse {}: {e}", path.display()))
+    })?;
     Ok(document_to_source_as_wrapper(wrapper))
 }
 
