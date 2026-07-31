@@ -4,24 +4,49 @@
     "config:recommended"
   ],
   "timezone": "America/Los_Angeles",
-  "schedule": ["on monday"],
-  "rebaseWhen": "conflicts-only",
+  "schedule": [
+    "on monday"
+  ],
+  "rebaseWhen": "conflicted",
   "separateMajorMinor": false,
+  "separateMultipleMajor": false,
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["on monday"],
-    "groupName": "all dependencies"
+    "schedule": [
+      "at any time"
+    ],
+    "groupName": "all dependencies",
+    "groupSlug": "all-dependencies"
   },
   "packageRules": [
     {
-      "matchManagers": ["cargo"],
-      "rangeStrategy": "bump"
+      "matchManagers": [
+        "cargo",
+        "mise",
+        "rust-toolchain"
+      ],
+      "minimumReleaseAge": "20 days"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "pinDigests": true
     },
     {
       "groupName": "all dependencies",
-      "matchPackageNames": [
-        "*"
-      ]
+      "groupSlug": "all-dependencies",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "lockFileMaintenance",
+        "rollback",
+        "replacement"
+      ],
+      "rangeStrategy": "bump"
     }
   ]
 }
