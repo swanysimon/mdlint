@@ -28,14 +28,18 @@
       "minimumReleaseAge": "20 days"
     },
     {
+      "matchPackageNames": [
+        "*"
+      ],
+      "rangeStrategy": "bump"
+    },
+    {
       "matchManagers": [
         "github-actions"
       ],
       "pinDigests": true
     },
     {
-      "groupName": "all dependencies",
-      "groupSlug": "all-dependencies",
       "matchUpdateTypes": [
         "major",
         "minor",
@@ -46,7 +50,8 @@
         "rollback",
         "replacement"
       ],
-      "rangeStrategy": "bump"
+      "groupName": "all dependencies",
+      "groupSlug": "all-dependencies"
     }
   ]
 }
