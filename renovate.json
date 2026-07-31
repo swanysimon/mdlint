@@ -23,8 +23,6 @@
       "matchManagers": [
         "cargo",
         "mise",
-        "npm",
-        "pep621",
         "rust-toolchain"
       ],
       "minimumReleaseAge": "20 days",
