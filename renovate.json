@@ -23,18 +23,16 @@
       "matchManagers": [
         "cargo",
         "mise",
+        "npm",
+        "pep621",
         "rust-toolchain"
       ],
-      "minimumReleaseAge": "20 days"
-    },
-    {
-      "matchPackageNames": [
-        "*"
-      ],
+      "minimumReleaseAge": "20 days",
       "rangeStrategy": "bump"
     },
     {
       "matchManagers": [
+        "dockerfile",
         "github-actions"
       ],
       "pinDigests": true
