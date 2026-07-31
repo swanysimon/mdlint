@@ -616,14 +616,10 @@ impl FormatterState {
             // Strip a trailing hard-break marker only when the backslash run before
             // `\n` is odd: even runs are content pairs (`\\` = literal `\`) and must
             // not be removed.  An odd run = zero or more content pairs + one marker.
-            if s.ends_with('\n') {
-                let run = s[..s.len() - 1]
-                    .chars()
-                    .rev()
-                    .take_while(|&c| c == '\\')
-                    .count();
+            if let Some(stripped) = s.strip_suffix('\n') {
+                let run = stripped.chars().rev().take_while(|&c| c == '\\').count();
                 if run % 2 == 1 {
-                    &s[..s.len() - 2]
+                    &stripped[..stripped.len() - 1]
                 } else {
                     text
                 }

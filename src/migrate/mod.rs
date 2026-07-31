@@ -37,8 +37,8 @@ pub fn run_migrate(args: &MigrateArgs) -> Result<bool> {
 
     if args.output.exists() && !args.force {
         return Err(MarkdownlintError::Migrate(format!(
-            "{:?} already exists; pass --force to overwrite it",
-            args.output
+            "{} already exists; pass --force to overwrite it",
+            args.output.display()
         )));
     }
 

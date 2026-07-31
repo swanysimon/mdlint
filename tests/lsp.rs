@@ -1,4 +1,4 @@
-use lsp_server::{Connection, Message, Notification, Request, RequestId, Response, ResponseKind};
+use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     CodeActionOrCommand, InitializeResult, NumberOrString, PublishDiagnosticsParams, TextEdit,
 };
@@ -59,9 +59,9 @@ fn initialize(client: &Connection) {
     );
 
     let resp = next_response(client);
-    let result: InitializeResult = match resp.response_kind {
-        ResponseKind::Ok { result } => serde_json::from_value(result).unwrap(),
-        ResponseKind::Err { error } => panic!("initialize error: {error:?}"),
+    let result: InitializeResult = match resp.response_result {
+        Ok(result) => serde_json::from_value(result).unwrap(),
+        Err(error) => panic!("initialize error: {error:?}"),
     };
     assert!(result.capabilities.text_document_sync.is_some());
 
@@ -72,9 +72,9 @@ fn shutdown(client: &Connection) {
     send_request(client, 999, "shutdown", serde_json::json!(null));
     let resp = next_response(client);
     assert!(
-        matches!(resp.response_kind, ResponseKind::Ok { .. }),
+        resp.response_result.is_ok(),
         "shutdown error: {:?}",
-        resp.response_kind
+        resp.response_result
     );
     send_notification(client, "exit", serde_json::json!(null));
 }
@@ -143,9 +143,9 @@ fn lsp_full_lifecycle() {
     );
 
     let resp = next_response(&client_conn);
-    let edits: Vec<TextEdit> = match resp.response_kind {
-        ResponseKind::Ok { result } => serde_json::from_value(result).unwrap(),
-        ResponseKind::Err { error } => panic!("formatting error: {error:?}"),
+    let edits: Vec<TextEdit> = match resp.response_result {
+        Ok(result) => serde_json::from_value(result).unwrap(),
+        Err(error) => panic!("formatting error: {error:?}"),
     };
     // Content needs formatting; expect exactly one whole-doc edit.
     assert_eq!(edits.len(), 1, "expected one TextEdit");
@@ -179,11 +179,9 @@ fn lsp_full_lifecycle() {
 
     let resp = next_response(&client_conn);
     // Must parse as a valid array of CodeActionOrCommand.
-    let _actions: Vec<CodeActionOrCommand> = match resp.response_kind {
-        ResponseKind::Ok { result } => {
-            serde_json::from_value(result).expect("parse codeAction result")
-        }
-        ResponseKind::Err { error } => panic!("codeAction error: {error:?}"),
+    let _actions: Vec<CodeActionOrCommand> = match resp.response_result {
+        Ok(result) => serde_json::from_value(result).expect("parse codeAction result"),
+        Err(error) => panic!("codeAction error: {error:?}"),
     };
 
     // 5. shutdown + exit → server thread completes without panic
