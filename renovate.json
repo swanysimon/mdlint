@@ -36,15 +36,8 @@
       "pinDigests": true
     },
     {
-      "matchUpdateTypes": [
-        "major",
-        "minor",
-        "patch",
-        "pin",
-        "digest",
-        "lockFileMaintenance",
-        "rollback",
-        "replacement"
+      "matchPackageNames": [
+        "*"
       ],
       "groupName": "all dependencies",
       "groupSlug": "all-dependencies"
