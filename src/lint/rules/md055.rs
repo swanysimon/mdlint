@@ -28,6 +28,7 @@ impl Rule for MD055 {
         let mut violations = Vec::new();
         let mut first_style: Option<&str> = None;
         let code_block_lines = parser.get_code_block_line_numbers();
+        let code_ranges = parser.get_code_ranges();
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
@@ -36,8 +37,14 @@ impl Rule for MD055 {
                 continue;
             }
 
-            // Check if line is a table row (contains pipes)
-            if !line.contains('|') {
+            // Check if line is a table row: it must contain a pipe that isn't
+            // inside an inline code span (e.g. `a | b`), otherwise it's just
+            // prose that happens to mention a pipe character.
+            let has_real_pipe = line.match_indices('|').any(|(byte_offset, _)| {
+                let absolute = parser.line_offset_to_absolute(line_number, byte_offset);
+                !code_ranges.iter().any(|range| range.contains(&absolute))
+            });
+            if !has_real_pipe {
                 continue;
             }
 
@@ -221,5 +228,30 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_pipe_only_in_inline_code_span_ignored() {
+        // https://github.com/swanysimon/mdlint/issues/65
+        let content = "# Example\n\nThis is a line with an `a | b` inline code span.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD055;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_real_table_with_code_span_pipe_still_flagged() {
+        // A genuine table row whose leading/trailing pipes are real, even
+        // though it also contains a code span with an internal pipe.
+        let content = "Col1 | `a|b`\n-----|-----\nA | B";
+        let parser = MarkdownParser::new(content);
+        let rule = MD055;
+        let config = serde_json::json!({ "style": "leading_and_trailing" });
+        let violations = rule.check(&parser, Some(&config));
+
+        // 3 rows x 2 violations each (missing leading and trailing pipe)
+        assert_eq!(violations.len(), 6);
     }
 }
