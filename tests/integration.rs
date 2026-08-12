@@ -1,4 +1,4 @@
-use mdlint::config::Config;
+use mdlint::config::{Config, RuleConfig};
 use mdlint::fix::Fixer;
 use mdlint::formatter;
 use mdlint::lint::LintEngine;
@@ -111,6 +111,24 @@ fn check_fix_replaces_hard_tabs() {
 }
 
 #[test]
+fn format_output_for_nested_list_passes_check() {
+    // Regression test for issue #67: `mdlint format`'s output for a bullet item
+    // containing a nested ordered sub-list must pass `mdlint check` cleanly.
+    // The formatter used to strip the blank lines around the nested list
+    // (intended, canonical behavior), but MD032 then misjudged the nested,
+    // differently-marked sub-list as a set of separate top-level lists,
+    // reporting spurious violations on the formatter's own output.
+    let content = "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n";
+    let formatted = formatter::format(content);
+    let engine = all_rules_engine();
+    let violations = engine.lint_content(&formatted).unwrap();
+    assert!(
+        violations.is_empty(),
+        "mdlint check should report no violations on mdlint format's output; got: {violations:?}\nformatted:\n{formatted}"
+    );
+}
+
+#[test]
 fn check_clean_file_has_no_violations() {
     let content = fixture("format/expected.md");
     let engine = LintEngine::new(Config {
@@ -133,4 +151,38 @@ fn check_clean_file_has_no_violations() {
         non_trivial.is_empty(),
         "formatted file should have no violations (except MD013/MD043): {non_trivial:?}"
     );
+}
+
+// ── --select / --ignore filtering (issue #68) ──────────────────────────────────
+
+#[test]
+fn select_restricts_check_to_named_rule() {
+    // Line has both a heading-level skip (MD001) and a hard tab (MD010); --select MD001
+    // should report only MD001.
+    let content = "# Heading\n\n### Skipped level\n\n\tTabbed line\n";
+    let config = Config::default().apply_rule_filters(&["MD001".to_owned()], &[]);
+    let violations = LintEngine::new(config).lint_content(content).unwrap();
+    assert!(violations.iter().any(|v| v.rule == "MD001"));
+    assert!(violations.iter().all(|v| v.rule == "MD001"));
+}
+
+#[test]
+fn ignore_excludes_named_rule_only() {
+    let content = "# Heading\n\n### Skipped level\n\n\tTabbed line\n";
+    let config = Config::default().apply_rule_filters(&[], &["MD010".to_owned()]);
+    let violations = LintEngine::new(config).lint_content(content).unwrap();
+    assert!(violations.iter().any(|v| v.rule == "MD001"));
+    assert!(violations.iter().all(|v| v.rule != "MD010"));
+}
+
+#[test]
+fn ignore_overrides_config_file_enabling_the_rule() {
+    let content = "\tTabbed line\n";
+    let mut config = Config::default();
+    config
+        .rules
+        .insert("MD010".to_owned(), RuleConfig::Enabled(true));
+    let config = config.apply_rule_filters(&[], &["MD010".to_owned()]);
+    let violations = LintEngine::new(config).lint_content(content).unwrap();
+    assert!(violations.iter().all(|v| v.rule != "MD010"));
 }

@@ -37,6 +37,7 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
     let excludes = merge_excludes(&args.exclude, &config.exclude);
     let should_fix = args.should_fix().unwrap_or(config.fix);
     let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
+    let config = config.apply_rule_filters(&args.select, &args.ignore);
 
     if files.is_empty() {
         eprintln!("No markdown files found");

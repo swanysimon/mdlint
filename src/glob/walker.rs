@@ -116,15 +116,16 @@ mod tests {
     fn test_gitignore_respect() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Clear inherited GIT_* vars so `git init` targets the temp dir instead of
-        // silently reusing the outer repo when this test runs inside a git hook
-        // (e.g. via `prek`/`cargo test` invoked from a pre-commit hook).
+        // Clear GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE: when this test runs from inside a git
+        // hook (e.g. `prek`/`pre-commit` invoked by `git commit`), those are set to the outer
+        // repository and leak into this subprocess, breaking `git init` in temp_dir.
         std::process::Command::new("git")
             .args(["init"])
             .current_dir(temp_dir.path())
             .env_remove("GIT_DIR")
             .env_remove("GIT_WORK_TREE")
             .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_PREFIX")
             .output()
             .unwrap();
 
