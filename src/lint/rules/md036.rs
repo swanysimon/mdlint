@@ -26,10 +26,14 @@ impl Rule for MD036 {
 
         let mut violations = Vec::new();
         let lines = parser.lines();
+        let code_block_lines = parser.get_code_block_line_numbers();
 
         // Track if we're in emphasis on a line-by-line basis
         for (line_num, line) in lines.iter().enumerate() {
             let line_number = line_num + 1;
+            if code_block_lines.contains(&line_number) {
+                continue;
+            }
             let trimmed = line.trim();
 
             // Check if the line looks like emphasis-only content
@@ -142,5 +146,25 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0); // Not emphasis-only line
+    }
+
+    #[test]
+    fn test_emphasis_outside_code_block_still_flags() {
+        let content = "*2026-05-12*\n\nSome content";
+        let parser = MarkdownParser::new(content);
+        let rule = MD036;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
+    }
+
+    #[test]
+    fn test_emphasis_inside_fenced_code_block_not_flagged() {
+        let content = "# Example\n\n```text\n*2026-05-12*\n```\n";
+        let parser = MarkdownParser::new(content);
+        let rule = MD036;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0); // Emphasis-like text inside a fenced code block isn't a heading
     }
 }
