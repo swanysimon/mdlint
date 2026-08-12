@@ -119,6 +119,15 @@ mod tests {
         std::process::Command::new("git")
             .args(["init"])
             .current_dir(temp_dir.path())
+            // Pre-commit hooks (this test may run under one, via `prek`/`git commit`)
+            // set GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE for the outer repo; inherited
+            // by this child process, they make `git init` reuse the outer repo
+            // instead of creating a fresh one in temp_dir, so no .git ever appears
+            // there and the .gitignore below is silently ignored.
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_PREFIX")
             .output()
             .unwrap();
 
