@@ -78,4 +78,111 @@ impl Config {
     pub fn config(&self) -> &HashMap<String, RuleConfig> {
         &self.rules
     }
+
+    /// Apply `--select`/`--ignore` CLI overrides on top of the loaded config.
+    ///
+    /// `select` (if non-empty and not `ALL`, case-insensitive) restricts linting to just the
+    /// listed rules: `default_enabled` is turned off and each rule gets a bare `Enabled(true)`
+    /// entry, unless a more specific `RuleConfig::Config(..)` already exists for it (so
+    /// config-file rule parameters, e.g. MD013's `line_length`, survive `--select`).
+    ///
+    /// `ignore` unconditionally force-disables the listed rules, overriding both the config
+    /// file and `--select`.
+    ///
+    /// Empty `select`/`ignore` is a no-op.
+    #[must_use]
+    pub fn apply_rule_filters(mut self, select: &[String], ignore: &[String]) -> Self {
+        let select_all = select.iter().any(|code| code.eq_ignore_ascii_case("all"));
+        if !select.is_empty() && !select_all {
+            self.default_enabled = false;
+            for code in select {
+                self.rules
+                    .entry(code.to_uppercase())
+                    .or_insert(RuleConfig::Enabled(true));
+            }
+        }
+
+        for code in ignore {
+            self.rules
+                .insert(code.to_uppercase(), RuleConfig::Enabled(false));
+        }
+
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn select_empty_is_noop() {
+        let config = Config::default().apply_rule_filters(&[], &[]);
+        assert!(config.default_enabled);
+        assert!(config.rules.is_empty());
+    }
+
+    #[test]
+    fn select_restricts_to_listed_rules() {
+        let config = Config::default().apply_rule_filters(&["md001".to_owned()], &[]);
+        assert!(!config.default_enabled);
+        assert!(matches!(
+            config.rules.get("MD001"),
+            Some(RuleConfig::Enabled(true))
+        ));
+        assert_eq!(config.rules.len(), 1);
+    }
+
+    #[test]
+    fn select_all_is_noop() {
+        let config = Config::default().apply_rule_filters(&["ALL".to_owned()], &[]);
+        assert!(config.default_enabled);
+        assert!(config.rules.is_empty());
+    }
+
+    #[test]
+    fn select_preserves_existing_rule_config() {
+        let mut base = Config::default();
+        let mut params = HashMap::new();
+        params.insert("line_length".to_owned(), toml::Value::Integer(100));
+        base.rules
+            .insert("MD013".to_owned(), RuleConfig::Config(params));
+
+        let config = base.apply_rule_filters(&["MD013".to_owned()], &[]);
+        match config.rules.get("MD013") {
+            Some(RuleConfig::Config(params)) => {
+                assert_eq!(params.get("line_length"), Some(&toml::Value::Integer(100)));
+            }
+            other => panic!("expected preserved MD013 config, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ignore_force_disables_rule() {
+        let mut base = Config::default();
+        base.rules
+            .insert("MD013".to_owned(), RuleConfig::Enabled(true));
+
+        let config = base.apply_rule_filters(&[], &["md013".to_owned()]);
+        assert!(matches!(
+            config.rules.get("MD013"),
+            Some(RuleConfig::Enabled(false))
+        ));
+    }
+
+    #[test]
+    fn ignore_wins_over_select() {
+        let config = Config::default().apply_rule_filters(
+            &["MD001".to_owned(), "MD013".to_owned()],
+            &["MD013".to_owned()],
+        );
+        assert!(matches!(
+            config.rules.get("MD001"),
+            Some(RuleConfig::Enabled(true))
+        ));
+        assert!(matches!(
+            config.rules.get("MD013"),
+            Some(RuleConfig::Enabled(false))
+        ));
+    }
 }
