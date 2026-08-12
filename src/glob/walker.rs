@@ -119,6 +119,12 @@ mod tests {
         std::process::Command::new("git")
             .args(["init"])
             .current_dir(temp_dir.path())
+            // AIDEV: unset git env vars inherited from an outer git process (e.g. a
+            // pre-commit/prek hook), otherwise this `git init` reinitializes the OUTER repo
+            // (via inherited GIT_DIR/GIT_WORK_TREE) instead of creating one in temp_dir
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .output()
             .unwrap();
 
