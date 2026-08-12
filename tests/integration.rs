@@ -1,4 +1,4 @@
-use mdlint::config::Config;
+use mdlint::config::{Config, RuleConfig};
 use mdlint::fix::Fixer;
 use mdlint::formatter;
 use mdlint::lint::LintEngine;
@@ -151,4 +151,38 @@ fn check_clean_file_has_no_violations() {
         non_trivial.is_empty(),
         "formatted file should have no violations (except MD013/MD043): {non_trivial:?}"
     );
+}
+
+// ── --select / --ignore filtering (issue #68) ──────────────────────────────────
+
+#[test]
+fn select_restricts_check_to_named_rule() {
+    // Line has both a heading-level skip (MD001) and a hard tab (MD010); --select MD001
+    // should report only MD001.
+    let content = "# Heading\n\n### Skipped level\n\n\tTabbed line\n";
+    let config = Config::default().apply_rule_filters(&["MD001".to_owned()], &[]);
+    let violations = LintEngine::new(config).lint_content(content).unwrap();
+    assert!(violations.iter().any(|v| v.rule == "MD001"));
+    assert!(violations.iter().all(|v| v.rule == "MD001"));
+}
+
+#[test]
+fn ignore_excludes_named_rule_only() {
+    let content = "# Heading\n\n### Skipped level\n\n\tTabbed line\n";
+    let config = Config::default().apply_rule_filters(&[], &["MD010".to_owned()]);
+    let violations = LintEngine::new(config).lint_content(content).unwrap();
+    assert!(violations.iter().any(|v| v.rule == "MD001"));
+    assert!(violations.iter().all(|v| v.rule != "MD010"));
+}
+
+#[test]
+fn ignore_overrides_config_file_enabling_the_rule() {
+    let content = "\tTabbed line\n";
+    let mut config = Config::default();
+    config
+        .rules
+        .insert("MD010".to_owned(), RuleConfig::Enabled(true));
+    let config = config.apply_rule_filters(&[], &["MD010".to_owned()]);
+    let violations = LintEngine::new(config).lint_content(content).unwrap();
+    assert!(violations.iter().all(|v| v.rule != "MD010"));
 }
