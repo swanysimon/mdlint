@@ -56,6 +56,31 @@ fn detect_filetype_front_matter(
     None
 }
 
+/// Extracts the `title` field from front matter content, returning its value and
+/// the 1-indexed line number it appears on in the original document. Front matter
+/// content starts at document line 2 (line 1 is the opening `---`/`+++` delimiter).
+#[must_use]
+pub fn extract_title(front_matter: &FrontMatter) -> Option<(String, usize)> {
+    let delimiter = match front_matter.matter_type {
+        FrontMatterType::Yaml => ':',
+        FrontMatterType::Toml => '=',
+    };
+    for (idx, line) in front_matter.content.lines().enumerate() {
+        let Some((key, value)) = line.split_once(delimiter) else {
+            continue;
+        };
+        let key = key.trim().trim_matches('"').trim_matches('\'');
+        if key != "title" {
+            continue;
+        }
+        let value = value.trim().trim_matches('"').trim_matches('\'');
+        if !value.is_empty() {
+            return Some((value.to_owned(), idx + 2));
+        }
+    }
+    None
+}
+
 #[allow(dead_code)]
 pub fn strip_front_matter(content: &str) -> String {
     if let Some(front_matter) = detect_front_matter(content) {
@@ -119,5 +144,43 @@ mod tests {
         let stripped = strip_front_matter(content);
 
         assert_eq!(stripped, content);
+    }
+
+    #[test]
+    fn test_extract_title_yaml() {
+        let content = "---\ntags:\n  - a\ntitle: My Title\n---\n# Heading";
+        let fm = detect_front_matter(content).unwrap();
+        let (title, line) = extract_title(&fm).unwrap();
+
+        assert_eq!(title, "My Title");
+        assert_eq!(line, 4);
+    }
+
+    #[test]
+    fn test_extract_title_toml() {
+        let content = "+++\nauthor = \"John\"\ntitle = \"My Title\"\n+++\n# Heading";
+        let fm = detect_front_matter(content).unwrap();
+        let (title, line) = extract_title(&fm).unwrap();
+
+        assert_eq!(title, "My Title");
+        assert_eq!(line, 3);
+    }
+
+    #[test]
+    fn test_extract_title_missing() {
+        let content = "---\nauthor: John\n---\n# Heading";
+        let fm = detect_front_matter(content).unwrap();
+
+        assert!(extract_title(&fm).is_none());
+    }
+
+    #[test]
+    fn test_extract_title_colon_in_value() {
+        let content = "---\ntitle: Something: Else\n---\n# Heading";
+        let fm = detect_front_matter(content).unwrap();
+        let (title, line) = extract_title(&fm).unwrap();
+
+        assert_eq!(title, "Something: Else");
+        assert_eq!(line, 2);
     }
 }

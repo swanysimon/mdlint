@@ -61,35 +61,33 @@ impl Rule for MD032 {
                     current_marker = Some(marker);
                     last_list_line = line_num;
 
-                    // Check if previous line is blank (unless it's the first line)
-                    if line_num > 0 {
-                        let prev_line = lines.get(line_num - 1).expect("line_num > 0");
-                        if !prev_line.trim().is_empty() {
-                            // Detect broken ordered list continuation: a line that
-                            // looks like an ordered list item (e.g. "6.") following
-                            // non-list text won't be parsed as a list item because
-                            // only "1." can interrupt a paragraph (CommonMark §5.2).
-                            if marker == ListMarker::Ordered && !starts_with_one(trimmed) {
-                                // Report on the interrupting line (previous line),
-                                // not the list-like line — that's where the break is.
-                                violations.push(Violation {
-                                    line: line_num, // previous line (0-indexed → 1-indexed)
-                                    column: Some(1),
-                                    rule: self.name().to_owned(),
-                                    message: "Line breaks ordered list continuation; subsequent \
+                    // Check if previous line is blank (unless it's the first line).
+                    // Comment/front-matter lines count as blank here too.
+                    if line_num > 0 && !parser.is_blank_line(line_num) {
+                        // Detect broken ordered list continuation: a line that
+                        // looks like an ordered list item (e.g. "6.") following
+                        // non-list text won't be parsed as a list item because
+                        // only "1." can interrupt a paragraph (CommonMark §5.2).
+                        if marker == ListMarker::Ordered && !starts_with_one(trimmed) {
+                            // Report on the interrupting line (previous line),
+                            // not the list-like line — that's where the break is.
+                            violations.push(Violation {
+                                line: line_num, // previous line (0-indexed → 1-indexed)
+                                column: Some(1),
+                                rule: self.name().to_owned(),
+                                message: "Line breaks ordered list continuation; subsequent \
                                          numbered items are parsed as text, not list items"
-                                        .to_owned(),
-                                    fix: None,
-                                });
-                            } else {
-                                violations.push(Violation {
-                                    line: line_num + 1,
-                                    column: Some(1),
-                                    rule: self.name().to_owned(),
-                                    message: "List should be surrounded by blank lines".to_owned(),
-                                    fix: None,
-                                });
-                            }
+                                    .to_owned(),
+                                fix: None,
+                            });
+                        } else {
+                            violations.push(Violation {
+                                line: line_num + 1,
+                                column: Some(1),
+                                rule: self.name().to_owned(),
+                                message: "List should be surrounded by blank lines".to_owned(),
+                                fix: None,
+                            });
                         }
                     }
                 } else if Some(marker) != current_marker {
@@ -119,8 +117,9 @@ impl Rule for MD032 {
             } else if in_list && is_indented && !line.trim().is_empty() {
                 // Indented non-list line - this is a continuation of the list item
                 // Do nothing, stay in list
-            } else if in_list && !line.trim().is_empty() {
-                // Ending a list (non-blank, non-indented, non-list line)
+            } else if in_list && !parser.is_blank_line(line_num + 1) {
+                // Ending a list (non-blank, non-indented, non-list line). Comment
+                // and front-matter lines count as blank and don't end the list.
                 in_list = false;
                 current_marker = None;
 
@@ -132,7 +131,7 @@ impl Rule for MD032 {
                     message: "List should be surrounded by blank lines".to_owned(),
                     fix: None,
                 });
-            } else if in_list && line.trim().is_empty() {
+            } else if in_list && parser.is_blank_line(line_num + 1) {
                 // Blank line during list - might be end
                 // Look ahead to see if list continues with same marker
                 let mut continues = false;
@@ -324,6 +323,16 @@ mod tests {
         // list loose. Both forms are valid CommonMark and neither should be
         // flagged by MD032.
         let content = "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n";
+        let parser = MarkdownParser::new(content);
+        let rule = MD032;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_comment_around_list_counts_as_blank() {
+        let content = "<!-- note -->\n* Item 1\n* Item 2\n<!-- note -->\nText after";
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);

@@ -1,3 +1,4 @@
+use crate::markdown::front_matter::{detect_front_matter, extract_title};
 use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -18,6 +19,12 @@ pub struct MarkdownParser<'a> {
     ref_def_lines: HashSet<usize>,
     /// Map from normalised (lowercase) label to its 1-indexed line number.
     ref_defs: HashMap<String, usize>,
+    /// Lines (1-indexed) that are part of the YAML/TOML front matter block.
+    front_matter_lines: HashSet<usize>,
+    /// The front matter `title` field's value and 1-indexed line, if present.
+    front_matter_title: Option<(String, usize)>,
+    /// Lines (1-indexed) that fall entirely inside an HTML comment (`<!-- ... -->`).
+    comment_lines: HashSet<usize>,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -27,6 +34,13 @@ impl<'a> MarkdownParser<'a> {
         let line_offsets = build_line_offsets(content);
         let (code_block_lines, code_lines, code_ranges) = build_code_info(content, &line_offsets);
         let (ref_def_lines, ref_defs) = build_ref_def_info(content, &line_offsets);
+        let front_matter = detect_front_matter(content);
+        let front_matter_lines = front_matter
+            .as_ref()
+            .map(|fm| (1..=fm.end_line).collect())
+            .unwrap_or_default();
+        let front_matter_title = front_matter.as_ref().and_then(extract_title);
+        let comment_lines = build_comment_lines(content, &code_block_lines);
         Self {
             content,
             lines,
@@ -36,6 +50,9 @@ impl<'a> MarkdownParser<'a> {
             code_ranges,
             ref_def_lines,
             ref_defs,
+            front_matter_lines,
+            front_matter_title,
+            comment_lines,
         }
     }
 
@@ -140,6 +157,49 @@ impl<'a> MarkdownParser<'a> {
     #[must_use]
     pub fn get_ref_defs(&self) -> &HashMap<String, usize> {
         &self.ref_defs
+    }
+
+    /// Returns the 1-indexed line numbers that form the YAML/TOML front matter
+    /// block (including its `---`/`+++` delimiters). Result is precomputed in
+    /// `new()` — O(1) to access.
+    #[must_use]
+    pub fn front_matter_lines(&self) -> &HashSet<usize> {
+        &self.front_matter_lines
+    }
+
+    /// Returns the front matter `title` field's value, if present.
+    #[must_use]
+    pub fn front_matter_title(&self) -> Option<&str> {
+        self.front_matter_title
+            .as_ref()
+            .map(|(title, _)| title.as_str())
+    }
+
+    /// Returns the 1-indexed line number the front matter `title` field appears
+    /// on, if present.
+    #[must_use]
+    pub fn front_matter_title_line(&self) -> Option<usize> {
+        self.front_matter_title.as_ref().map(|(_, line)| *line)
+    }
+
+    /// Returns the 1-indexed line numbers that fall entirely inside an HTML
+    /// comment (`<!-- ... -->`). A line that has real content before the opening
+    /// `<!--` or after the closing `-->` is not included. Result is precomputed
+    /// in `new()` — O(1) to access.
+    #[must_use]
+    pub fn comment_lines(&self) -> &HashSet<usize> {
+        &self.comment_lines
+    }
+
+    /// Returns `true` if `line_num` is blank, or is entirely inside an HTML
+    /// comment or the front matter block — content that carries no linting
+    /// significance of its own but should not be treated as "missing" content
+    /// by rules that require blank-line separation (e.g. MD022, MD031, MD032).
+    #[must_use]
+    pub fn is_blank_line(&self, line_num: usize) -> bool {
+        self.get_line(line_num).is_none_or(|l| l.trim().is_empty())
+            || self.comment_lines.contains(&line_num)
+            || self.front_matter_lines.contains(&line_num)
     }
 
     /// Converts a (1-indexed) line number and 0-indexed byte offset within that
@@ -258,6 +318,56 @@ fn build_code_info(
     }
 
     (code_block_lines, code_lines, code_ranges)
+}
+
+/// Scans raw lines for HTML comments (`<!-- ... -->`, possibly spanning multiple
+/// lines) and returns the 1-indexed line numbers that fall *entirely* inside one —
+/// a line with real content before the opening `<!--` or after the closing `-->`
+/// is not included, so mixed lines like `text <!-- note -->` keep normal linting.
+/// Lines already inside a code block are skipped, since `<!--` inside a fence is
+/// literal text, not a comment.
+///
+/// AIDEV: raw-line scan, not tokenizer-accurate — a `<!--` inside an inline code
+/// span on a prose line is (incorrectly) treated as opening a comment. Upgrade to
+/// a code-range-aware scan if this proves to bite in practice.
+fn build_comment_lines(content: &str, code_block_lines: &HashSet<usize>) -> HashSet<usize> {
+    let mut comment_lines = HashSet::new();
+    let mut in_comment = false;
+
+    for (idx, line) in content.lines().enumerate() {
+        let line_num = idx + 1;
+        if code_block_lines.contains(&line_num) {
+            continue;
+        }
+
+        if in_comment {
+            if let Some(end) = line.find("-->") {
+                if line[end + 3..].trim().is_empty() {
+                    comment_lines.insert(line_num);
+                }
+                in_comment = false;
+            } else {
+                comment_lines.insert(line_num);
+            }
+            continue;
+        }
+
+        if let Some(start) = line.find("<!--") {
+            let before = line[..start].trim().is_empty();
+            if let Some(end) = line[start..].find("-->") {
+                if before && line[start + end + 3..].trim().is_empty() {
+                    comment_lines.insert(line_num);
+                }
+            } else {
+                if before {
+                    comment_lines.insert(line_num);
+                }
+                in_comment = true;
+            }
+        }
+    }
+
+    comment_lines
 }
 
 /// Collects link reference definition metadata in one pass over the parser's
@@ -479,5 +589,97 @@ mod tests {
         assert!(ref_def_lines.contains(&3), "ref def line should be marked");
         assert!(!ref_def_lines.contains(&1), "prose should not be marked");
         assert!(!ref_def_lines.contains(&5), "prose should not be marked");
+    }
+
+    #[test]
+    fn test_front_matter_lines() {
+        let content = "---\ntitle: Test\n---\n# Heading\nContent";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(
+            parser.front_matter_lines(),
+            &HashSet::from([1, 2, 3]),
+            "front matter block (delimiters + content) should be marked"
+        );
+        assert!(!parser.front_matter_lines().contains(&4));
+    }
+
+    #[test]
+    fn test_front_matter_title() {
+        let content = "---\ntitle: My Title\n---\n# Heading";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.front_matter_title(), Some("My Title"));
+        assert_eq!(parser.front_matter_title_line(), Some(2));
+    }
+
+    #[test]
+    fn test_front_matter_title_absent() {
+        let content = "# Heading\nContent";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.front_matter_title(), None);
+        assert_eq!(parser.front_matter_title_line(), None);
+    }
+
+    #[test]
+    fn test_comment_lines_single_line() {
+        let content = "Text\n\n<!-- a comment -->\n\nMore text";
+        let parser = MarkdownParser::new(content);
+
+        assert!(parser.comment_lines().contains(&3));
+        assert!(!parser.comment_lines().contains(&1));
+        assert!(!parser.comment_lines().contains(&5));
+    }
+
+    #[test]
+    fn test_comment_lines_multi_line() {
+        let content = "Text\n<!--\nInside comment\nStill inside\n-->\nAfter";
+        let parser = MarkdownParser::new(content);
+
+        for line in 2..=5 {
+            assert!(
+                parser.comment_lines().contains(&line),
+                "line {line} should be inside the comment"
+            );
+        }
+        assert!(!parser.comment_lines().contains(&1));
+        assert!(!parser.comment_lines().contains(&6));
+    }
+
+    #[test]
+    fn test_comment_lines_mixed_content_not_marked() {
+        let content = "text before <!-- note --> text after";
+        let parser = MarkdownParser::new(content);
+
+        assert!(
+            !parser.comment_lines().contains(&1),
+            "a line with content outside the comment should not be marked"
+        );
+    }
+
+    #[test]
+    fn test_comment_lines_ignore_code_block() {
+        let content = "```\n<!-- not a comment, just text -->\n```";
+        let parser = MarkdownParser::new(content);
+
+        assert!(
+            parser.comment_lines().is_empty(),
+            "<!-- inside a fenced code block should not be treated as a comment"
+        );
+    }
+
+    #[test]
+    fn test_is_blank_line() {
+        let content = "---\ntitle: t\n---\nText\n\n<!-- comment -->\nMore";
+        let parser = MarkdownParser::new(content);
+
+        assert!(parser.is_blank_line(1), "front matter line should be blank");
+        assert!(parser.is_blank_line(5), "empty line should be blank");
+        assert!(
+            parser.is_blank_line(6),
+            "comment-only line should count as blank"
+        );
+        assert!(!parser.is_blank_line(4), "prose line should not be blank");
     }
 }

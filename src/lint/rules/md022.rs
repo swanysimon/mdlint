@@ -35,31 +35,30 @@ impl Rule for MD022 {
         for &heading_line in &heading_lines {
             let line_idx = heading_line - 1;
 
-            // Check if there's a blank line before (skip if first line or after blank)
-            if line_idx > 0 {
-                let prev_line = lines.get(line_idx - 1).expect("line_idx > 0").trim();
-                if !prev_line.is_empty() {
-                    // Replace the heading line with "\n<heading>" — the embedded newline
-                    // causes the Fixer to produce a blank line before the heading.
-                    violations.push(Violation {
-                        line: heading_line,
-                        column: Some(1),
-                        rule: self.name().to_owned(),
-                        message: "Heading should be surrounded by blank lines (missing before)"
-                            .to_owned(),
-                        fix: Some(Fix {
-                            line_start: heading_line,
-                            line_end: heading_line,
-                            column_start: None,
-                            column_end: None,
-                            replacement: format!(
-                                "\n{}",
-                                lines.get(line_idx).expect("heading line is valid")
-                            ),
-                            description: "Add blank line before heading".to_owned(),
-                        }),
-                    });
-                }
+            // Check if there's a blank line before (skip if first line or after blank).
+            // Comment/front-matter lines count as blank: they carry no content of
+            // their own, so a heading right after one is still "surrounded".
+            if line_idx > 0 && !parser.is_blank_line(heading_line - 1) {
+                // Replace the heading line with "\n<heading>" — the embedded newline
+                // causes the Fixer to produce a blank line before the heading.
+                violations.push(Violation {
+                    line: heading_line,
+                    column: Some(1),
+                    rule: self.name().to_owned(),
+                    message: "Heading should be surrounded by blank lines (missing before)"
+                        .to_owned(),
+                    fix: Some(Fix {
+                        line_start: heading_line,
+                        line_end: heading_line,
+                        column_start: None,
+                        column_end: None,
+                        replacement: format!(
+                            "\n{}",
+                            lines.get(line_idx).expect("heading line is valid")
+                        ),
+                        description: "Add blank line before heading".to_owned(),
+                    }),
+                });
             }
 
             // Check if there's a blank line after (skip if last line)
@@ -69,7 +68,7 @@ impl Rule for MD022 {
                     .expect("line_idx + 1 < lines.len()")
                     .trim();
                 // Allow another heading right after (for closed headings or setext underlines)
-                if !next_line.is_empty()
+                if !parser.is_blank_line(heading_line + 1)
                     && !next_line.starts_with('#')
                     && !next_line
                         .chars()
@@ -183,5 +182,25 @@ mod tests {
         assert!(violations[0].message.contains("after"));
         let fixed = apply_fixes(content, &violations);
         assert_eq!(fixed, "# Heading\n\nContent\n");
+    }
+
+    #[test]
+    fn test_comment_before_heading_counts_as_blank() {
+        let content = "<!-- a comment -->\n# Heading\n\nContent";
+        let parser = MarkdownParser::new(content);
+        let rule = MD022;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_front_matter_before_heading_counts_as_blank() {
+        let content = "---\ntitle: t\n---\n# Heading\n\nContent";
+        let parser = MarkdownParser::new(content);
+        let rule = MD022;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
     }
 }

@@ -53,26 +53,27 @@ impl Rule for MD031 {
             let line_idx = start_line - 1;
 
             // Check blank line before (skip if first line)
-            if line_idx > 0 {
-                let prev_line = lines.get(line_idx - 1).expect("line_idx > 0").trim();
-                if !prev_line.is_empty() {
-                    // Insert blank line before code block
-                    violations.push(Violation {
-                        line: start_line,
-                        column: Some(1),
-                        rule: self.name().to_owned(),
-                        message:
-                            "Fenced code blocks should be surrounded by blank lines (missing before)".to_owned(),
-                        fix: Some(Fix {
-                            line_start: start_line,
-                            line_end: start_line,
-                            column_start: None,
-                            column_end: None,
-                            replacement: format!("\n{}", lines.get(line_idx).expect("line_idx bounded")),
-                            description: "Add blank line before code block".to_owned(),
-                        }),
-                    });
-                }
+            if line_idx > 0 && !parser.is_blank_line(start_line - 1) {
+                // Insert blank line before code block
+                violations.push(Violation {
+                    line: start_line,
+                    column: Some(1),
+                    rule: self.name().to_owned(),
+                    message:
+                        "Fenced code blocks should be surrounded by blank lines (missing before)"
+                            .to_owned(),
+                    fix: Some(Fix {
+                        line_start: start_line,
+                        line_end: start_line,
+                        column_start: None,
+                        column_end: None,
+                        replacement: format!(
+                            "\n{}",
+                            lines.get(line_idx).expect("line_idx bounded")
+                        ),
+                        description: "Add blank line before code block".to_owned(),
+                    }),
+                });
             }
         }
 
@@ -80,33 +81,27 @@ impl Rule for MD031 {
             let line_idx = end_line - 1;
 
             // Check blank line after (skip if last line)
-            if line_idx + 1 < lines.len() {
-                let next_line = lines
-                    .get(line_idx + 1)
-                    .expect("line_idx + 1 < lines.len()")
-                    .trim();
-                if !next_line.is_empty() {
-                    // Insert blank line after code block
-                    violations.push(Violation {
-                        line: end_line,
-                        column: Some(1),
-                        rule: self.name().to_owned(),
-                        message:
-                            "Fenced code blocks should be surrounded by blank lines (missing after)"
-                                .to_owned(),
-                        fix: Some(Fix {
-                            line_start: end_line,
-                            line_end: end_line,
-                            column_start: None,
-                            column_end: None,
-                            replacement: format!(
-                                "{}\n",
-                                lines.get(line_idx).expect("line_idx bounded")
-                            ),
-                            description: "Add blank line after code block".to_owned(),
-                        }),
-                    });
-                }
+            if line_idx + 1 < lines.len() && !parser.is_blank_line(end_line + 1) {
+                // Insert blank line after code block
+                violations.push(Violation {
+                    line: end_line,
+                    column: Some(1),
+                    rule: self.name().to_owned(),
+                    message:
+                        "Fenced code blocks should be surrounded by blank lines (missing after)"
+                            .to_owned(),
+                    fix: Some(Fix {
+                        line_start: end_line,
+                        line_end: end_line,
+                        column_start: None,
+                        column_end: None,
+                        replacement: format!(
+                            "{}\n",
+                            lines.get(line_idx).expect("line_idx bounded")
+                        ),
+                        description: "Add blank line after code block".to_owned(),
+                    }),
+                });
             }
         }
 
@@ -205,5 +200,15 @@ mod tests {
         // Verify blank lines were added
         let expected = "Text\n\n```\ncode\n```\n\nMore";
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_comment_around_code_block_counts_as_blank() {
+        let content = "<!-- note -->\n```\ncode\n```\n<!-- note -->\nMore";
+        let parser = MarkdownParser::new(content);
+        let rule = MD031;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
     }
 }
