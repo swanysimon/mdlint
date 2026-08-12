@@ -265,9 +265,19 @@ names = ["JavaScript", "TypeScript", "GitHub"]
 
 See [`mdlint.default.toml`](mdlint.default.toml) for every option with its default value.
 
+### Front matter and comments
+
+YAML/TOML front matter is excluded from every rule, since it isn't Markdown content. A front matter `title` field
+is treated as the document's primary top-level heading, so MD025 (multiple top-level headings) and MD041 (first
+line should be a top-level heading) are satisfied by it instead of requiring a `#` heading in the body.
+
+HTML comments (`<!-- ... -->`, including multi-line comments) are excluded from every rule except MD013 (line
+length), since line length is a property of the raw line rather than of Markdown semantics.
+
 ### Inline configuration
 
-Rules can be suppressed for specific lines using HTML comments:
+Rules can be suppressed for specific lines using HTML comments. Both `mdlint-` and `markdownlint-` prefixes are
+accepted as equivalent aliases, so existing `markdownlint`/`markdownlint-cli2` comments keep working unchanged:
 
 ```markdown
 <!-- mdlint-disable-next-line MD013 -->
@@ -282,12 +292,18 @@ This line may be longer than the configured limit.
 | --- | --- |
 | `<!-- mdlint-disable MD001 -->` | Disable rule from this line onward |
 | `<!-- mdlint-enable MD001 -->` | Re-enable rule from this line onward |
+| `<!-- mdlint-disable-line MD001 -->` | Disable rule for the current line only |
 | `<!-- mdlint-disable-next-line MD001 -->` | Disable rule for the next line only |
 | `<!-- mdlint-disable -->` | Disable all rules from this line onward |
 | `<!-- mdlint-enable -->` | Re-enable all rules |
+| `<!-- mdlint-capture -->` | Save the current enable/disable state |
+| `<!-- mdlint-restore -->` | Restore the most recently captured state |
 
-Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule codes. Set `no_inline_config = true`
-in `mdlint.toml` to ignore all inline comments project-wide.
+Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule codes. `disable`/`enable` with no rule
+codes applies to every rule; a rule-specific `enable` after a bare `disable` re-enables just that rule (e.g. `disable`
+then `enable MD013` means "all rules except MD013"). `capture`/`restore` nest like a stack, so a block of directives
+can be undone as a unit regardless of what state it started from. Set `no_inline_config = true` in `mdlint.toml` to
+ignore all inline comments project-wide.
 
 ## Exit Codes
 
@@ -325,7 +341,7 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD022](https://github.com/DavidAnson/markdownlint/blob/main/doc/md022.md) | ✓ | — | — | Headings should be surrounded by blank lines | Required by many renderers for correct parsing; format inserts blank lines |
 | [MD023](https://github.com/DavidAnson/markdownlint/blob/main/doc/md023.md) | ✓ | — | — | Headings must start at the beginning of the line | Indented headings are treated as code or paragraphs in CommonMark |
 | [MD024](https://github.com/DavidAnson/markdownlint/blob/main/doc/md024.md) |  | `siblings_only: false` |  | Multiple headings with the same content | Config: `siblings_only` — set `true` to flag only duplicates within the same parent heading |
-| [MD025](https://github.com/DavidAnson/markdownlint/blob/main/doc/md025.md) |  | — | — | Multiple top-level headings in the same document | Disable for document fragments that intentionally lack a single top-level title |
+| [MD025](https://github.com/DavidAnson/markdownlint/blob/main/doc/md025.md) |  | — | — | Multiple top-level headings in the same document | Disable for document fragments that intentionally lack a single top-level title. A front matter `title` field counts as the first top-level heading |
 | [MD026](https://github.com/DavidAnson/markdownlint/blob/main/doc/md026.md) |  | `".,;:!?。，；：！？"` | `".,;:!。，；：！"` | Trailing punctuation in heading | Headings are labels, not sentences. mdlint additionally disallows `?`. Config: `punctuation` |
 | [MD027](https://github.com/DavidAnson/markdownlint/blob/main/doc/md027.md) | ✓ | — | — | Multiple spaces after blockquote symbol | `>  text` → `> text`; format normalises |
 | [MD028](https://github.com/DavidAnson/markdownlint/blob/main/doc/md028.md) |  | — | — | Blank line inside blockquote | Blank lines split blockquotes into separate elements in CommonMark; may be intentional |
@@ -341,7 +357,7 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD038](https://github.com/DavidAnson/markdownlint/blob/main/doc/md038.md) |  | — | — | Spaces inside code span elements | `` ` text ` `` is technically valid but inconsistent with expected style |
 | [MD039](https://github.com/DavidAnson/markdownlint/blob/main/doc/md039.md) |  | — | — | Spaces inside link text | `[ text ]` is valid but inconsistent |
 | [MD040](https://github.com/DavidAnson/markdownlint/blob/main/doc/md040.md) |  | — | — | Fenced code blocks should have a language specified | Language tags enable syntax highlighting. Config: `allowed_languages` |
-| [MD041](https://github.com/DavidAnson/markdownlint/blob/main/doc/md041.md) |  | `level: 1` |  | First line in file should be a top-level heading | Disable for files starting with badges, front matter, or that are document fragments |
+| [MD041](https://github.com/DavidAnson/markdownlint/blob/main/doc/md041.md) |  | `level: 1` |  | First line in file should be a top-level heading | Disable for files starting with badges or that are document fragments. A front matter `title` field satisfies this rule |
 | [MD042](https://github.com/DavidAnson/markdownlint/blob/main/doc/md042.md) |  | — | — | No empty links | `[text]()` is almost always a mistake |
 | [MD043](https://github.com/DavidAnson/markdownlint/blob/main/doc/md043.md) |  | — | — | Required heading structure | Useful for template-driven documentation; too restrictive for most projects. Config: `headings` |
 | [MD044](https://github.com/DavidAnson/markdownlint/blob/main/doc/md044.md) |  | `names: []` |  | Proper names should have the correct capitalization | Requires configuration to be useful. Config: `names`, `code_blocks` |
