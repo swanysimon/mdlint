@@ -111,6 +111,24 @@ fn check_fix_replaces_hard_tabs() {
 }
 
 #[test]
+fn format_output_for_nested_list_passes_check() {
+    // Regression test for issue #67: `mdlint format`'s output for a bullet item
+    // containing a nested ordered sub-list must pass `mdlint check` cleanly.
+    // The formatter used to strip the blank lines around the nested list
+    // (intended, canonical behavior), but MD032 then misjudged the nested,
+    // differently-marked sub-list as a set of separate top-level lists,
+    // reporting spurious violations on the formatter's own output.
+    let content = "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n";
+    let formatted = formatter::format(content);
+    let engine = all_rules_engine();
+    let violations = engine.lint_content(&formatted).unwrap();
+    assert!(
+        violations.is_empty(),
+        "mdlint check should report no violations on mdlint format's output; got: {violations:?}\nformatted:\n{formatted}"
+    );
+}
+
+#[test]
 fn check_clean_file_has_no_violations() {
     let content = fixture("format/expected.md");
     let engine = LintEngine::new(Config {

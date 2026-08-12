@@ -127,6 +127,19 @@ fn nested_lists_preserved() {
 }
 
 #[test]
+fn nested_ordered_list_under_bullet_item_stays_tight() {
+    // Regression test for issue #67: a nested ordered list under a bullet item
+    // is formatted tight (no blank lines separating it from the parent item's
+    // text or the next sibling item), whether or not the source had blank
+    // lines around it. This canonical form must pass `mdlint check` (MD032)
+    // cleanly — see the matching MD032 tests in src/lint/rules/md032.rs.
+    assert_formats_to(
+        "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n",
+        "# Example\n\n- First item:\n  1. One\n  2. Two\n- Second item\n",
+    );
+}
+
+#[test]
 fn ordered_list_preserved() {
     assert_formats_to(
         "1. First\n2. Second\n3. Third\n",
