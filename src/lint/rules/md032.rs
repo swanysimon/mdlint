@@ -47,7 +47,14 @@ impl Rule for MD032 {
                     .expect("non-empty, checked above")
                     .is_whitespace();
 
-            if let Some(marker) = list_marker {
+            if list_marker.is_some() && in_list && is_indented {
+                // Indented list-marker line while already inside a list: this is a
+                // nested sub-list, not a sibling list at the same level. CommonMark
+                // and markdownlint don't require blank lines around nested lists —
+                // only around the outermost list — so treat it like any other
+                // indented continuation line and leave the enclosing list's
+                // marker/state untouched.
+            } else if let Some(marker) = list_marker {
                 if !in_list {
                     // Starting a new list
                     in_list = true;
@@ -294,5 +301,33 @@ mod tests {
         // + needs blank before/after (2 violations)
         // - needs blank before/after (2 violations)
         assert_eq!(violations.len(), 4);
+    }
+
+    #[test]
+    fn test_nested_list_different_marker_tight_not_flagged() {
+        // Regression test for issue #67: a nested ordered list directly under a
+        // bullet item, with no blank lines separating it from the parent item's
+        // text or the next sibling item, is not a set of separate top-level lists
+        // and must not be flagged. This is exactly the output `mdlint format`
+        // produces for this construct.
+        let content = "# Example\n\n- First item:\n  1. One\n  2. Two\n- Second item\n";
+        let parser = MarkdownParser::new(content);
+        let rule = MD032;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_nested_list_different_marker_loose_not_flagged() {
+        // Same construct as above, but with the blank lines that make the outer
+        // list loose. Both forms are valid CommonMark and neither should be
+        // flagged by MD032.
+        let content = "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n";
+        let parser = MarkdownParser::new(content);
+        let rule = MD032;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
     }
 }
