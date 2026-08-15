@@ -285,10 +285,14 @@ fn build_ref_def_info(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_basic_parsing() {
-        let content = "# Heading\n\nSome **bold** text.";
+        let content = indoc! {"
+            # Heading
+
+            Some **bold** text."};
         let parser = MarkdownParser::new(content);
 
         assert_eq!(parser.content(), content);
@@ -297,7 +301,10 @@ mod tests {
 
     #[test]
     fn test_get_line() {
-        let content = "Line 1\nLine 2\nLine 3";
+        let content = indoc! {"
+            Line 1
+            Line 2
+            Line 3"};
         let parser = MarkdownParser::new(content);
 
         assert_eq!(parser.get_line(1), Some("Line 1"));
@@ -309,7 +316,10 @@ mod tests {
 
     #[test]
     fn test_offset_to_line() {
-        let content = "Line 1\nLine 2\nLine 3";
+        let content = indoc! {"
+            Line 1
+            Line 2
+            Line 3"};
         let parser = MarkdownParser::new(content);
 
         assert_eq!(parser.offset_to_line(0), 1);
@@ -320,7 +330,10 @@ mod tests {
 
     #[test]
     fn test_offset_to_position() {
-        let content = "Line 1\nLine 2\nLine 3";
+        let content = indoc! {"
+            Line 1
+            Line 2
+            Line 3"};
         let parser = MarkdownParser::new(content);
 
         assert_eq!(parser.offset_to_position(0), (1, 1));
@@ -340,7 +353,10 @@ mod tests {
 
     #[test]
     fn test_parse_with_offsets() {
-        let content = "# Heading\n\nParagraph";
+        let content = indoc! {"
+            # Heading
+
+            Paragraph"};
         let parser = MarkdownParser::new(content);
 
         let events: Vec<_> = parser.parse_with_offsets().collect();
@@ -349,7 +365,14 @@ mod tests {
 
     #[test]
     fn test_event_type_checks() {
-        let content = "# Heading\n\n```rust\ncode\n```\n\n- item";
+        let content = indoc! {"
+            # Heading
+
+            ```rust
+            code
+            ```
+
+            - item"};
         let parser = MarkdownParser::new(content);
 
         let events: Vec<_> = parser.parse().collect();
@@ -365,7 +388,15 @@ mod tests {
 
     #[test]
     fn test_code_line_numbers_fenced() {
-        let content = "Normal text\n\n```sql\nSELECT * FROM table_name\nWHERE user_id = 123\n```\n\nMore text";
+        let content = indoc! {"
+            Normal text
+
+            ```sql
+            SELECT * FROM table_name
+            WHERE user_id = 123
+            ```
+
+            More text"};
         let parser = MarkdownParser::new(content);
         let code_lines = parser.get_code_line_numbers();
 
@@ -408,8 +439,16 @@ mod tests {
 
     #[test]
     fn test_code_line_numbers_mixed() {
-        let content =
-            "Normal text\n\nText with `inline_code` here\n\n```\nCode block\n```\n\nFinal text";
+        let content = indoc! {"
+            Normal text
+
+            Text with `inline_code` here
+
+            ```
+            Code block
+            ```
+
+            Final text"};
         let parser = MarkdownParser::new(content);
         let code_lines = parser.get_code_line_numbers();
 
@@ -439,7 +478,10 @@ mod tests {
     #[test]
     fn test_build_line_offsets() {
         // LF line endings
-        let offsets = build_line_offsets("abc\ndef\nghi");
+        let offsets = build_line_offsets(indoc! {"
+            abc
+            def
+            ghi"});
         assert_eq!(offsets, vec![0, 4, 8]);
 
         // CRLF line endings
@@ -472,7 +514,12 @@ mod tests {
 
     #[test]
     fn test_ref_def_line_numbers() {
-        let content = "Text\n\n[foo]: https://example.com\n\nMore text";
+        let content = indoc! {"
+            Text
+
+            [foo]: https://example.com
+
+            More text"};
         let parser = MarkdownParser::new(content);
         let ref_def_lines = parser.get_ref_def_line_numbers();
 

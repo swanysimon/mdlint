@@ -136,10 +136,15 @@ fn is_separator_line(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_valid_table() {
-        let content = "| Col1 | Col2 | Col3 |\n|------|------|------|\n| A    | B    | C    |\n| D    | E    | F    |";
+        let content = indoc! {"
+            | Col1 | Col2 | Col3 |
+            |------|------|------|
+            | A    | B    | C    |
+            | D    | E    | F    |"};
         let parser = MarkdownParser::new(content);
         let rule = MD056;
         let violations = rule.check(&parser, None);
@@ -149,7 +154,10 @@ mod tests {
 
     #[test]
     fn test_mismatched_columns() {
-        let content = "| Col1 | Col2 |\n|------|------|\n| A    | B    | C    |";
+        let content = indoc! {"
+            | Col1 | Col2 |
+            |------|------|
+            | A    | B    | C    |"};
         let parser = MarkdownParser::new(content);
         let rule = MD056;
         let violations = rule.check(&parser, None);
@@ -159,7 +167,10 @@ mod tests {
 
     #[test]
     fn test_separator_mismatch() {
-        let content = "| Col1 | Col2 | Col3 |\n|------|------|\n| A    | B    | C    |";
+        let content = indoc! {"
+            | Col1 | Col2 | Col3 |
+            |------|------|
+            | A    | B    | C    |"};
         let parser = MarkdownParser::new(content);
         let rule = MD056;
         let violations = rule.check(&parser, None);
@@ -169,7 +180,12 @@ mod tests {
 
     #[test]
     fn test_multiple_rows() {
-        let content = "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 | 5 |\n| 6 | 7 |";
+        let content = indoc! {"
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+            | 3 | 4 | 5 |
+            | 6 | 7 |"};
         let parser = MarkdownParser::new(content);
         let rule = MD056;
         let violations = rule.check(&parser, None);

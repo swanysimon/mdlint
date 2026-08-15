@@ -107,6 +107,7 @@ fn is_emphasis_only_line(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_real_heading() {
@@ -120,7 +121,10 @@ mod tests {
 
     #[test]
     fn test_emphasis_as_heading() {
-        let content = "**Summary**\n\nSome content";
+        let content = indoc! {"
+            **Summary**
+
+            Some content"};
         let parser = MarkdownParser::new(content);
         let rule = MD036;
         let violations = rule.check(&parser, None);
@@ -150,7 +154,10 @@ mod tests {
 
     #[test]
     fn test_emphasis_outside_code_block_still_flags() {
-        let content = "*2026-05-12*\n\nSome content";
+        let content = indoc! {"
+            *2026-05-12*
+
+            Some content"};
         let parser = MarkdownParser::new(content);
         let rule = MD036;
         let violations = rule.check(&parser, None);
@@ -160,7 +167,13 @@ mod tests {
 
     #[test]
     fn test_emphasis_inside_fenced_code_block_not_flagged() {
-        let content = "# Example\n\n```text\n*2026-05-12*\n```\n";
+        let content = indoc! {"
+            # Example
+
+            ```text
+            *2026-05-12*
+            ```
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD036;
         let violations = rule.check(&parser, None);

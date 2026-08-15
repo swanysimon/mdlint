@@ -121,10 +121,18 @@ impl Rule for MD031 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_properly_surrounded() {
-        let content = "Text\n\n```\ncode\n```\n\nMore text";
+        let content = indoc! {"
+            Text
+
+            ```
+            code
+            ```
+
+            More text"};
         let parser = MarkdownParser::new(content);
         let rule = MD031;
         let violations = rule.check(&parser, None);
@@ -134,7 +142,13 @@ mod tests {
 
     #[test]
     fn test_missing_blank_before() {
-        let content = "Text\n```\ncode\n```\n\nMore text";
+        let content = indoc! {"
+            Text
+            ```
+            code
+            ```
+
+            More text"};
         let parser = MarkdownParser::new(content);
         let rule = MD031;
         let violations = rule.check(&parser, None);
@@ -145,7 +159,13 @@ mod tests {
 
     #[test]
     fn test_missing_blank_after() {
-        let content = "Text\n\n```\ncode\n```\nMore text";
+        let content = indoc! {"
+            Text
+
+            ```
+            code
+            ```
+            More text"};
         let parser = MarkdownParser::new(content);
         let rule = MD031;
         let violations = rule.check(&parser, None);
@@ -156,7 +176,12 @@ mod tests {
 
     #[test]
     fn test_first_line() {
-        let content = "```\ncode\n```\n\nText";
+        let content = indoc! {"
+            ```
+            code
+            ```
+
+            Text"};
         let parser = MarkdownParser::new(content);
         let rule = MD031;
         let violations = rule.check(&parser, None);
@@ -167,7 +192,14 @@ mod tests {
     #[test]
     fn test_numbered_list_with_code_block() {
         // Test that code blocks in numbered lists get proper fixes
-        let content = "1. **Enable/Disable a rule:**\n   ```toml\n   [rules.MD013]\n   enabled = false\n   ```\n\n2. **Next item**";
+        let content = indoc! {"
+            1. **Enable/Disable a rule:**
+               ```toml
+               [rules.MD013]
+               enabled = false
+               ```
+
+            2. **Next item**"};
         let parser = MarkdownParser::new(content);
         let rule = MD031;
         let violations = rule.check(&parser, None);
@@ -190,7 +222,12 @@ mod tests {
     fn test_fix_creates_blank_line() {
         use crate::fix::Fixer;
 
-        let content = "Text\n```\ncode\n```\nMore";
+        let content = indoc! {"
+            Text
+            ```
+            code
+            ```
+            More"};
         let parser = MarkdownParser::new(content);
         let rule = MD031;
         let violations = rule.check(&parser, None);
@@ -203,7 +240,14 @@ mod tests {
         let result = runner.apply_fixes_to_content(content, &fixes).unwrap();
 
         // Verify blank lines were added
-        let expected = "Text\n\n```\ncode\n```\n\nMore";
+        let expected = indoc! {"
+            Text
+
+            ```
+            code
+            ```
+
+            More"};
         assert_eq!(result, expected);
     }
 }

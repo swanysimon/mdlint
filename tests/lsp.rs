@@ -1,3 +1,4 @@
+use indoc::indoc;
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     CodeActionOrCommand, InitializeResult, NumberOrString, PublishDiagnosticsParams, TextEdit,
@@ -92,7 +93,10 @@ fn lsp_full_lifecycle() {
     initialize(&client_conn);
 
     // MD022 violation: no blank line between headings.
-    let content = "# Title\n## Section\n";
+    let content = indoc! {"
+        # Title
+        ## Section
+    "};
 
     // 2. didOpen → publishDiagnostics
     send_notification(

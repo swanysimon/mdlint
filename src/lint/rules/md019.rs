@@ -80,6 +80,7 @@ impl Rule for MD019 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -90,7 +91,10 @@ mod tests {
 
     #[test]
     fn test_correct_single_space() {
-        let content = "# Heading 1\n## Heading 2\n### Heading 3";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2
+            ### Heading 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD019;
         let violations = rule.check(&parser, None);
@@ -122,7 +126,13 @@ mod tests {
 
     #[test]
     fn test_heading_in_code_block_not_flagged() {
-        let content = "# Real heading\n\n```\n##  WouldBeViolation\n```\n";
+        let content = indoc! {"
+            # Real heading
+
+            ```
+            ##  WouldBeViolation
+            ```
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD019;
         let violations = rule.check(&parser, None);
@@ -132,12 +142,23 @@ mod tests {
 
     #[test]
     fn test_fix_collapses_multiple_spaces() {
-        let content = "#  Too many spaces\n\n###   Even more\n";
+        let content = indoc! {"
+            #  Too many spaces
+
+            ###   Even more
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD019;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 2);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "# Too many spaces\n\n### Even more\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                # Too many spaces
+
+                ### Even more
+            "}
+        );
     }
 }

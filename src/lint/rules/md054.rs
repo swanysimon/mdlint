@@ -89,6 +89,7 @@ impl Rule for MD054 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_inline() {
@@ -102,7 +103,11 @@ mod tests {
 
     #[test]
     fn test_consistent_reference() {
-        let content = "[link1]: url1\n[link2]: url2\n\n[Link][link1] and [Another][link2]";
+        let content = indoc! {"
+            [link1]: url1
+            [link2]: url2
+
+            [Link][link1] and [Another][link2]"};
         let parser = MarkdownParser::new(content);
         let rule = MD054;
         let violations = rule.check(&parser, None);
@@ -112,7 +117,10 @@ mod tests {
 
     #[test]
     fn test_inconsistent_style() {
-        let content = "[link1]: url1\n\n[Link](url) and [Ref][link1]";
+        let content = indoc! {"
+            [link1]: url1
+
+            [Link](url) and [Ref][link1]"};
         let parser = MarkdownParser::new(content);
         let rule = MD054;
         let config = serde_json::json!({ "style": "consistent" });
@@ -123,7 +131,10 @@ mod tests {
 
     #[test]
     fn test_enforced_inline() {
-        let content = "[link]: url\n\n[Link][link]";
+        let content = indoc! {"
+            [link]: url
+
+            [Link][link]"};
         let parser = MarkdownParser::new(content);
         let rule = MD054;
         let config = serde_json::json!({ "style": "inline" });

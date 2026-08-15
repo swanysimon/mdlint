@@ -73,10 +73,14 @@ impl Rule for MD053 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_used_definition() {
-        let content = "[example]: https://example.com\n\n[Link][example]";
+        let content = indoc! {"
+            [example]: https://example.com
+
+            [Link][example]"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -86,7 +90,10 @@ mod tests {
 
     #[test]
     fn test_unused_definition() {
-        let content = "[unused]: https://example.com\n\nSome text without links.";
+        let content = indoc! {"
+            [unused]: https://example.com
+
+            Some text without links."};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -97,7 +104,11 @@ mod tests {
 
     #[test]
     fn test_multiple_definitions() {
-        let content = "[used]: https://example.com\n[unused]: https://other.com\n\n[Link][used]";
+        let content = indoc! {"
+            [used]: https://example.com
+            [unused]: https://other.com
+
+            [Link][used]"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -108,7 +119,10 @@ mod tests {
 
     #[test]
     fn test_image_reference() {
-        let content = "[img]: image.png\n\n![Alt][img]";
+        let content = indoc! {"
+            [img]: image.png
+
+            ![Alt][img]"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -118,7 +132,11 @@ mod tests {
 
     #[test]
     fn test_all_used() {
-        let content = "[link1]: url1\n[link2]: url2\n\n[A][link1] [B][link2]";
+        let content = indoc! {"
+            [link1]: url1
+            [link2]: url2
+
+            [A][link1] [B][link2]"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -128,7 +146,12 @@ mod tests {
 
     #[test]
     fn test_shortcut_reference_used() {
-        let content = "Here a [reference] is used.\n\nAnd below it is defined:\n\n[reference]: https://example.com/";
+        let content = indoc! {"
+            Here a [reference] is used.
+
+            And below it is defined:
+
+            [reference]: https://example.com/"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -138,7 +161,10 @@ mod tests {
 
     #[test]
     fn test_collapsed_reference_used() {
-        let content = "[link]: https://example.com\n\n[Link][]";
+        let content = indoc! {"
+            [link]: https://example.com
+
+            [Link][]"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);
@@ -150,7 +176,16 @@ mod tests {
     fn test_shortcut_reference_used_multiple_times() {
         // Regression: [Textual] used twice, definition at end — MD053 must not
         // flag it as unused.
-        let content = "# Title\n\n[Textual] is great.\n\nMore text.\n\n[Textual] again.\n\n[Textual]: https://textual.textualize.io/";
+        let content = indoc! {"
+            # Title
+
+            [Textual] is great.
+
+            More text.
+
+            [Textual] again.
+
+            [Textual]: https://textual.textualize.io/"};
         let parser = MarkdownParser::new(content);
         let rule = MD053;
         let violations = rule.check(&parser, None);

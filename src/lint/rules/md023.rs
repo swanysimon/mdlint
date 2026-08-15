@@ -72,6 +72,7 @@ impl Rule for MD023 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -82,7 +83,10 @@ mod tests {
 
     #[test]
     fn test_correct_headings() {
-        let content = "# Heading 1\n## Heading 2\n### Heading 3";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2
+            ### Heading 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD023;
         let violations = rule.check(&parser, None);
@@ -138,12 +142,23 @@ mod tests {
 
     #[test]
     fn test_fix_removes_leading_whitespace() {
-        let content = " # Indented heading\n\nParagraph.\n";
+        let content = indoc! {"
+             # Indented heading
+
+            Paragraph.
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD023;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 1);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "# Indented heading\n\nParagraph.\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                # Indented heading
+
+                Paragraph.
+            "}
+        );
     }
 }

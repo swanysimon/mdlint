@@ -1,3 +1,4 @@
+use indoc::indoc;
 use mdlint::formatter;
 use std::fs;
 use std::process::{Command, Stdio};
@@ -36,19 +37,51 @@ fn mdlint_bin() -> std::path::PathBuf {
 #[test]
 fn setext_headings_become_atx() {
     assert_formats_to(
-        "Title\n=====\n\nSection\n-------\n",
-        "# Title\n\n## Section\n",
+        indoc! {"
+            Title
+            =====
+
+            Section
+            -------
+        "},
+        indoc! {"
+            # Title
+
+            ## Section
+        "},
     );
 }
 
 #[test]
 fn closed_atx_headings_stripped() {
-    assert_formats_to("## Heading ##\n\n### Sub ###\n", "## Heading\n\n### Sub\n");
+    assert_formats_to(
+        indoc! {"
+            ## Heading ##
+
+            ### Sub ###
+        "},
+        indoc! {"
+            ## Heading
+
+            ### Sub
+        "},
+    );
 }
 
 #[test]
 fn extra_spaces_after_hash_collapsed() {
-    assert_formats_to("#  Too many\n\n###   Lots\n", "# Too many\n\n### Lots\n");
+    assert_formats_to(
+        indoc! {"
+            #  Too many
+
+            ###   Lots
+        "},
+        indoc! {"
+            # Too many
+
+            ### Lots
+        "},
+    );
 }
 
 #[test]
@@ -57,18 +90,51 @@ fn asterisk_and_plus_list_markers_become_dash() {
     // HTML comment separator is inserted so they don't merge into a single
     // list (and become loose) on the second format pass.
     assert_formats_to(
-        "* Alpha\n* Beta\n\n+ Gamma\n+ Delta\n",
-        "- Alpha\n- Beta\n\n<!---->\n\n- Gamma\n- Delta\n",
+        indoc! {"
+            * Alpha
+            * Beta
+
+            + Gamma
+            + Delta
+        "},
+        indoc! {"
+            - Alpha
+            - Beta
+
+            <!---->
+
+            - Gamma
+            - Delta
+        "},
     );
 }
 
 #[test]
 fn tilde_code_fences_become_backtick() {
     assert_formats_to(
-        "~~~rust\nfn main() {}\n~~~\n",
-        "```rust\nfn main() {}\n```\n",
+        indoc! {"
+            ~~~rust
+            fn main() {}
+            ~~~
+        "},
+        indoc! {"
+            ```rust
+            fn main() {}
+            ```
+        "},
     );
-    assert_formats_to("~~~\nplain\n~~~\n", "```\nplain\n```\n");
+    assert_formats_to(
+        indoc! {"
+            ~~~
+            plain
+            ~~~
+        "},
+        indoc! {"
+            ```
+            plain
+            ```
+        "},
+    );
 }
 
 #[test]
@@ -86,7 +152,20 @@ fn horizontal_rules_normalised_to_dashes() {
 
 #[test]
 fn multiple_blank_lines_collapsed() {
-    assert_formats_to("First.\n\n\n\nSecond.\n", "First.\n\nSecond.\n");
+    assert_formats_to(
+        indoc! {"
+            First.
+
+
+
+            Second.
+        "},
+        indoc! {"
+            First.
+
+            Second.
+        "},
+    );
 }
 
 #[test]
@@ -106,8 +185,24 @@ fn trailing_whitespace_removed() {
 #[test]
 fn trailing_newline_normalised() {
     assert!(formatter::format("text").ends_with('\n'));
-    assert!(formatter::format("text\n\n\n").ends_with('\n'));
-    assert_eq!(formatter::format("text\n\n\n").matches('\n').count(), 1);
+    assert!(
+        formatter::format(indoc! {"
+            text
+
+
+        "})
+        .ends_with('\n')
+    );
+    assert_eq!(
+        formatter::format(indoc! {"
+            text
+
+
+        "})
+        .matches('\n')
+        .count(),
+        1
+    );
 }
 
 #[test]
@@ -121,8 +216,18 @@ fn empty_input_produces_empty_output() {
 #[test]
 fn nested_lists_preserved() {
     assert_formats_to(
-        "- Top\n  - Nested\n    - Deep\n- Back\n",
-        "- Top\n  - Nested\n    - Deep\n- Back\n",
+        indoc! {"
+            - Top
+              - Nested
+                - Deep
+            - Back
+        "},
+        indoc! {"
+            - Top
+              - Nested
+                - Deep
+            - Back
+        "},
     );
 }
 
@@ -134,23 +239,52 @@ fn nested_ordered_list_under_bullet_item_stays_tight() {
     // lines around it. This canonical form must pass `mdlint check` (MD032)
     // cleanly — see the matching MD032 tests in src/lint/rules/md032.rs.
     assert_formats_to(
-        "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n",
-        "# Example\n\n- First item:\n  1. One\n  2. Two\n- Second item\n",
+        indoc! {"
+            # Example
+
+            - First item:
+
+              1. One
+              2. Two
+
+            - Second item
+        "},
+        indoc! {"
+            # Example
+
+            - First item:
+              1. One
+              2. Two
+            - Second item
+        "},
     );
 }
 
 #[test]
 fn ordered_list_preserved() {
     assert_formats_to(
-        "1. First\n2. Second\n3. Third\n",
-        "1. First\n2. Second\n3. Third\n",
+        indoc! {"
+            1. First
+            2. Second
+            3. Third
+        "},
+        indoc! {"
+            1. First
+            2. Second
+            3. Third
+        "},
     );
 }
 
 #[test]
 fn code_block_content_preserved_verbatim() {
     // Tabs and unusual indentation inside code blocks must survive unchanged.
-    let input = "```\n\tindented with tab\n    four spaces\n```\n";
+    let input = indoc! {"
+        ```
+        \tindented with tab
+            four spaces
+        ```
+    "};
     assert_formats_to(input, input);
 }
 
@@ -173,8 +307,16 @@ fn link_and_image_preserved() {
 #[test]
 fn blockquote_preserved() {
     assert_formats_to(
-        "> quoted\n>\n> second para\n",
-        "> quoted\n>\n> second para\n",
+        indoc! {"
+            > quoted
+            >
+            > second para
+        "},
+        indoc! {"
+            > quoted
+            >
+            > second para
+        "},
     );
 }
 
@@ -182,14 +324,26 @@ fn blockquote_preserved() {
 fn gfm_table_canonicalised() {
     // Input without leading/trailing pipes → output with them
     assert_formats_to(
-        "A | B\n--- | ---\n1 | 2\n",
-        "| A | B |\n| --- | --- |\n| 1 | 2 |\n",
+        indoc! {"
+            A | B
+            --- | ---
+            1 | 2
+        "},
+        indoc! {"
+            | A | B |
+            | --- | --- |
+            | 1 | 2 |
+        "},
     );
 }
 
 #[test]
 fn gfm_table_already_canonical_unchanged() {
-    let canonical = "| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+    let canonical = indoc! {"
+        | A | B |
+        | --- | --- |
+        | 1 | 2 |
+    "};
     assert_formats_to(canonical, canonical);
 }
 
@@ -198,8 +352,14 @@ fn list_item_continuation_indented() {
     // A soft-wrapped list item must keep its continuation indented so the
     // linter does not mistake it for a paragraph outside the list.
     assert_formats_to(
-        "- First line\n  continuation here\n",
-        "- First line\n  continuation here\n",
+        indoc! {"
+            - First line
+              continuation here
+        "},
+        indoc! {"
+            - First line
+              continuation here
+        "},
     );
 }
 
@@ -207,12 +367,29 @@ fn list_item_continuation_indented() {
 
 #[test]
 fn idempotent_on_mixed_document() {
-    let input = "# Title\n\nIntro paragraph.\n\n## Section\n\n\
-                 - Item one\n- Item two\n  - Nested\n\n\
-                 ```rust\nfn main() {}\n```\n\n\
-                 | Col A | Col B |\n| ----- | ----- |\n| val   | val   |\n\n\
-                 > A blockquote\n\n\
-                 Final paragraph.\n";
+    let input = indoc! {"
+        # Title
+
+        Intro paragraph.
+
+        ## Section
+
+        - Item one
+        - Item two
+          - Nested
+
+        ```rust
+        fn main() {}
+        ```
+
+        | Col A | Col B |
+        | ----- | ----- |
+        | val   | val   |
+
+        > A blockquote
+
+        Final paragraph.
+    "};
     let once = formatter::format(input);
     let twice = formatter::format(&once);
     assert_eq!(once, twice, "formatter is not idempotent on mixed document");
@@ -225,7 +402,12 @@ fn format_check_does_not_modify_file() {
     // `format --check` must never write to disk even when changes are needed.
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("doc.md");
-    let original = "Heading\n=======\n\n* item\n";
+    let original = indoc! {"
+        Heading
+        =======
+
+        * item
+    "};
     fs::write(&file, original).unwrap();
 
     Command::new(mdlint_bin())
@@ -243,7 +425,15 @@ fn format_check_does_not_modify_file() {
 fn format_check_exits_0_when_already_formatted() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("clean.md");
-    fs::write(&file, "# Heading\n\nParagraph.\n").unwrap();
+    fs::write(
+        &file,
+        indoc! {"
+            # Heading
+
+            Paragraph.
+        "},
+    )
+    .unwrap();
 
     let status = Command::new(mdlint_bin())
         .args(["format", "--check", file.to_str().unwrap()])
@@ -262,7 +452,16 @@ fn format_check_exits_0_when_already_formatted() {
 fn format_check_exits_1_when_file_needs_formatting() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("dirty.md");
-    fs::write(&file, "Heading\n=======\n\nParagraph.\n").unwrap();
+    fs::write(
+        &file,
+        indoc! {"
+            Heading
+            =======
+
+            Paragraph.
+        "},
+    )
+    .unwrap();
 
     let status = Command::new(mdlint_bin())
         .args(["format", "--check", file.to_str().unwrap()])
@@ -282,7 +481,16 @@ fn format_check_exits_1_when_file_needs_formatting() {
 fn format_rewrites_file_in_place() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("doc.md");
-    fs::write(&file, "Heading\n=======\n\n* item\n").unwrap();
+    fs::write(
+        &file,
+        indoc! {"
+            Heading
+            =======
+
+            * item
+        "},
+    )
+    .unwrap();
 
     let status = Command::new(mdlint_bin())
         .args(["format", file.to_str().unwrap()])
@@ -293,7 +501,14 @@ fn format_rewrites_file_in_place() {
 
     assert!(status.success());
     let result = fs::read_to_string(&file).unwrap();
-    assert_eq!(result, "# Heading\n\n- item\n");
+    assert_eq!(
+        result,
+        indoc! {"
+            # Heading
+
+            - item
+        "}
+    );
 }
 
 // ── `mdlint check` CLI ───────────────────────────────────────────────────────
@@ -304,7 +519,14 @@ fn check_without_fix_does_not_modify_file() {
     // We supply an explicit config because the default has `fix = true`.
     let dir = TempDir::new().unwrap();
     let config = dir.path().join("mdlint.toml");
-    fs::write(&config, "default_enabled = true\nfix = false\n").unwrap();
+    fs::write(
+        &config,
+        indoc! {"
+            default_enabled = true
+            fix = false
+        "},
+    )
+    .unwrap();
     let file = dir.path().join("doc.md");
     let content = "# Heading\n\nTrailing spaces.   \n";
     fs::write(&file, content).unwrap();
@@ -350,7 +572,12 @@ fn check_with_fix_corrects_violations_and_exits_1() {
     );
     let after = fs::read_to_string(&file).unwrap();
     assert_eq!(
-        after, "# Heading\n\nTrailing spaces.\n",
+        after,
+        indoc! {"
+            # Heading
+
+            Trailing spaces.
+        "},
         "trailing spaces should be removed by --fix"
     );
 }

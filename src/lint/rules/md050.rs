@@ -172,6 +172,7 @@ impl Rule for MD050 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_asterisk() {
@@ -219,9 +220,14 @@ mod tests {
 
     #[test]
     fn test_code_block_with_underscores() {
-        let content = "Some **bold** text.\n\n\
-            ```txt\n__tests__\n```\n\n\
-            More **bold** text.";
+        let content = indoc! {"
+            Some **bold** text.
+
+            ```txt
+            __tests__
+            ```
+
+            More **bold** text."};
         let parser = MarkdownParser::new(content);
         let rule = MD050;
         let violations = rule.check(&parser, None);

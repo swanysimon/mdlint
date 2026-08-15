@@ -94,10 +94,14 @@ impl Rule for MD041 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_starts_with_h1() {
-        let content = "# Heading\n\nContent";
+        let content = indoc! {"
+            # Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD041;
         let violations = rule.check(&parser, None);
@@ -107,7 +111,10 @@ mod tests {
 
     #[test]
     fn test_starts_with_text() {
-        let content = "Some text\n\n# Heading";
+        let content = indoc! {"
+            Some text
+
+            # Heading"};
         let parser = MarkdownParser::new(content);
         let rule = MD041;
         let violations = rule.check(&parser, None);
@@ -117,7 +124,10 @@ mod tests {
 
     #[test]
     fn test_starts_with_h2() {
-        let content = "## Heading\n\nContent";
+        let content = indoc! {"
+            ## Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD041;
         let violations = rule.check(&parser, None);
@@ -127,7 +137,12 @@ mod tests {
 
     #[test]
     fn test_blank_lines_before_heading() {
-        let content = "\n\n# Heading\n\nContent";
+        let content = indoc! {"
+
+
+            # Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD041;
         let violations = rule.check(&parser, None);

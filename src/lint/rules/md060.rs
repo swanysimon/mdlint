@@ -124,10 +124,14 @@ fn parse_alignments(line: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_alignment() {
-        let content = "| A | B |\n|---|---|\n| 1 | 2 |";
+        let content = indoc! {"
+            | A | B |
+            |---|---|
+            | 1 | 2 |"};
         let parser = MarkdownParser::new(content);
         let rule = MD060;
         let violations = rule.check(&parser, None);
@@ -137,7 +141,10 @@ mod tests {
 
     #[test]
     fn test_mixed_alignment() {
-        let content = "| A | B | C |\n|:--|--:|:--:|\n| 1 | 2 | 3 |";
+        let content = indoc! {"
+            | A | B | C |
+            |:--|--:|:--:|
+            | 1 | 2 | 3 |"};
         let parser = MarkdownParser::new(content);
         let rule = MD060;
         let violations = rule.check(&parser, None);
@@ -148,7 +155,10 @@ mod tests {
 
     #[test]
     fn test_enforced_left() {
-        let content = "| A | B |\n|:--|--:|\n| 1 | 2 |";
+        let content = indoc! {"
+            | A | B |
+            |:--|--:|
+            | 1 | 2 |"};
         let parser = MarkdownParser::new(content);
         let rule = MD060;
         let config = serde_json::json!({ "style": "left" });
@@ -159,7 +169,10 @@ mod tests {
 
     #[test]
     fn test_enforced_default() {
-        let content = "| A | B |\n|---|:--|\n| 1 | 2 |";
+        let content = indoc! {"
+            | A | B |
+            |---|:--|
+            | 1 | 2 |"};
         let parser = MarkdownParser::new(content);
         let rule = MD060;
         let config = serde_json::json!({ "style": "default" });

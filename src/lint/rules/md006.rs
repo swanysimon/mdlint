@@ -32,6 +32,7 @@ impl Rule for MD006 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_list_at_start() {
@@ -67,7 +68,10 @@ mod tests {
 
     #[test]
     fn test_mixed() {
-        let content = "* Good\n  * Nested (violation)\n+ Also good";
+        let content = indoc! {"
+            * Good
+              * Nested (violation)
+            + Also good"};
         let parser = MarkdownParser::new(content);
         let rule = MD006;
         let violations = rule.check(&parser, None);

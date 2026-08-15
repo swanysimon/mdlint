@@ -72,10 +72,16 @@ pub fn strip_front_matter(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_detect_yaml_front_matter() {
-        let content = "---\ntitle: Test\nauthor: John\n---\n# Heading";
+        let content = indoc! {"
+            ---
+            title: Test
+            author: John
+            ---
+            # Heading"};
         let fm = detect_front_matter(content).unwrap();
 
         assert_eq!(fm.matter_type, FrontMatterType::Yaml);
@@ -85,7 +91,12 @@ mod tests {
 
     #[test]
     fn test_detect_toml_front_matter() {
-        let content = "+++\ntitle = \"Test\"\nauthor = \"John\"\n+++\n# Heading";
+        let content = indoc! {"
+            +++
+            title = \"Test\"
+            author = \"John\"
+            +++
+            # Heading"};
         let fm = detect_front_matter(content).unwrap();
 
         assert_eq!(fm.matter_type, FrontMatterType::Toml);
@@ -101,13 +112,21 @@ mod tests {
 
     #[test]
     fn test_incomplete_front_matter() {
-        let content = "---\ntitle: Test\n# Heading";
+        let content = indoc! {"
+            ---
+            title: Test
+            # Heading"};
         assert!(detect_front_matter(content).is_none());
     }
 
     #[test]
     fn test_strip_front_matter() {
-        let content = "---\ntitle: Test\n---\n# Heading\nContent";
+        let content = indoc! {"
+            ---
+            title: Test
+            ---
+            # Heading
+            Content"};
         let stripped = strip_front_matter(content);
 
         assert_eq!(stripped, "# Heading\nContent");

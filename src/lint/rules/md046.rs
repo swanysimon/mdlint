@@ -107,10 +107,18 @@ impl Rule for MD046 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_fenced() {
-        let content = "```\ncode1\n```\n\n```\ncode2\n```";
+        let content = indoc! {"
+            ```
+            code1
+            ```
+
+            ```
+            code2
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD046;
         let violations = rule.check(&parser, None);
@@ -131,7 +139,12 @@ mod tests {
 
     #[test]
     fn test_inconsistent() {
-        let content = "```\ncode1\n```\n\n    code2";
+        let content = indoc! {"
+            ```
+            code1
+            ```
+
+                code2"};
         let parser = MarkdownParser::new(content);
         let rule = MD046;
         let violations = rule.check(&parser, None);

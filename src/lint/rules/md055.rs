@@ -175,10 +175,14 @@ impl Rule for MD055 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_with_pipes() {
-        let content = "| Col1 | Col2 |\n|------|------|\n| A    | B    |";
+        let content = indoc! {"
+            | Col1 | Col2 |
+            |------|------|
+            | A    | B    |"};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let violations = rule.check(&parser, None);
@@ -188,7 +192,10 @@ mod tests {
 
     #[test]
     fn test_consistent_without_pipes() {
-        let content = "Col1 | Col2\n-----|-----\nA    | B";
+        let content = indoc! {"
+            Col1 | Col2
+            -----|-----
+            A    | B"};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let config = serde_json::json!({ "style": "consistent" });
@@ -199,7 +206,10 @@ mod tests {
 
     #[test]
     fn test_inconsistent_pipes() {
-        let content = "| Col1 | Col2 |\n|------|------|\nA    | B";
+        let content = indoc! {"
+            | Col1 | Col2 |
+            |------|------|
+            A    | B"};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let violations = rule.check(&parser, None);
@@ -210,7 +220,10 @@ mod tests {
 
     #[test]
     fn test_enforced_leading_and_trailing() {
-        let content = "Col1 | Col2\n-----|-----\nA | B";
+        let content = indoc! {"
+            Col1 | Col2
+            -----|-----
+            A | B"};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let config = serde_json::json!({ "style": "leading_and_trailing" });
@@ -222,7 +235,10 @@ mod tests {
 
     #[test]
     fn test_simple_table() {
-        let content = "| Header |\n| ------ |\n| Cell   |";
+        let content = indoc! {"
+            | Header |
+            | ------ |
+            | Cell   |"};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let violations = rule.check(&parser, None);
@@ -233,7 +249,10 @@ mod tests {
     #[test]
     fn test_pipe_only_in_inline_code_span_ignored() {
         // https://github.com/swanysimon/mdlint/issues/65
-        let content = "# Example\n\nThis is a line with an `a | b` inline code span.";
+        let content = indoc! {"
+            # Example
+
+            This is a line with an `a | b` inline code span."};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let violations = rule.check(&parser, None);
@@ -245,7 +264,10 @@ mod tests {
     fn test_real_table_with_code_span_pipe_still_flagged() {
         // A genuine table row whose leading/trailing pipes are real, even
         // though it also contains a code span with an internal pipe.
-        let content = "Col1 | `a|b`\n-----|-----\nA | B";
+        let content = indoc! {"
+            Col1 | `a|b`
+            -----|-----
+            A | B"};
         let parser = MarkdownParser::new(content);
         let rule = MD055;
         let config = serde_json::json!({ "style": "leading_and_trailing" });

@@ -76,6 +76,7 @@ fn parse_toml_config(content: &str, _path: &Path) -> Result<Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -106,13 +107,14 @@ style = "atx"
         let mut file = fs::File::create(&config_path).unwrap();
         write!(
             file,
-            "
-gitignore = true
-default_enabled = true
+            indoc! {"
 
-[rules.MD013]
-line_length = 80
-"
+                gitignore = true
+                default_enabled = true
+
+                [rules.MD013]
+                line_length = 80
+            "}
         )
         .unwrap();
 

@@ -88,6 +88,7 @@ impl Rule for MD011 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_correct_link_syntax() {
@@ -144,7 +145,11 @@ mod tests {
     #[test]
     fn test_task_list_checkbox_not_flagged() {
         // (text)[ ] should not be flagged — the [ ] is a GFM task list checkbox
-        let content = "- [ ] Task item\n- [x] Done task\n- (description)[ ] another task\n";
+        let content = indoc! {"
+            - [ ] Task item
+            - [x] Done task
+            - (description)[ ] another task
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD011;
         let violations = rule.check(&parser, None);
@@ -154,15 +159,16 @@ mod tests {
 
     #[test]
     fn test_code_block_not_flagged() {
-        let content = "# Code Example
+        let content = indoc! {"
+            # Code Example
 
-```python
-result = function(param)[index]
-data = array(0)[key]
-```
+            ```python
+            result = function(param)[index]
+            data = array(0)[key]
+            ```
 
-This (is)[wrong] though.
-";
+            This (is)[wrong] though.
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD011;
         let violations = rule.check(&parser, None);

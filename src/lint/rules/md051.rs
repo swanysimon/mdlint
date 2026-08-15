@@ -134,10 +134,14 @@ fn heading_to_id(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_valid_fragment() {
-        let content = "# Introduction\n\nSee [intro](#introduction) for more.";
+        let content = indoc! {"
+            # Introduction
+
+            See [intro](#introduction) for more."};
         let parser = MarkdownParser::new(content);
         let rule = MD051;
         let violations = rule.check(&parser, None);
@@ -147,7 +151,10 @@ mod tests {
 
     #[test]
     fn test_invalid_fragment() {
-        let content = "# Introduction\n\nSee [wrong](#nonexistent) for more.";
+        let content = indoc! {"
+            # Introduction
+
+            See [wrong](#nonexistent) for more."};
         let parser = MarkdownParser::new(content);
         let rule = MD051;
         let violations = rule.check(&parser, None);
@@ -158,7 +165,12 @@ mod tests {
 
     #[test]
     fn test_multiple_headings() {
-        let content = "# One\n## Two\n### Three\n\n[Link](#two)";
+        let content = indoc! {"
+            # One
+            ## Two
+            ### Three
+
+            [Link](#two)"};
         let parser = MarkdownParser::new(content);
         let rule = MD051;
         let violations = rule.check(&parser, None);
@@ -168,7 +180,10 @@ mod tests {
 
     #[test]
     fn test_heading_with_spaces() {
-        let content = "# Hello World\n\n[Link](#hello-world)";
+        let content = indoc! {"
+            # Hello World
+
+            [Link](#hello-world)"};
         let parser = MarkdownParser::new(content);
         let rule = MD051;
         let violations = rule.check(&parser, None);
@@ -178,7 +193,10 @@ mod tests {
 
     #[test]
     fn test_external_links_ignored() {
-        let content = "# Section\n\n[External](https://example.com#anything)";
+        let content = indoc! {"
+            # Section
+
+            [External](https://example.com#anything)"};
         let parser = MarkdownParser::new(content);
         let rule = MD051;
         let violations = rule.check(&parser, None);

@@ -58,10 +58,14 @@ impl Rule for MD025 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_single_h1() {
-        let content = "# Title\n## Section\n### Subsection";
+        let content = indoc! {"
+            # Title
+            ## Section
+            ### Subsection"};
         let parser = MarkdownParser::new(content);
         let rule = MD025;
         let violations = rule.check(&parser, None);
@@ -71,7 +75,10 @@ mod tests {
 
     #[test]
     fn test_multiple_h1() {
-        let content = "# First Title\n## Section\n# Second Title";
+        let content = indoc! {"
+            # First Title
+            ## Section
+            # Second Title"};
         let parser = MarkdownParser::new(content);
         let rule = MD025;
         let violations = rule.check(&parser, None);
@@ -82,7 +89,10 @@ mod tests {
 
     #[test]
     fn test_three_h1() {
-        let content = "# First\n# Second\n# Third";
+        let content = indoc! {"
+            # First
+            # Second
+            # Third"};
         let parser = MarkdownParser::new(content);
         let rule = MD025;
         let violations = rule.check(&parser, None);

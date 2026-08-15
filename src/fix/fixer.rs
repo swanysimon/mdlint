@@ -225,10 +225,14 @@ fn apply_single_fix(lines: &mut Vec<String>, fix: &Fix) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_detect_line_ending_lf() {
-        let content = "line1\nline2\nline3";
+        let content = indoc! {"
+            line1
+            line2
+            line3"};
         assert_eq!(detect_line_ending(content), "\n");
     }
 
@@ -240,7 +244,10 @@ mod tests {
 
     #[test]
     fn test_apply_single_line_fix() {
-        let content = "line 1\nline 2\nline 3";
+        let content = indoc! {"
+            line 1
+            line 2
+            line 3"};
         let fix = Fix {
             line_start: 2,
             line_end: 2,
@@ -252,7 +259,13 @@ mod tests {
 
         let fixer = Fixer::new();
         let result = fixer.apply_fixes_to_content(content, &[fix]).unwrap();
-        assert_eq!(result, "line 1\nREPLACED\nline 3");
+        assert_eq!(
+            result,
+            indoc! {"
+                line 1
+                REPLACED
+                line 3"}
+        );
     }
 
     #[test]
@@ -274,7 +287,10 @@ mod tests {
 
     #[test]
     fn test_multiple_fixes_reverse_order() {
-        let content = "line 1\nline 2\nline 3";
+        let content = indoc! {"
+            line 1
+            line 2
+            line 3"};
         let fixes = vec![
             Fix {
                 line_start: 1,
@@ -296,7 +312,13 @@ mod tests {
 
         let runner = Fixer::new();
         let result = runner.apply_fixes_to_content(content, &fixes).unwrap();
-        assert_eq!(result, "FIRST\nline 2\nTHIRD");
+        assert_eq!(
+            result,
+            indoc! {"
+                FIRST
+                line 2
+                THIRD"}
+        );
     }
 
     #[test]

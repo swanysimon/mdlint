@@ -69,10 +69,15 @@ fn heading_level_to_u8(level: HeadingLevel) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_no_skipped_levels() {
-        let content = "# Heading 1\n## Heading 2\n### Heading 3\n## Heading 2 again";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2
+            ### Heading 3
+            ## Heading 2 again"};
         let parser = MarkdownParser::new(content);
         let rule = MD001;
         let violations = rule.check(&parser, None);
@@ -94,7 +99,11 @@ mod tests {
 
     #[test]
     fn test_multiple_skips() {
-        let content = "# H1\n#### H4 - skipped 2 levels\n## H2\n##### H5 - skipped h3 and h4";
+        let content = indoc! {"
+            # H1
+            #### H4 - skipped 2 levels
+            ## H2
+            ##### H5 - skipped h3 and h4"};
         let parser = MarkdownParser::new(content);
         let rule = MD001;
         let violations = rule.check(&parser, None);
@@ -106,7 +115,12 @@ mod tests {
 
     #[test]
     fn test_decreasing_levels_ok() {
-        let content = "# H1\n## H2\n### H3\n## H2 back\n# H1 back";
+        let content = indoc! {"
+            # H1
+            ## H2
+            ### H3
+            ## H2 back
+            # H1 back"};
         let parser = MarkdownParser::new(content);
         let rule = MD001;
         let violations = rule.check(&parser, None);
@@ -117,7 +131,10 @@ mod tests {
     #[test]
     fn test_start_with_h2() {
         // Starting with h2 is allowed (no previous heading to compare to)
-        let content = "## H2 first\n### H3\n## H2 again";
+        let content = indoc! {"
+            ## H2 first
+            ### H3
+            ## H2 again"};
         let parser = MarkdownParser::new(content);
         let rule = MD001;
         let violations = rule.check(&parser, None);

@@ -1,3 +1,4 @@
+use indoc::indoc;
 use mdlint::config::{Config, RuleConfig};
 use mdlint::fix::Fixer;
 use mdlint::formatter;
@@ -83,7 +84,15 @@ fn check_fix_removes_trailing_spaces() {
     let result = Fixer::new()
         .apply_fixes_to_content(content, &fixes)
         .unwrap();
-    assert_eq!(result, "# Heading\n\nSome text\nMore text\n");
+    assert_eq!(
+        result,
+        indoc! {"
+            # Heading
+
+            Some text
+            More text
+        "}
+    );
 }
 
 #[test]
@@ -99,7 +108,11 @@ fn check_detects_hard_tabs() {
 
 #[test]
 fn check_fix_replaces_hard_tabs() {
-    let content = "# Heading\n\n\tTabbed line\n";
+    let content = indoc! {"
+        # Heading
+
+        \tTabbed line
+    "};
     let engine = all_rules_engine();
     let violations = engine.lint_content(content).unwrap();
     let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -118,7 +131,16 @@ fn format_output_for_nested_list_passes_check() {
     // (intended, canonical behavior), but MD032 then misjudged the nested,
     // differently-marked sub-list as a set of separate top-level lists,
     // reporting spurious violations on the formatter's own output.
-    let content = "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n";
+    let content = indoc! {"
+        # Example
+
+        - First item:
+
+          1. One
+          2. Two
+
+        - Second item
+    "};
     let formatted = formatter::format(content);
     let engine = all_rules_engine();
     let violations = engine.lint_content(&formatted).unwrap();
@@ -159,7 +181,13 @@ fn check_clean_file_has_no_violations() {
 fn select_restricts_check_to_named_rule() {
     // Line has both a heading-level skip (MD001) and a hard tab (MD010); --select MD001
     // should report only MD001.
-    let content = "# Heading\n\n### Skipped level\n\n\tTabbed line\n";
+    let content = indoc! {"
+        # Heading
+
+        ### Skipped level
+
+        \tTabbed line
+    "};
     let config = Config::default().apply_rule_filters(&["MD001".to_owned()], &[]);
     let violations = LintEngine::new(config).lint_content(content).unwrap();
     assert!(violations.iter().any(|v| v.rule == "MD001"));
@@ -168,7 +196,13 @@ fn select_restricts_check_to_named_rule() {
 
 #[test]
 fn ignore_excludes_named_rule_only() {
-    let content = "# Heading\n\n### Skipped level\n\n\tTabbed line\n";
+    let content = indoc! {"
+        # Heading
+
+        ### Skipped level
+
+        \tTabbed line
+    "};
     let config = Config::default().apply_rule_filters(&[], &["MD010".to_owned()]);
     let violations = LintEngine::new(config).lint_content(content).unwrap();
     assert!(violations.iter().any(|v| v.rule == "MD001"));

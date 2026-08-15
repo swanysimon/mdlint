@@ -819,6 +819,7 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     /// Assert that `input` formats to `expected` AND that `expected` is already
     /// canonical (formatting it again produces no change — the "not-fix" side).
@@ -856,52 +857,119 @@ mod tests {
 
     #[test]
     fn test_heading_and_paragraph() {
-        let input = "# Title\n\nSome text.";
+        let input = indoc! {"
+            # Title
+
+            Some text."};
         let output = format(input);
-        assert_eq!(output, "# Title\n\nSome text.\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                # Title
+
+                Some text.
+            "}
+        );
     }
 
     #[test]
     fn test_multiple_paragraphs() {
-        let input = "First paragraph.\n\nSecond paragraph.";
+        let input = indoc! {"
+            First paragraph.
+
+            Second paragraph."};
         let output = format(input);
-        assert_eq!(output, "First paragraph.\n\nSecond paragraph.\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                First paragraph.
+
+                Second paragraph.
+            "}
+        );
     }
 
     #[test]
     fn test_fenced_code_block() {
-        let input = "```rust\nlet x = 1;\n```";
+        let input = indoc! {"
+            ```rust
+            let x = 1;
+            ```"};
         let output = format(input);
-        assert_eq!(output, "```rust\nlet x = 1;\n```\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                ```rust
+                let x = 1;
+                ```
+            "}
+        );
     }
 
     #[test]
     fn test_code_block_no_lang() {
-        let input = "```\ncode here\n```";
+        let input = indoc! {"
+            ```
+            code here
+            ```"};
         let output = format(input);
-        assert_eq!(output, "```\ncode here\n```\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                ```
+                code here
+                ```
+            "}
+        );
     }
 
     #[test]
     fn test_unordered_list() {
-        let input = "- Item 1\n- Item 2\n- Item 3";
+        let input = indoc! {"
+            - Item 1
+            - Item 2
+            - Item 3"};
         let output = format(input);
-        assert_eq!(output, "- Item 1\n- Item 2\n- Item 3\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                - Item 1
+                - Item 2
+                - Item 3
+            "}
+        );
     }
 
     #[test]
     fn test_ordered_list() {
-        let input = "1. First\n2. Second\n3. Third";
+        let input = indoc! {"
+            1. First
+            2. Second
+            3. Third"};
         let output = format(input);
-        assert_eq!(output, "1. First\n2. Second\n3. Third\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                1. First
+                2. Second
+                3. Third
+            "}
+        );
     }
 
     #[test]
     fn test_ordered_list_all_ones_renumbered() {
         // "one" style (1. / 1. / 1.) is canonicalized to sequential.
         assert_formats_to(
-            "1. First\n1. Second\n1. Third",
-            "1. First\n2. Second\n3. Third\n",
+            indoc! {"
+                1. First
+                1. Second
+                1. Third"},
+            indoc! {"
+                1. First
+                2. Second
+                3. Third
+            "},
         );
     }
 
@@ -909,8 +977,15 @@ mod tests {
     fn test_ordered_list_non_one_start_renumbered() {
         // Lists starting at a number other than 1 are renumbered from 1.
         assert_formats_to(
-            "3. First\n5. Second\n9. Third",
-            "1. First\n2. Second\n3. Third\n",
+            indoc! {"
+                3. First
+                5. Second
+                9. Third"},
+            indoc! {"
+                1. First
+                2. Second
+                3. Third
+            "},
         );
     }
 
@@ -940,23 +1015,57 @@ mod tests {
 
     #[test]
     fn test_blank_line_between_heading_and_code() {
-        let input = "# Heading\n\n```\ncode\n```";
+        let input = indoc! {"
+            # Heading
+
+            ```
+            code
+            ```"};
         let output = format(input);
-        assert_eq!(output, "# Heading\n\n```\ncode\n```\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                # Heading
+
+                ```
+                code
+                ```
+            "}
+        );
     }
 
     #[test]
     fn test_blank_line_between_list_and_paragraph() {
-        let input = "- item\n\nAfter list.";
+        let input = indoc! {"
+            - item
+
+            After list."};
         let output = format(input);
-        assert_eq!(output, "- item\n\nAfter list.\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                - item
+
+                After list.
+            "}
+        );
     }
 
     #[test]
     fn test_nested_list() {
-        let input = "- Item 1\n  - Nested\n- Item 2";
+        let input = indoc! {"
+            - Item 1
+              - Nested
+            - Item 2"};
         let output = format(input);
-        assert_eq!(output, "- Item 1\n  - Nested\n- Item 2\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                - Item 1
+                  - Nested
+                - Item 2
+            "}
+        );
     }
 
     #[test]
@@ -1054,14 +1163,38 @@ mod tests {
     // Blank lines: multiple consecutive blank lines collapsed to one
     #[test]
     fn test_multiple_blank_lines_collapsed() {
-        assert_formats_to("First.\n\n\n\nSecond.", "First.\n\nSecond.\n");
+        assert_formats_to(
+            indoc! {"
+                First.
+
+
+
+                Second."},
+            indoc! {"
+                First.
+
+                Second.
+            "},
+        );
     }
 
     // List markers: * and + → -
     #[test]
     fn test_list_markers_to_dash() {
-        assert_formats_to("* Item 1\n* Item 2", "- Item 1\n- Item 2\n");
-        assert_formats_to("+ Item 1\n+ Item 2", "- Item 1\n- Item 2\n");
+        assert_formats_to(
+            "* Item 1\n* Item 2",
+            indoc! {"
+                - Item 1
+                - Item 2
+            "},
+        );
+        assert_formats_to(
+            "+ Item 1\n+ Item 2",
+            indoc! {"
+                - Item 1
+                - Item 2
+            "},
+        );
     }
 
     // Emphasis: _ / __ → * / **
@@ -1074,8 +1207,28 @@ mod tests {
     // Code fences: ~~~ → ``` (with and without lang tag)
     #[test]
     fn test_tilde_fence_to_backtick() {
-        assert_formats_to("~~~rust\ncode\n~~~", "```rust\ncode\n```\n");
-        assert_formats_to("~~~\ncode\n~~~", "```\ncode\n```\n");
+        assert_formats_to(
+            indoc! {"
+                ~~~rust
+                code
+                ~~~"},
+            indoc! {"
+                ```rust
+                code
+                ```
+            "},
+        );
+        assert_formats_to(
+            indoc! {"
+                ~~~
+                code
+                ~~~"},
+            indoc! {"
+                ```
+                code
+                ```
+            "},
+        );
     }
 
     // Horizontal rules: all styles → ---
@@ -1099,17 +1252,38 @@ mod tests {
     // Tables
     #[test]
     fn test_simple_table() {
-        let input = "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n";
+        let input = indoc! {"
+            | A | B |
+            | --- | --- |
+            | 1 | 2 |
+            | 3 | 4 |
+        "};
         let output = format(input);
-        assert_eq!(output, "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n");
+        assert_eq!(
+            output,
+            indoc! {"
+                | A | B |
+                | --- | --- |
+                | 1 | 2 |
+                | 3 | 4 |
+            "}
+        );
     }
 
     #[test]
     fn test_table_no_leading_pipes() {
         // GFM allows tables without leading/trailing pipes
         assert_formats_to(
-            "A | B\n--- | ---\n1 | 2\n",
-            "| A | B |\n| --- | --- |\n| 1 | 2 |\n",
+            indoc! {"
+                A | B
+                --- | ---
+                1 | 2
+            "},
+            indoc! {"
+                | A | B |
+                | --- | --- |
+                | 1 | 2 |
+            "},
         );
     }
 
@@ -1117,7 +1291,11 @@ mod tests {
     fn test_table_idempotent() {
         // Proptest uses random strings and is unlikely to generate valid table
         // syntax, so this structural idempotency check is worth keeping explicitly.
-        let input = "| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+        let input = indoc! {"
+            | A | B |
+            | --- | --- |
+            | 1 | 2 |
+        "};
         let once = format(input);
         let twice = format(&once);
         assert_eq!(once, twice);
@@ -1125,21 +1303,41 @@ mod tests {
 
     #[test]
     fn test_table_with_inline_formatting() {
-        let input = "| **bold** | `code` |\n| --- | --- |\n| *em* | plain |\n";
+        let input = indoc! {"
+            | **bold** | `code` |
+            | --- | --- |
+            | *em* | plain |
+        "};
         let output = format(input);
         assert_eq!(
             output,
-            "| **bold** | `code` |\n| --- | --- |\n| *em* | plain |\n"
+            indoc! {"
+                | **bold** | `code` |
+                | --- | --- |
+                | *em* | plain |
+            "}
         );
     }
 
     #[test]
     fn test_table_followed_by_paragraph() {
-        let input = "| A | B |\n| --- | --- |\n| 1 | 2 |\n\nSome text.\n";
+        let input = indoc! {"
+            | A | B |
+            | --- | --- |
+            | 1 | 2 |
+
+            Some text.
+        "};
         let output = format(input);
         assert_eq!(
             output,
-            "| A | B |\n| --- | --- |\n| 1 | 2 |\n\nSome text.\n"
+            indoc! {"
+                | A | B |
+                | --- | --- |
+                | 1 | 2 |
+
+                Some text.
+            "}
         );
     }
 
@@ -1178,17 +1376,47 @@ mod tests {
     // keep the block inside the list item (3 spaces for `1. `, 2 for `- `).
     #[test]
     fn test_ordered_list_with_code_block() {
-        let canonical = "1. **Enable rule:**\n\n   ```toml\n   enabled = false\n   ```\n\n2. **Another item:**\n\n   ```toml\n   line_length = 100\n   ```\n";
+        let canonical = indoc! {"
+            1. **Enable rule:**
+
+               ```toml
+               enabled = false
+               ```
+
+            2. **Another item:**
+
+               ```toml
+               line_length = 100
+               ```
+        "};
         // Starting with `1. / 1.` triggers MD029 renumbering in the formatter.
         assert_formats_to(
-            "1. **Enable rule:**\n\n   ```toml\n   enabled = false\n   ```\n\n1. **Another item:**\n\n   ```toml\n   line_length = 100\n   ```\n",
+            indoc! {"
+                1. **Enable rule:**
+
+                   ```toml
+                   enabled = false
+                   ```
+
+                1. **Another item:**
+
+                   ```toml
+                   line_length = 100
+                   ```
+            "},
             canonical,
         );
     }
 
     #[test]
     fn test_unordered_list_with_code_block() {
-        let canonical = "- **Item:**\n\n  ```toml\n  enabled = false\n  ```\n";
+        let canonical = indoc! {"
+            - **Item:**
+
+              ```toml
+              enabled = false
+              ```
+        "};
         assert_formats_to(canonical, canonical);
     }
 
@@ -1198,7 +1426,11 @@ mod tests {
         // The opening fence lands on the same line as the marker ("-   ```"),
         // making the effective list margin 4. Content and closing fence must
         // both use 4-space indent so the closing fence stays inside the item.
-        let canonical = "-   ```\n    ¡\n    ```\n";
+        let canonical = indoc! {"
+            -   ```
+                ¡
+                ```
+        "};
         assert_formats_to(canonical, canonical);
     }
 

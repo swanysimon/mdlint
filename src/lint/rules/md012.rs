@@ -99,6 +99,7 @@ impl Rule for MD012 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -109,7 +110,12 @@ mod tests {
 
     #[test]
     fn test_no_consecutive_blanks() {
-        let content = "Line 1\n\nLine 2\n\nLine 3";
+        let content = indoc! {"
+            Line 1
+
+            Line 2
+
+            Line 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD012;
         let violations = rule.check(&parser, None);
@@ -119,7 +125,11 @@ mod tests {
 
     #[test]
     fn test_multiple_consecutive_blanks() {
-        let content = "Line 1\n\n\nLine 2";
+        let content = indoc! {"
+            Line 1
+
+
+            Line 2"};
         let parser = MarkdownParser::new(content);
         let rule = MD012;
         let violations = rule.check(&parser, None);
@@ -130,7 +140,11 @@ mod tests {
 
     #[test]
     fn test_custom_maximum() {
-        let content = "Line 1\n\n\nLine 2";
+        let content = indoc! {"
+            Line 1
+
+
+            Line 2"};
         let parser = MarkdownParser::new(content);
         let rule = MD012;
         let config = serde_json::json!({ "maximum": 2 });
@@ -141,7 +155,11 @@ mod tests {
 
     #[test]
     fn test_trailing_blank_lines() {
-        let content = "Line 1\n\n\n";
+        let content = indoc! {"
+            Line 1
+
+
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD012;
         let violations = rule.check(&parser, None);
@@ -151,12 +169,24 @@ mod tests {
 
     #[test]
     fn test_fix_removes_excess_blank_line() {
-        let content = "Line 1\n\n\nLine 2\n";
+        let content = indoc! {"
+            Line 1
+
+
+            Line 2
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD012;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 1);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "Line 1\n\nLine 2\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                Line 1
+
+                Line 2
+            "}
+        );
     }
 }
