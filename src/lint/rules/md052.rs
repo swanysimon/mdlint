@@ -60,10 +60,14 @@ impl Rule for MD052 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_defined_reference() {
-        let content = "[example]: https://example.com\n\n[Link][example]";
+        let content = indoc! {"
+            [example]: https://example.com
+
+            [Link][example]"};
         let parser = MarkdownParser::new(content);
         let rule = MD052;
         let violations = rule.check(&parser, None);
@@ -84,7 +88,10 @@ mod tests {
 
     #[test]
     fn test_image_reference() {
-        let content = "[img]: image.png\n\n![Alt][img]";
+        let content = indoc! {"
+            [img]: image.png
+
+            ![Alt][img]"};
         let parser = MarkdownParser::new(content);
         let rule = MD052;
         let violations = rule.check(&parser, None);
@@ -105,7 +112,10 @@ mod tests {
 
     #[test]
     fn test_case_insensitive() {
-        let content = "[EXAMPLE]: https://example.com\n\n[Link][example]";
+        let content = indoc! {"
+            [EXAMPLE]: https://example.com
+
+            [Link][example]"};
         let parser = MarkdownParser::new(content);
         let rule = MD052;
         let violations = rule.check(&parser, None);
@@ -128,7 +138,10 @@ mod tests {
 
     #[test]
     fn test_shortcut_reference_defined() {
-        let content = "Here a [reference] is used.\n\n[reference]: https://example.com/";
+        let content = indoc! {"
+            Here a [reference] is used.
+
+            [reference]: https://example.com/"};
         let parser = MarkdownParser::new(content);
         let rule = MD052;
         let violations = rule.check(&parser, None);

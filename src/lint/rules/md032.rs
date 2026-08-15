@@ -199,10 +199,17 @@ fn get_list_marker(trimmed: &str) -> Option<ListMarker> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_properly_surrounded() {
-        let content = "Text before\n\n* Item 1\n* Item 2\n\nText after";
+        let content = indoc! {"
+            Text before
+
+            * Item 1
+            * Item 2
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -212,7 +219,12 @@ mod tests {
 
     #[test]
     fn test_missing_blank_before() {
-        let content = "Text before\n* Item 1\n* Item 2\n\nText after";
+        let content = indoc! {"
+            Text before
+            * Item 1
+            * Item 2
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -223,7 +235,12 @@ mod tests {
 
     #[test]
     fn test_missing_blank_after() {
-        let content = "Text before\n\n* Item 1\n* Item 2\nText after";
+        let content = indoc! {"
+            Text before
+
+            * Item 1
+            * Item 2
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -234,7 +251,11 @@ mod tests {
 
     #[test]
     fn test_first_line() {
-        let content = "* Item 1\n* Item 2\n\nText after";
+        let content = indoc! {"
+            * Item 1
+            * Item 2
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -245,7 +266,14 @@ mod tests {
     #[test]
     fn test_wrapped_list_item() {
         // List items that wrap to multiple lines should not be treated as list ending
-        let content = "Text before\n\n* This is a long list item\n  that wraps to the next line\n* Item 2\n\nText after";
+        let content = indoc! {"
+            Text before
+
+            * This is a long list item
+              that wraps to the next line
+            * Item 2
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -257,7 +285,16 @@ mod tests {
     #[test]
     fn test_multiple_wrapped_lines() {
         // Multiple continuation lines in a single list item
-        let content = "Text\n\n* Item with multiple\n  lines of text\n  spanning across\n  multiple lines\n* Item 2\n\nText after";
+        let content = indoc! {"
+            Text
+
+            * Item with multiple
+              lines of text
+              spanning across
+              multiple lines
+            * Item 2
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -269,8 +306,15 @@ mod tests {
     #[test]
     fn test_wrapped_with_nested_list() {
         // Wrapped items with nested list
-        let content =
-            "Text\n\n* Item 1 that\n  wraps across lines\n  * Nested item\n* Item 2\n\nText after";
+        let content = indoc! {"
+            Text
+
+            * Item 1 that
+              wraps across lines
+              * Nested item
+            * Item 2
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -281,7 +325,15 @@ mod tests {
 
     #[test]
     fn test_list_in_code_block_not_flagged() {
-        let content = "Text before\n\n```markdown\n- item 1\n- item 2\n```\n\nText after";
+        let content = indoc! {"
+            Text before
+
+            ```markdown
+            - item 1
+            - item 2
+            ```
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -292,7 +344,14 @@ mod tests {
     #[test]
     fn test_mixed_markers_are_separate_lists() {
         // Different list markers are treated as separate lists
-        let content = "Text\n\n* Item asterisk\n+ Item plus\n- Item dash\n\nText after";
+        let content = indoc! {"
+            Text
+
+            * Item asterisk
+            + Item plus
+            - Item dash
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -310,7 +369,14 @@ mod tests {
         // text or the next sibling item, is not a set of separate top-level lists
         // and must not be flagged. This is exactly the output `mdlint format`
         // produces for this construct.
-        let content = "# Example\n\n- First item:\n  1. One\n  2. Two\n- Second item\n";
+        let content = indoc! {"
+            # Example
+
+            - First item:
+              1. One
+              2. Two
+            - Second item
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);
@@ -323,7 +389,16 @@ mod tests {
         // Same construct as above, but with the blank lines that make the outer
         // list loose. Both forms are valid CommonMark and neither should be
         // flagged by MD032.
-        let content = "# Example\n\n- First item:\n\n  1. One\n  2. Two\n\n- Second item\n";
+        let content = indoc! {"
+            # Example
+
+            - First item:
+
+              1. One
+              2. Two
+
+            - Second item
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD032;
         let violations = rule.check(&parser, None);

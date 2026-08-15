@@ -132,6 +132,7 @@ fn parse_item_number(trimmed: &str) -> Option<usize> {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -142,7 +143,10 @@ mod tests {
 
     #[test]
     fn test_ordered_sequence() {
-        let content = "1. First\n2. Second\n3. Third";
+        let content = indoc! {"
+            1. First
+            2. Second
+            3. Third"};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let config = serde_json::json!({ "style": "ordered" });
@@ -153,7 +157,10 @@ mod tests {
 
     #[test]
     fn test_all_ones() {
-        let content = "1. First\n1. Second\n1. Third";
+        let content = indoc! {"
+            1. First
+            1. Second
+            1. Third"};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let violations = rule.check(&parser, None);
@@ -166,7 +173,10 @@ mod tests {
 
     #[test]
     fn test_wrong_sequence() {
-        let content = "1. First\n3. Third - wrong\n4. Fourth";
+        let content = indoc! {"
+            1. First
+            3. Third - wrong
+            4. Fourth"};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let violations = rule.check(&parser, None);
@@ -203,10 +213,11 @@ mod tests {
     #[test]
     fn test_list_with_backticks() {
         // Test numbered list where items contain backticks
-        let content = "1. Command-line options (`--config`)\n\
-                       2. Local directory config (`mdlint.toml` in current dir)\n\
-                       3. Parent directory configs (walking up to root)\n\
-                       4. Default configuration";
+        let content = indoc! {"
+            1. Command-line options (`--config`)
+            2. Local directory config (`mdlint.toml` in current dir)
+            3. Parent directory configs (walking up to root)
+            4. Default configuration"};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let config = serde_json::json!({ "style": "ordered" });
@@ -217,7 +228,10 @@ mod tests {
 
     #[test]
     fn test_fix_populated_for_wrong_number() {
-        let content = "1. First\n1. Second\n1. Third";
+        let content = indoc! {"
+            1. First
+            1. Second
+            1. Third"};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let violations = rule.check(&parser, None);
@@ -233,7 +247,12 @@ mod tests {
 
     #[test]
     fn test_fix_indented_list() {
-        let content = "1. First\n\n   text\n\n1. Second";
+        let content = indoc! {"
+            1. First
+
+               text
+
+            1. Second"};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let violations = rule.check(&parser, None);
@@ -246,19 +265,44 @@ mod tests {
 
     #[test]
     fn test_fix_renumbers_list() {
-        let content = "1. First\n1. Second\n1. Third\n";
+        let content = indoc! {"
+            1. First
+            1. Second
+            1. Third
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let violations = rule.check(&parser, None);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "1. First\n2. Second\n3. Third\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                1. First
+                2. Second
+                3. Third
+            "}
+        );
     }
 
     #[test]
     fn test_code_block_breaks_list() {
         // An unindented code block breaks CommonMark list continuity.
         // Each numbered item is its own single-item list starting at 1.
-        let content = "1. First item\n\n```\ncode\n```\n\n1. Second item\n\n```\ncode\n```\n\n1. Third item\n";
+        let content = indoc! {"
+            1. First item
+
+            ```
+            code
+            ```
+
+            1. Second item
+
+            ```
+            code
+            ```
+
+            1. Third item
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD029;
         let violations = rule.check(&parser, None);

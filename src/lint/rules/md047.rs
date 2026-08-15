@@ -93,6 +93,7 @@ impl Rule for MD047 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -103,7 +104,11 @@ mod tests {
 
     #[test]
     fn test_single_newline() {
-        let content = "# Heading\n\nContent\n";
+        let content = indoc! {"
+            # Heading
+
+            Content
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD047;
         let violations = rule.check(&parser, None);
@@ -113,7 +118,10 @@ mod tests {
 
     #[test]
     fn test_no_newline() {
-        let content = "# Heading\n\nContent";
+        let content = indoc! {"
+            # Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD047;
         let violations = rule.check(&parser, None);
@@ -123,7 +131,12 @@ mod tests {
 
     #[test]
     fn test_multiple_newlines() {
-        let content = "# Heading\n\nContent\n\n";
+        let content = indoc! {"
+            # Heading
+
+            Content
+
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD047;
         let violations = rule.check(&parser, None);
@@ -143,12 +156,22 @@ mod tests {
 
     #[test]
     fn test_fix_adds_trailing_newline() {
-        let content = "# Heading\n\nContent";
+        let content = indoc! {"
+            # Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD047;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 1);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "# Heading\n\nContent\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                # Heading
+
+                Content
+            "}
+        );
     }
 }

@@ -115,6 +115,7 @@ impl Rule for MD014 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -125,7 +126,11 @@ mod tests {
 
     #[test]
     fn test_no_dollar_signs() {
-        let content = "```bash\nls -la\necho hello\n```";
+        let content = indoc! {"
+            ```bash
+            ls -la
+            echo hello
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD014;
         let violations = rule.check(&parser, None);
@@ -135,7 +140,11 @@ mod tests {
 
     #[test]
     fn test_all_dollar_signs() {
-        let content = "```bash\n$ ls -la\n$ echo hello\n```";
+        let content = indoc! {"
+            ```bash
+            $ ls -la
+            $ echo hello
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD014;
         let violations = rule.check(&parser, None);
@@ -147,7 +156,13 @@ mod tests {
 
     #[test]
     fn test_dollar_with_output() {
-        let content = "```bash\n$ ls -la\ntotal 64\n$ echo hello\nhello\n```";
+        let content = indoc! {"
+            ```bash
+            $ ls -la
+            total 64
+            $ echo hello
+            hello
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD014;
         let violations = rule.check(&parser, None);
@@ -157,7 +172,10 @@ mod tests {
 
     #[test]
     fn test_non_shell_language() {
-        let content = "```python\n$ this is not a shell\n```";
+        let content = indoc! {"
+            ```python
+            $ this is not a shell
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD014;
         let violations = rule.check(&parser, None);
@@ -167,12 +185,25 @@ mod tests {
 
     #[test]
     fn test_fix_removes_dollar_signs() {
-        let content = "```bash\n$ ls -la\n$ echo hello\n```\n";
+        let content = indoc! {"
+            ```bash
+            $ ls -la
+            $ echo hello
+            ```
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD014;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 2);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "```bash\nls -la\necho hello\n```\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                ```bash
+                ls -la
+                echo hello
+                ```
+            "}
+        );
     }
 }

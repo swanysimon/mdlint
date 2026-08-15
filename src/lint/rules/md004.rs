@@ -133,6 +133,7 @@ impl Rule for MD004 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -143,7 +144,10 @@ mod tests {
 
     #[test]
     fn test_consistent_asterisk() {
-        let content = "* Item 1\n* Item 2\n* Item 3";
+        let content = indoc! {"
+            * Item 1
+            * Item 2
+            * Item 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let config = serde_json::json!({ "style": "consistent" });
@@ -154,7 +158,10 @@ mod tests {
 
     #[test]
     fn test_inconsistent_markers() {
-        let content = "* Item 1\n+ Item 2\n- Item 3";
+        let content = indoc! {"
+            * Item 1
+            + Item 2
+            - Item 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);
@@ -175,7 +182,11 @@ mod tests {
 
     #[test]
     fn test_nested_lists() {
-        let content = "* Item 1\n  * Nested 1\n  * Nested 2\n* Item 2";
+        let content = indoc! {"
+            * Item 1
+              * Nested 1
+              * Nested 2
+            * Item 2"};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let config = serde_json::json!({ "style": "consistent" });
@@ -187,7 +198,15 @@ mod tests {
     #[test]
     fn test_list_markers_in_code_block_not_flagged() {
         // List markers inside fenced code blocks must not be checked.
-        let content = "```\n* asterisk\n+ plus\n- dash\n```\n\n- real item\n";
+        let content = indoc! {"
+            ```
+            * asterisk
+            + plus
+            - dash
+            ```
+
+            - real item
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let config = serde_json::json!({ "style": "dash" });
@@ -199,18 +218,19 @@ mod tests {
 
     #[test]
     fn test_markdown_syntax_in_code_block() {
-        let content = "# My Document
+        let content = indoc! {"
+            # My Document
 
-Here's a code block with markdown syntax:
+            Here's a code block with markdown syntax:
 
-```
-- This looks like a list item
-* This also looks like a list item
-+ And this one too
-```
+            ```
+            - This looks like a list item
+            * This also looks like a list item
+            + And this one too
+            ```
 
-- Real list item
-";
+            - Real list item
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);
@@ -221,14 +241,15 @@ Here's a code block with markdown syntax:
 
     #[test]
     fn test_indented_code_block() {
-        let content = "Regular text
+        let content = indoc! {"
+            Regular text
 
-    - This is an indented code block
-    * Not a real list
-    + Just code
+                - This is an indented code block
+                * Not a real list
+                + Just code
 
-- Real list item
-";
+            - Real list item
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);
@@ -239,27 +260,37 @@ Here's a code block with markdown syntax:
 
     #[test]
     fn test_fix_normalises_marker_to_dash() {
-        let content = "* Item 1\n* Item 2\n";
+        let content = indoc! {"
+            * Item 1
+            * Item 2
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let config = serde_json::json!({ "style": "dash" });
         let violations = rule.check(&parser, Some(&config));
         assert_eq!(violations.len(), 2);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "- Item 1\n- Item 2\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                - Item 1
+                - Item 2
+            "}
+        );
     }
 
     #[test]
     fn test_dash_in_code_block_with_real_list() {
-        let content = "* List item 1
+        let content = indoc! {"
+            * List item 1
 
-```python
-# Comment with -- dashes
-value = 10 - 5  # subtraction
-```
+            ```python
+            # Comment with -- dashes
+            value = 10 - 5  # subtraction
+            ```
 
-+ List item 2
-";
+            + List item 2
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD004;
         let violations = rule.check(&parser, None);

@@ -88,6 +88,7 @@ impl Rule for MD010 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -98,7 +99,10 @@ mod tests {
 
     #[test]
     fn test_no_tabs() {
-        let content = "Line 1\n    Line 2\nLine 3";
+        let content = indoc! {"
+            Line 1
+                Line 2
+            Line 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD010;
         let violations = rule.check(&parser, None);
@@ -108,7 +112,10 @@ mod tests {
 
     #[test]
     fn test_hard_tabs() {
-        let content = "Line 1\n\tLine 2\nLine 3";
+        let content = indoc! {"
+            Line 1
+            \tLine 2
+            Line 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD010;
         let violations = rule.check(&parser, None);
@@ -120,7 +127,11 @@ mod tests {
 
     #[test]
     fn test_tabs_in_code_block() {
-        let content = "Text\n```\n\tcode\n```";
+        let content = indoc! {"
+            Text
+            ```
+            \tcode
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD010;
         let violations = rule.check(&parser, None);
@@ -131,7 +142,11 @@ mod tests {
 
     #[test]
     fn test_ignore_code_blocks() {
-        let content = "Text\n```\n\tcode\n```";
+        let content = indoc! {"
+            Text
+            ```
+            \tcode
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD010;
         let config = serde_json::json!({ "code_blocks": false });
@@ -142,7 +157,11 @@ mod tests {
 
     #[test]
     fn test_fix_replaces_tab_with_spaces() {
-        let content = "# Heading\n\n\tTabbed line\n";
+        let content = indoc! {"
+            # Heading
+
+            \tTabbed line
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD010;
         let violations = rule.check(&parser, None);

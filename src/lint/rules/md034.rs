@@ -71,6 +71,7 @@ impl Rule for MD034 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_no_bare_url() {
@@ -115,7 +116,10 @@ mod tests {
 
     #[test]
     fn test_url_in_code_block() {
-        let content = "```shell\ncurl -LO https://example.com/file.tar.gz\n```";
+        let content = indoc! {"
+            ```shell
+            curl -LO https://example.com/file.tar.gz
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD034;
         let violations = rule.check(&parser, None);
@@ -203,7 +207,10 @@ mod tests {
     #[test]
     fn test_url_in_reference_definition() {
         // Regression test for https://github.com/swanysimon/mdlint/issues/53
-        let content = "Here a [reference] is used.\n\n[reference]: https://example.com/";
+        let content = indoc! {"
+            Here a [reference] is used.
+
+            [reference]: https://example.com/"};
         let parser = MarkdownParser::new(content);
         let rule = MD034;
         let violations = rule.check(&parser, None);

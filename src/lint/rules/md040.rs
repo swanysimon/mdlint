@@ -71,10 +71,14 @@ impl Rule for MD040 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_with_language() {
-        let content = "```rust\nlet x = 5;\n```";
+        let content = indoc! {"
+            ```rust
+            let x = 5;
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD040;
         let violations = rule.check(&parser, None);
@@ -84,7 +88,10 @@ mod tests {
 
     #[test]
     fn test_without_language() {
-        let content = "```\ncode here\n```";
+        let content = indoc! {"
+            ```
+            code here
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD040;
         let config = serde_json::json!({ "allowed_languages": ["rust", "python"] });
@@ -96,7 +103,10 @@ mod tests {
 
     #[test]
     fn test_allowed_languages() {
-        let content = "```javascript\ncode here\n```";
+        let content = indoc! {"
+            ```javascript
+            code here
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD040;
         let config = serde_json::json!({ "allowed_languages": ["rust", "python"] });

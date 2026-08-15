@@ -166,6 +166,7 @@ impl Rule for MD049 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_asterisk() {
@@ -213,7 +214,23 @@ mod tests {
 
     #[test]
     fn test_code_block_with_underscores() {
-        let content = "Normal text\n\n```sql\nCREATE POLICY territory_contact_access ON contacts\n  FOR SELECT\n  USING (\n    territory_id IN (\n      SELECT territory_id\n      FROM user_territory_assignments\n      WHERE user_id = current_setting('app.current_user_id')::uuid\n        AND (valid_to IS NULL OR valid_to > NOW())\n    )\n  );\n```\n\nMore text";
+        let content = indoc! {"
+            Normal text
+
+            ```sql
+            CREATE POLICY territory_contact_access ON contacts
+              FOR SELECT
+              USING (
+                territory_id IN (
+                  SELECT territory_id
+                  FROM user_territory_assignments
+                  WHERE user_id = current_setting('app.current_user_id')::uuid
+                    AND (valid_to IS NULL OR valid_to > NOW())
+                )
+              );
+            ```
+
+            More text"};
         let parser = MarkdownParser::new(content);
         let rule = MD049;
         let violations = rule.check(&parser, None);
@@ -260,7 +277,10 @@ mod tests {
 
     #[test]
     fn test_typescript_multiplication() {
-        let content = "```typescript\nconst result = value_a * value_b * value_c;\n```";
+        let content = indoc! {"
+            ```typescript
+            const result = value_a * value_b * value_c;
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD049;
         let violations = rule.check(&parser, None);

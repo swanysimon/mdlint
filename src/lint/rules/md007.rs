@@ -92,10 +92,16 @@ impl Rule for MD007 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_correct_indentation() {
-        let content = "* Item 1\n  * Nested 1\n    * Double nested\n  * Nested 2\n* Item 2";
+        let content = indoc! {"
+            * Item 1
+              * Nested 1
+                * Double nested
+              * Nested 2
+            * Item 2"};
         let parser = MarkdownParser::new(content);
         let rule = MD007;
         let violations = rule.check(&parser, None);
@@ -126,7 +132,11 @@ mod tests {
 
     #[test]
     fn test_multiple_levels() {
-        let content = "* Level 1\n  * Level 2\n    * Level 3\n      * Level 4";
+        let content = indoc! {"
+            * Level 1
+              * Level 2
+                * Level 3
+                  * Level 4"};
         let parser = MarkdownParser::new(content);
         let rule = MD007;
         let violations = rule.check(&parser, None);

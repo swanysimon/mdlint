@@ -92,10 +92,16 @@ impl Rule for MD005 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_indentation() {
-        let content = "* Item 1\n* Item 2\n  * Nested 1\n  * Nested 2\n* Item 3";
+        let content = indoc! {"
+            * Item 1
+            * Item 2
+              * Nested 1
+              * Nested 2
+            * Item 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD005;
         let violations = rule.check(&parser, None);
@@ -105,7 +111,10 @@ mod tests {
 
     #[test]
     fn test_inconsistent_indentation() {
-        let content = "* Item 1\n * Item 2 - wrong indent\n* Item 3";
+        let content = indoc! {"
+            * Item 1
+             * Item 2 - wrong indent
+            * Item 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD005;
         let violations = rule.check(&parser, None);
@@ -115,7 +124,10 @@ mod tests {
 
     #[test]
     fn test_ordered_list() {
-        let content = "1. Item 1\n2. Item 2\n3. Item 3";
+        let content = indoc! {"
+            1. Item 1
+            2. Item 2
+            3. Item 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD005;
         let violations = rule.check(&parser, None);

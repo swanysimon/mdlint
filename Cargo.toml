@@ -33,6 +33,7 @@ url = "^2.5.8"
 yaml_serde = "^0.10.4"
 
 [dev-dependencies]
+indoc = "^2.0.7"
 proptest = "^1.11.0"
 tempfile = "^3.27.0"
 

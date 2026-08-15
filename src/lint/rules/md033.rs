@@ -91,10 +91,14 @@ fn extract_tag_name(html: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_no_html() {
-        let content = "# Heading\n\nNormal **markdown** text.";
+        let content = indoc! {"
+            # Heading
+
+            Normal **markdown** text."};
         let parser = MarkdownParser::new(content);
         let rule = MD033;
         let violations = rule.check(&parser, None);
@@ -128,7 +132,10 @@ mod tests {
 
     #[test]
     fn test_block_html() {
-        let content = "<div>\nContent\n</div>";
+        let content = indoc! {"
+            <div>
+            Content
+            </div>"};
         let parser = MarkdownParser::new(content);
         let rule = MD033;
         let violations = rule.check(&parser, None);

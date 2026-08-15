@@ -127,10 +127,14 @@ impl Rule for MD003 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_atx() {
-        let content = "# Heading 1\n## Heading 2\n### Heading 3";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2
+            ### Heading 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD003;
         let violations = rule.check(&parser, None);
@@ -140,7 +144,10 @@ mod tests {
 
     #[test]
     fn test_inconsistent_styles() {
-        let content = "# Heading 1\n## Heading 2 ##\n### Heading 3";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2 ##
+            ### Heading 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD003;
         let violations = rule.check(&parser, None);
@@ -161,7 +168,12 @@ mod tests {
 
     #[test]
     fn test_setext_detection() {
-        let content = "Heading 1\n=========\n\nHeading 2\n---------";
+        let content = indoc! {"
+            Heading 1
+            =========
+
+            Heading 2
+            ---------"};
         let parser = MarkdownParser::new(content);
         let rule = MD003;
         let config = serde_json::json!({ "style": "consistent" });
@@ -173,7 +185,16 @@ mod tests {
     #[test]
     fn test_horizontal_rules_not_flagged() {
         // Horizontal rules (---) after blank lines should not be detected as setext headings
-        let content = "# Heading 1\n\n---\n\nContent here.\n\n***\n\nMore content.";
+        let content = indoc! {"
+            # Heading 1
+
+            ---
+
+            Content here.
+
+            ***
+
+            More content."};
         let parser = MarkdownParser::new(content);
         let rule = MD003;
         let violations = rule.check(&parser, None);
@@ -183,7 +204,14 @@ mod tests {
 
     #[test]
     fn test_setext_in_code_block_not_flagged() {
-        let content = "# Real heading\n\n```markdown\nSetext heading\n==============\n```\n";
+        let content = indoc! {"
+            # Real heading
+
+            ```markdown
+            Setext heading
+            ==============
+            ```
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD003;
         let config = serde_json::json!({ "style": "atx" });

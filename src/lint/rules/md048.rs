@@ -111,10 +111,18 @@ impl Rule for MD048 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_consistent_backtick() {
-        let content = "```\ncode1\n```\n\n```\ncode2\n```";
+        let content = indoc! {"
+            ```
+            code1
+            ```
+
+            ```
+            code2
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD048;
         let violations = rule.check(&parser, None);
@@ -124,7 +132,14 @@ mod tests {
 
     #[test]
     fn test_consistent_tilde() {
-        let content = "~~~\ncode1\n~~~\n\n~~~\ncode2\n~~~";
+        let content = indoc! {"
+            ~~~
+            code1
+            ~~~
+
+            ~~~
+            code2
+            ~~~"};
         let parser = MarkdownParser::new(content);
         let rule = MD048;
         let config = serde_json::json!({ "style": "consistent" });
@@ -135,7 +150,14 @@ mod tests {
 
     #[test]
     fn test_inconsistent() {
-        let content = "```\ncode1\n```\n\n~~~\ncode2\n~~~";
+        let content = indoc! {"
+            ```
+            code1
+            ```
+
+            ~~~
+            code2
+            ~~~"};
         let parser = MarkdownParser::new(content);
         let rule = MD048;
         let violations = rule.check(&parser, None);
@@ -145,7 +167,10 @@ mod tests {
 
     #[test]
     fn test_enforced_backtick() {
-        let content = "~~~\ncode\n~~~";
+        let content = indoc! {"
+            ~~~
+            code
+            ~~~"};
         let parser = MarkdownParser::new(content);
         let rule = MD048;
         let config = serde_json::json!({ "style": "backtick" });

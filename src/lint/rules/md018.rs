@@ -77,6 +77,7 @@ impl Rule for MD018 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -87,7 +88,10 @@ mod tests {
 
     #[test]
     fn test_correct_spacing() {
-        let content = "# Heading 1\n## Heading 2\n### Heading 3";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2
+            ### Heading 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD018;
         let violations = rule.check(&parser, None);
@@ -108,7 +112,10 @@ mod tests {
 
     #[test]
     fn test_multiple_violations() {
-        let content = "#First\n##Second\n### Correct";
+        let content = indoc! {"
+            #First
+            ##Second
+            ### Correct"};
         let parser = MarkdownParser::new(content);
         let rule = MD018;
         let violations = rule.check(&parser, None);
@@ -128,7 +135,13 @@ mod tests {
 
     #[test]
     fn test_heading_in_code_block_not_flagged() {
-        let content = "# Real heading\n\n```\n#NotAHeading\n```\n";
+        let content = indoc! {"
+            # Real heading
+
+            ```
+            #NotAHeading
+            ```
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD018;
         let violations = rule.check(&parser, None);
@@ -138,12 +151,23 @@ mod tests {
 
     #[test]
     fn test_fix_inserts_space_after_hash() {
-        let content = "#Heading\n\n##Another\n";
+        let content = indoc! {"
+            #Heading
+
+            ##Another
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD018;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 2);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "# Heading\n\n## Another\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                # Heading
+
+                ## Another
+            "}
+        );
     }
 }

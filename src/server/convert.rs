@@ -128,6 +128,7 @@ pub fn uri_to_path(uri: &Uri) -> Option<PathBuf> {
 mod tests {
     use super::*;
     use crate::types::Violation;
+    use indoc::indoc;
     use std::str::FromStr;
 
     fn make_violation(line: usize, column: Option<usize>) -> Violation {
@@ -143,7 +144,14 @@ mod tests {
     #[test]
     fn test_coord_no_column() {
         let v = make_violation(3, None);
-        let diag = violation_to_diagnostic(&v, "line1\nline2\nline3\n");
+        let diag = violation_to_diagnostic(
+            &v,
+            indoc! {"
+                line1
+                line2
+                line3
+            "},
+        );
         assert_eq!(diag.range.start.line, 2);
         assert_eq!(diag.range.start.character, 0);
     }

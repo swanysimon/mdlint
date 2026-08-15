@@ -76,10 +76,14 @@ impl Rule for MD028 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_continuous_blockquote() {
-        let content = "> Line 1\n> Line 2\n> Line 3";
+        let content = indoc! {"
+            > Line 1
+            > Line 2
+            > Line 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD028;
         let violations = rule.check(&parser, None);
@@ -89,7 +93,10 @@ mod tests {
 
     #[test]
     fn test_blank_inside_blockquote() {
-        let content = "> Line 1\n\n> Line 2";
+        let content = indoc! {"
+            > Line 1
+
+            > Line 2"};
         let parser = MarkdownParser::new(content);
         let rule = MD028;
         let violations = rule.check(&parser, None);
@@ -100,7 +107,10 @@ mod tests {
 
     #[test]
     fn test_blank_ends_blockquote() {
-        let content = "> Line 1\n\nNormal text";
+        let content = indoc! {"
+            > Line 1
+
+            Normal text"};
         let parser = MarkdownParser::new(content);
         let rule = MD028;
         let violations = rule.check(&parser, None);
@@ -110,7 +120,11 @@ mod tests {
 
     #[test]
     fn test_multiple_blank_lines() {
-        let content = "> Line 1\n\n\n> Line 2";
+        let content = indoc! {"
+            > Line 1
+
+
+            > Line 2"};
         let parser = MarkdownParser::new(content);
         let rule = MD028;
         let violations = rule.check(&parser, None);

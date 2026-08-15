@@ -153,11 +153,16 @@ fn document_to_source_as_wrapper(mut document: HashMap<String, Value>) -> Cli2So
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
     use std::path::PathBuf;
 
     #[test]
     fn strips_line_and_block_comments() {
-        let input = "{\n  // a comment\n  \"a\": 1, /* inline */ \"b\": \"// not a comment\"\n}";
+        let input = indoc! {"
+            {
+              // a comment
+              \"a\": 1, /* inline */ \"b\": \"// not a comment\"
+            }"};
         let stripped = strip_jsonc_comments(input);
         let value: Value = serde_json::from_str(&stripped).unwrap();
         assert_eq!(value["a"], 1);
@@ -189,7 +194,14 @@ mod tests {
 
     #[test]
     fn parses_cli2_wrapper_yaml() {
-        let content = "config:\n  MD013:\n    line_length: 100\nignores:\n  - dist/**\nfix: true\n";
+        let content = indoc! {"
+            config:
+              MD013:
+                line_length: 100
+            ignores:
+              - dist/**
+            fix: true
+        "};
         let source = parse_yaml(content, &PathBuf::from(".markdownlint-cli2.yaml")).unwrap();
         assert_eq!(source.ignores, Some(vec!["dist/**".to_string()]));
         assert_eq!(source.fix, Some(true));

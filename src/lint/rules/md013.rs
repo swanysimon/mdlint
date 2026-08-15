@@ -158,10 +158,14 @@ impl Rule for MD013 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_short_lines() {
-        let content = "Short line\nAnother short line\nStill short";
+        let content = indoc! {"
+            Short line
+            Another short line
+            Still short"};
         let parser = MarkdownParser::new(content);
         let rule = MD013;
         let violations = rule.check(&parser, None);
@@ -206,7 +210,10 @@ mod tests {
 
     #[test]
     fn test_code_block_check() {
-        let content = "```\nThis is a very long line in a code block that exceeds the maximum allowed character count\n```";
+        let content = indoc! {"
+            ```
+            This is a very long line in a code block that exceeds the maximum allowed character count
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD013;
         let config = serde_json::json!({ "line_length": 80, "code_blocks": true });
@@ -217,7 +224,10 @@ mod tests {
 
     #[test]
     fn test_code_block_ignore() {
-        let content = "```\nThis is a very long line in a code block that exceeds the maximum allowed character count\n```";
+        let content = indoc! {"
+            ```
+            This is a very long line in a code block that exceeds the maximum allowed character count
+            ```"};
         let parser = MarkdownParser::new(content);
         let rule = MD013;
         let config = serde_json::json!({ "code_blocks": false });
@@ -288,7 +298,11 @@ mod tests {
 
     #[test]
     fn test_long_table_line() {
-        let content = "| Col1 | Col2 |\n|------|------|\n| A    | B    |\n| C    | D    |";
+        let content = indoc! {"
+            | Col1 | Col2 |
+            |------|------|
+            | A    | B    |
+            | C    | D    |"};
         let parser = MarkdownParser::new(content);
         let rule = MD013;
         let config = serde_json::json!({ "line_length": 10, "tables": true });
@@ -305,7 +319,11 @@ mod tests {
 
     #[test]
     fn test_long_table_line_ignored() {
-        let content = "| Col1 | Col2 |\n|------|------|\n| A    | B    |\n| C    | D    |";
+        let content = indoc! {"
+            | Col1 | Col2 |
+            |------|------|
+            | A    | B    |
+            | C    | D    |"};
         let parser = MarkdownParser::new(content);
         let rule = MD013;
         let config = serde_json::json!({ "line_length": 10, "tables": false });

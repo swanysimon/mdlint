@@ -79,10 +79,18 @@ fn is_separator_line(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_table_with_blank_lines() {
-        let content = "Text before\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nText after";
+        let content = indoc! {"
+            Text before
+
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD058;
         let violations = rule.check(&parser, None);
@@ -92,7 +100,13 @@ mod tests {
 
     #[test]
     fn test_table_without_blank_before() {
-        let content = "Text before\n| A | B |\n|---|---|\n| 1 | 2 |\n\nText after";
+        let content = indoc! {"
+            Text before
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD058;
         let violations = rule.check(&parser, None);
@@ -102,7 +116,13 @@ mod tests {
 
     #[test]
     fn test_table_without_blank_after() {
-        let content = "Text before\n\n| A | B |\n|---|---|\n| 1 | 2 |\nText after";
+        let content = indoc! {"
+            Text before
+
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD058;
         let violations = rule.check(&parser, None);
@@ -113,7 +133,12 @@ mod tests {
 
     #[test]
     fn test_table_without_any_blank_lines() {
-        let content = "Text before\n| A | B |\n|---|---|\n| 1 | 2 |\nText after";
+        let content = indoc! {"
+            Text before
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD058;
         let violations = rule.check(&parser, None);
@@ -124,7 +149,12 @@ mod tests {
 
     #[test]
     fn test_table_at_start() {
-        let content = "| A | B |\n|---|---|\n| 1 | 2 |\n\nText after";
+        let content = indoc! {"
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+
+            Text after"};
         let parser = MarkdownParser::new(content);
         let rule = MD058;
         let violations = rule.check(&parser, None);

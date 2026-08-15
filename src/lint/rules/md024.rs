@@ -118,10 +118,14 @@ impl Rule for MD024 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_unique_headings() {
-        let content = "# Heading 1\n## Heading 2\n### Heading 3";
+        let content = indoc! {"
+            # Heading 1
+            ## Heading 2
+            ### Heading 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD024;
         let violations = rule.check(&parser, None);
@@ -131,7 +135,10 @@ mod tests {
 
     #[test]
     fn test_duplicate_headings() {
-        let content = "# Heading\n## Content\n# Heading";
+        let content = indoc! {"
+            # Heading
+            ## Content
+            # Heading"};
         let parser = MarkdownParser::new(content);
         let rule = MD024;
         let violations = rule.check(&parser, None);
@@ -142,7 +149,10 @@ mod tests {
 
     #[test]
     fn test_siblings_only_different_levels() {
-        let content = "# Heading\n## Heading\n### Heading";
+        let content = indoc! {"
+            # Heading
+            ## Heading
+            ### Heading"};
         let parser = MarkdownParser::new(content);
         let rule = MD024;
         let config = serde_json::json!({ "siblings_only": true });
@@ -153,7 +163,10 @@ mod tests {
 
     #[test]
     fn test_siblings_only_same_level() {
-        let content = "## Heading\n## Content\n## Heading";
+        let content = indoc! {"
+            ## Heading
+            ## Content
+            ## Heading"};
         let parser = MarkdownParser::new(content);
         let rule = MD024;
         let config = serde_json::json!({ "siblings_only": true });
@@ -165,7 +178,12 @@ mod tests {
     #[test]
     fn test_headings_with_inline_code() {
         // Headings with different inline code should not be duplicates
-        let content = "#### `mdlint check`\n\nSome text\n\n#### `mdlint format`";
+        let content = indoc! {"
+            #### `mdlint check`
+
+            Some text
+
+            #### `mdlint format`"};
         let parser = MarkdownParser::new(content);
         let rule = MD024;
         let violations = rule.check(&parser, None);
@@ -180,7 +198,12 @@ mod tests {
     #[test]
     fn test_duplicate_code_headings() {
         // Headings with same inline code should be duplicates
-        let content = "#### `mdlint check`\n\nSome text\n\n#### `mdlint check`";
+        let content = indoc! {"
+            #### `mdlint check`
+
+            Some text
+
+            #### `mdlint check`"};
         let parser = MarkdownParser::new(content);
         let rule = MD024;
         let violations = rule.check(&parser, None);

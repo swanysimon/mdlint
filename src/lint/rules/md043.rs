@@ -112,6 +112,7 @@ impl Rule for MD043 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_no_config() {
@@ -125,7 +126,10 @@ mod tests {
 
     #[test]
     fn test_correct_structure() {
-        let content = "# Introduction\n## Background\n## Methods";
+        let content = indoc! {"
+            # Introduction
+            ## Background
+            ## Methods"};
         let parser = MarkdownParser::new(content);
         let rule = MD043;
         let config = serde_json::json!({
@@ -152,7 +156,10 @@ mod tests {
 
     #[test]
     fn test_wildcard() {
-        let content = "# Introduction\n## Any Text Here\n## Methods";
+        let content = indoc! {"
+            # Introduction
+            ## Any Text Here
+            ## Methods"};
         let parser = MarkdownParser::new(content);
         let rule = MD043;
         let config = serde_json::json!({

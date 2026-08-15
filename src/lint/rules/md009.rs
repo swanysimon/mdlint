@@ -71,6 +71,7 @@ impl Rule for MD009 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -81,7 +82,10 @@ mod tests {
 
     #[test]
     fn test_no_trailing_spaces() {
-        let content = "Line 1\nLine 2\nLine 3";
+        let content = indoc! {"
+            Line 1
+            Line 2
+            Line 3"};
         let parser = MarkdownParser::new(content);
         let rule = MD009;
         let violations = rule.check(&parser, None);
@@ -131,6 +135,12 @@ mod tests {
         let rule = MD009;
         let violations = rule.check(&parser, None);
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "Line 1\nLine 2\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                Line 1
+                Line 2
+            "}
+        );
     }
 }

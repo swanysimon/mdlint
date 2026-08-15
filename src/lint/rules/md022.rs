@@ -111,6 +111,7 @@ impl Rule for MD022 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -121,7 +122,12 @@ mod tests {
 
     #[test]
     fn test_properly_surrounded() {
-        let content = "Paragraph\n\n# Heading\n\nAnother paragraph";
+        let content = indoc! {"
+            Paragraph
+
+            # Heading
+
+            Another paragraph"};
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
@@ -131,7 +137,11 @@ mod tests {
 
     #[test]
     fn test_missing_blank_before() {
-        let content = "Paragraph\n# Heading\n\nContent";
+        let content = indoc! {"
+            Paragraph
+            # Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
@@ -142,7 +152,10 @@ mod tests {
 
     #[test]
     fn test_missing_blank_after() {
-        let content = "\n# Heading\nContent";
+        let content = indoc! {"
+
+            # Heading
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
@@ -153,7 +166,10 @@ mod tests {
 
     #[test]
     fn test_first_line() {
-        let content = "# Heading\n\nContent";
+        let content = indoc! {"
+            # Heading
+
+            Content"};
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
@@ -163,25 +179,49 @@ mod tests {
 
     #[test]
     fn test_fix_inserts_blank_before_heading() {
-        let content = "Paragraph\n# Heading\n\nContent\n";
+        let content = indoc! {"
+            Paragraph
+            # Heading
+
+            Content
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 1);
         assert!(violations[0].message.contains("before"));
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "Paragraph\n\n# Heading\n\nContent\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                Paragraph
+
+                # Heading
+
+                Content
+            "}
+        );
     }
 
     #[test]
     fn test_fix_inserts_blank_after_heading() {
-        let content = "# Heading\nContent\n";
+        let content = indoc! {"
+            # Heading
+            Content
+        "};
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
         assert_eq!(violations.len(), 1);
         assert!(violations[0].message.contains("after"));
         let fixed = apply_fixes(content, &violations);
-        assert_eq!(fixed, "# Heading\n\nContent\n");
+        assert_eq!(
+            fixed,
+            indoc! {"
+                # Heading
+
+                Content
+            "}
+        );
     }
 }

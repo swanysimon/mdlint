@@ -206,6 +206,7 @@ fn toml_to_json(toml_val: toml::Value) -> Value {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use indoc::indoc;
 
     fn engine_all_rules() -> LintEngine {
         LintEngine::new(Config {
@@ -217,7 +218,10 @@ mod tests {
     #[test]
     fn test_disable_next_line_specific_rule() {
         // MD018: no space after hash. Line 2 has `#Heading` — suppressed by disable-next-line on line 1.
-        let content = "<!-- mdlint-disable-next-line MD018 -->\n#Heading without space\n";
+        let content = indoc! {"
+            <!-- mdlint-disable-next-line MD018 -->
+            #Heading without space
+        "};
         let engine = engine_all_rules();
         let violations = engine.lint_content(content).unwrap();
         assert!(
@@ -229,7 +233,11 @@ mod tests {
     #[test]
     fn test_disable_next_line_does_not_suppress_two_lines_ahead() {
         // The disable-next-line on line 1 suppresses line 2, NOT line 3
-        let content = "<!-- mdlint-disable-next-line MD018 -->\n# Good heading\n#Bad heading\n";
+        let content = indoc! {"
+            <!-- mdlint-disable-next-line MD018 -->
+            # Good heading
+            #Bad heading
+        "};
         let engine = engine_all_rules();
         let violations = engine.lint_content(content).unwrap();
         // MD018 on line 3 should still fire
@@ -242,8 +250,11 @@ mod tests {
     #[test]
     fn test_disable_enable_specific_rule() {
         // Disable MD041, then re-enable it; violations between should be suppressed
-        let content =
-            "<!-- mdlint-disable MD041 -->\nNo heading here\n<!-- mdlint-enable MD041 -->\n";
+        let content = indoc! {"
+            <!-- mdlint-disable MD041 -->
+            No heading here
+            <!-- mdlint-enable MD041 -->
+        "};
         let engine = engine_all_rules();
         let violations = engine.lint_content(content).unwrap();
         assert!(
@@ -254,7 +265,11 @@ mod tests {
 
     #[test]
     fn test_disable_all_rules() {
-        let content = "<!-- mdlint-disable -->\nNo heading here\n<!-- mdlint-enable -->\n";
+        let content = indoc! {"
+            <!-- mdlint-disable -->
+            No heading here
+            <!-- mdlint-enable -->
+        "};
         let engine = engine_all_rules();
         let violations = engine.lint_content(content).unwrap();
         // All rules suppressed from line 1 to line 2 (enable on line 3)
@@ -267,7 +282,10 @@ mod tests {
 
     #[test]
     fn test_no_inline_config_flag_disables_parsing() {
-        let content = "<!-- mdlint-disable MD041 -->\nNo heading here\n";
+        let content = indoc! {"
+            <!-- mdlint-disable MD041 -->
+            No heading here
+        "};
         let engine = LintEngine::new(Config {
             default_enabled: true,
             no_inline_config: true,
@@ -283,7 +301,12 @@ mod tests {
 
     #[test]
     fn test_disable_without_enable_suppresses_to_end() {
-        let content = "# Heading\n\n<!-- mdlint-disable MD013 -->\nA very long line that goes on and on and on and on and on and on and on and on and on and on and on and on and on\n";
+        let content = indoc! {"
+            # Heading
+
+            <!-- mdlint-disable MD013 -->
+            A very long line that goes on and on and on and on and on and on and on and on and on and on and on and on and on
+        "};
         let engine = engine_all_rules();
         let violations = engine.lint_content(content).unwrap();
         assert!(

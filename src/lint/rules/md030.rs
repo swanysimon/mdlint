@@ -235,10 +235,15 @@ fn is_table_separator(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_correct_spacing() {
-        let content = "* Item 1\n+ Item 2\n- Item 3\n1. Ordered";
+        let content = indoc! {"
+            * Item 1
+            + Item 2
+            - Item 3
+            1. Ordered"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
@@ -282,10 +287,11 @@ mod tests {
     #[test]
     fn test_bold_not_list_marker() {
         // Bold/emphasis at start of line should not be treated as list marker
-        let content = "**Slice-specific schemas** → some text\n\
-                       **Bold text** at start\n\
-                       *Italic text* here\n\
-                       __Also bold__ text";
+        let content = indoc! {"
+            **Slice-specific schemas** → some text
+            **Bold text** at start
+            *Italic text* here
+            __Also bold__ text"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
@@ -300,9 +306,10 @@ mod tests {
     #[test]
     fn test_actual_list_with_bold() {
         // Actual list items can contain bold text
-        let content = "* **Bold** item\n\
-                       + *Italic* item\n\
-                       - Normal item";
+        let content = indoc! {"
+            * **Bold** item
+            + *Italic* item
+            - Normal item"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
@@ -313,19 +320,20 @@ mod tests {
     #[test]
     fn test_horizontal_rules_not_list_markers() {
         // Horizontal rules should not trigger MD030 violations
-        let content = "# Heading\n\
-                       \n\
-                       ---\n\
-                       \n\
-                       More content\n\
-                       \n\
-                       ***\n\
-                       \n\
-                       ___\n\
-                       \n\
-                       * * *\n\
-                       \n\
-                       - - -";
+        let content = indoc! {"
+            # Heading
+
+            ---
+
+            More content
+
+            ***
+
+            ___
+
+            * * *
+
+            - - -"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
@@ -340,15 +348,16 @@ mod tests {
     #[test]
     fn test_code_blocks_not_checked() {
         // Code blocks should not trigger MD030 violations
-        let content = "# Heading\n\
-                       \n\
-                       ```\n\
-                       --config <CONFIG>\n\
-                       --fix\n\
-                       -h, --help\n\
-                       ```\n\
-                       \n\
-                       Normal text with `-h` inline code.";
+        let content = indoc! {"
+            # Heading
+
+            ```
+            --config <CONFIG>
+            --fix
+            -h, --help
+            ```
+
+            Normal text with `-h` inline code."};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
@@ -363,11 +372,12 @@ mod tests {
     #[test]
     fn test_real_list_after_code_block() {
         // Real list markers outside code blocks should still be checked
-        let content = "```\n\
-                       --config\n\
-                       ```\n\
-                       \n\
-                       *Item without space";
+        let content = indoc! {"
+            ```
+            --config
+            ```
+
+            *Item without space"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
@@ -383,10 +393,11 @@ mod tests {
     #[test]
     fn test_table_separator_not_list() {
         // Table separator lines should not trigger MD030 violations
-        let content = "Rule  | Description\n\
-                       ------|------------\n\
-                       MD001 | First rule\n\
-                       MD002 | Second rule";
+        let content = indoc! {"
+            Rule  | Description
+            ------|------------
+            MD001 | First rule
+            MD002 | Second rule"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
