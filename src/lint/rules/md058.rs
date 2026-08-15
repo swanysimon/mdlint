@@ -79,6 +79,7 @@ fn is_separator_line(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -111,7 +112,10 @@ mod tests {
         let rule = MD058;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD058 Table should be surrounded by blank lines"]
+        );
     }
 
     #[test]
@@ -144,7 +148,10 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Only violation is missing blank line before table
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD058 Table should be surrounded by blank lines"]
+        );
     }
 
     #[test]

@@ -127,6 +127,7 @@ impl Rule for MD003 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -152,7 +153,10 @@ mod tests {
         let rule = MD003;
         let violations = rule.check(&parser, None);
 
-        assert!(!violations.is_empty());
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD003 Heading style should be Atx but found AtxClosed"]
+        );
     }
 
     #[test]
@@ -163,7 +167,10 @@ mod tests {
         let config = serde_json::json!({ "style": "atx" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1); // Second heading has closing #
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD003 Heading style should be Atx but found AtxClosed"]
+        );
     }
 
     #[test]

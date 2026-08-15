@@ -89,6 +89,7 @@ impl Rule for MD054 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -126,7 +127,12 @@ mod tests {
         let config = serde_json::json!({ "style": "consistent" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:3:1: MD054 Link/image style should be consistent: expected 'inline', found 'reference'",
+            ]
+        );
     }
 
     #[test]
@@ -140,7 +146,10 @@ mod tests {
         let config = serde_json::json!({ "style": "inline" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD054 Link/image style should be 'inline', found 'reference'"]
+        );
     }
 
     #[test]
@@ -151,6 +160,9 @@ mod tests {
         let config = serde_json::json!({ "style": "reference" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD054 Link/image style should be 'reference', found 'inline'"]
+        );
     }
 }

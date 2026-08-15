@@ -124,6 +124,7 @@ fn parse_alignments(line: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -164,7 +165,11 @@ mod tests {
         let config = serde_json::json!({ "style": "left" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1); // Second column is right-aligned
+        // Only the second column deviates; it is right-aligned.
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD060 Table column 2 should use 'left' alignment, found 'right'"]
+        );
     }
 
     #[test]
@@ -178,7 +183,11 @@ mod tests {
         let config = serde_json::json!({ "style": "default" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1); // Second column is left-aligned
+        // Only the second column deviates; it is left-aligned.
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD060 Table column 2 should use 'default' alignment, found 'left'"]
+        );
     }
 
     #[test]

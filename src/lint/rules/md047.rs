@@ -93,6 +93,7 @@ impl Rule for MD047 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -126,7 +127,10 @@ mod tests {
         let rule = MD047;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD047 Files should end with a single newline character"]
+        );
     }
 
     #[test]
@@ -141,7 +145,10 @@ mod tests {
         let rule = MD047;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:4:1: MD047 Files should end with a single newline character"]
+        );
     }
 
     #[test]
@@ -163,7 +170,10 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD047;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD047 Files should end with a single newline character"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

@@ -158,6 +158,7 @@ impl Rule for MD013 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -181,8 +182,10 @@ mod tests {
         let config = serde_json::json!({ "line_length": 80 });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:81: MD013 Line exceeds maximum length (105 > 80)"]
+        );
     }
 
     #[test]
@@ -193,7 +196,10 @@ mod tests {
         let config = serde_json::json!({ "line_length": 30 });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:31: MD013 Line exceeds maximum length (38 > 30)"]
+        );
     }
 
     #[test]
@@ -219,7 +225,10 @@ mod tests {
         let config = serde_json::json!({ "line_length": 80, "code_blocks": true });
         let violations = rule.check(&parser, Some(&config));
 
-        assert!(!violations.is_empty());
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:81: MD013 Line exceeds maximum length (89 > 80)"]
+        );
     }
 
     #[test]
@@ -290,8 +299,8 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(
-            violations.len(),
-            1,
+            rendered(&violations),
+            ["test.md:1:81: MD013 Line exceeds maximum length (132 > 80)"],
             "Lines with text and links should still be checked"
         );
     }
@@ -308,12 +317,14 @@ mod tests {
         let config = serde_json::json!({ "line_length": 10, "tables": true });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 4);
-        assert!(
-            violations
-                .iter()
-                .enumerate()
-                .all(|(i, v)| v.line == (i + 1))
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:11: MD013 Line exceeds maximum length (15 > 10)",
+                "test.md:2:11: MD013 Line exceeds maximum length (15 > 10)",
+                "test.md:3:11: MD013 Line exceeds maximum length (15 > 10)",
+                "test.md:4:11: MD013 Line exceeds maximum length (15 > 10)",
+            ]
         );
     }
 

@@ -172,6 +172,7 @@ impl Rule for MD050 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -203,7 +204,13 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Reports violation for both opening and closing markers of the second strong emphasis
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:22: MD050 Strong style should be '**', found '__'",
+                "test.md:1:33: MD050 Strong style should be '**', found '__'",
+            ]
+        );
     }
 
     #[test]
@@ -215,7 +222,13 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         // Reports violation for both opening and closing markers
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:9: MD050 Strong style should be '**', found '__'",
+                "test.md:1:15: MD050 Strong style should be '**', found '__'",
+            ]
+        );
     }
 
     #[test]

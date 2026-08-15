@@ -166,6 +166,7 @@ impl Rule for MD049 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -197,7 +198,13 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Reports violation for both opening and closing markers of the second emphasis
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:22: MD049 Emphasis style should be '*', found '_'",
+                "test.md:1:34: MD049 Emphasis style should be '*', found '_'",
+            ]
+        );
     }
 
     #[test]
@@ -209,7 +216,13 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         // Reports violation for both opening and closing markers
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:9: MD049 Emphasis style should be '*', found '_'",
+                "test.md:1:16: MD049 Emphasis style should be '*', found '_'",
+            ]
+        );
     }
 
     #[test]
@@ -272,7 +285,13 @@ mod tests {
         let config = serde_json::json!({ "style": "asterisk" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:6: MD049 Emphasis style should be '*', found '_'",
+                "test.md:1:13: MD049 Emphasis style should be '*', found '_'",
+            ]
+        );
     }
 
     #[test]

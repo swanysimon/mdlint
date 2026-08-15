@@ -121,6 +121,7 @@ impl Rule for MD031 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -153,8 +154,12 @@ mod tests {
         let rule = MD031;
         let violations = rule.check(&parser, None);
 
-        assert!(!violations.is_empty());
-        assert!(violations.iter().any(|v| v.message.contains("before")));
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD031 Fenced code blocks should be surrounded by blank lines (missing before)"
+            ]
+        );
     }
 
     #[test]
@@ -170,8 +175,12 @@ mod tests {
         let rule = MD031;
         let violations = rule.check(&parser, None);
 
-        assert!(!violations.is_empty());
-        assert!(violations.iter().any(|v| v.message.contains("after")));
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:5:1: MD031 Fenced code blocks should be surrounded by blank lines (missing after)"
+            ]
+        );
     }
 
     #[test]
@@ -205,8 +214,12 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Should detect missing blank line before code block
-        assert!(!violations.is_empty());
-        assert!(violations.iter().any(|v| v.message.contains("before")));
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD031 Fenced code blocks should be surrounded by blank lines (missing before)"
+            ]
+        );
 
         // Check that fix has correct line numbers
         if let Some(fix) = &violations[0].fix {
@@ -232,7 +245,13 @@ mod tests {
         let rule = MD031;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // Missing before and after
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD031 Fenced code blocks should be surrounded by blank lines (missing before)",
+                "test.md:4:1: MD031 Fenced code blocks should be surrounded by blank lines (missing after)",
+            ]
+        );
 
         // Apply fixes
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();

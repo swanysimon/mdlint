@@ -115,6 +115,7 @@ impl Rule for MD014 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -149,9 +150,13 @@ mod tests {
         let rule = MD014;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // One for each line with $
-        assert_eq!(violations[0].line, 2); // First line of code content
-        assert_eq!(violations[1].line, 3); // Second line of code content
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD014 Dollar signs should not be used before commands without showing output",
+                "test.md:3:1: MD014 Dollar signs should not be used before commands without showing output",
+            ]
+        );
     }
 
     #[test]
@@ -194,7 +199,13 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD014;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD014 Dollar signs should not be used before commands without showing output",
+                "test.md:3:1: MD014 Dollar signs should not be used before commands without showing output",
+            ]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

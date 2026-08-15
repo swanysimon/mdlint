@@ -202,6 +202,7 @@ impl Rule for MD037 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -221,7 +222,14 @@ mod tests {
         let rule = MD037;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // One for opening, one for closing
+        // One violation for the opening marker, one for the closing.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:9: MD037 Spaces inside emphasis markers",
+                "test.md:1:16: MD037 Spaces inside emphasis markers",
+            ]
+        );
     }
 
     #[test]
@@ -231,7 +239,14 @@ mod tests {
         let rule = MD037;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // One for opening, one for closing
+        // One violation for the opening marker, one for the closing.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:9: MD037 Spaces inside emphasis markers",
+                "test.md:1:17: MD037 Spaces inside emphasis markers",
+            ]
+        );
     }
 
     #[test]
@@ -241,7 +256,14 @@ mod tests {
         let rule = MD037;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // One for opening, one for closing
+        // One violation for the opening marker, one for the closing.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:9: MD037 Spaces inside emphasis markers",
+                "test.md:1:16: MD037 Spaces inside emphasis markers",
+            ]
+        );
     }
 
     #[test]
@@ -279,7 +301,15 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // The * 2 * 3 part should be flagged (not in code), but user_id should not
-        assert_eq!(violations.len(), 2); // Only the * 2 * emphasis
+        // Only the `* 2 *` emphasis is flagged; the underscores inside the
+        // `user_id` code span are not emphasis markers.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:32: MD037 Spaces inside emphasis markers",
+                "test.md:1:35: MD037 Spaces inside emphasis markers",
+            ]
+        );
     }
 
     #[test]

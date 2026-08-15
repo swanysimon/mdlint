@@ -73,6 +73,7 @@ impl Rule for MD053 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -98,8 +99,10 @@ mod tests {
         let rule = MD053;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("unused"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD053 Link reference definition 'unused' is defined but not used"]
+        );
     }
 
     #[test]
@@ -113,8 +116,10 @@ mod tests {
         let rule = MD053;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("unused"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD053 Link reference definition 'unused' is defined but not used"]
+        );
     }
 
     #[test]

@@ -60,6 +60,7 @@ impl Rule for MD052 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -82,8 +83,10 @@ mod tests {
         let rule = MD052;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("undefined"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD052 Reference link label 'undefined' is not defined"]
+        );
     }
 
     #[test]
@@ -132,8 +135,10 @@ mod tests {
         let rule = MD052;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("reference"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD052 Reference link label 'reference' is not defined"]
+        );
     }
 
     #[test]
@@ -156,6 +161,9 @@ mod tests {
         let rule = MD052;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD052 Reference link label 'Link' is not defined"]
+        );
     }
 }

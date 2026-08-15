@@ -58,6 +58,7 @@ impl Rule for MD025 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -83,8 +84,10 @@ mod tests {
         let rule = MD025;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 3);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD025 Multiple top-level headings (first h1 at line 1)"]
+        );
     }
 
     #[test]
@@ -97,7 +100,13 @@ mod tests {
         let rule = MD025;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // Second and third are violations
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD025 Multiple top-level headings (first h1 at line 1)",
+                "test.md:3:1: MD025 Multiple top-level headings (first h1 at line 1)",
+            ]
+        );
     }
 
     #[test]

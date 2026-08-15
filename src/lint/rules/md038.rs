@@ -85,6 +85,7 @@ impl Rule for MD038 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_correct_code_span() {
@@ -103,7 +104,10 @@ mod tests {
         let rule = MD038;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:10: MD038 Spaces inside code span elements"]
+        );
     }
 
     #[test]
@@ -113,7 +117,10 @@ mod tests {
         let rule = MD038;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:20: MD038 Spaces inside code span elements"]
+        );
     }
 
     #[test]
@@ -156,7 +163,10 @@ mod tests {
         let rule = MD038;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:6: MD038 Spaces inside code span elements"]
+        );
     }
 
     #[test]
@@ -166,7 +176,10 @@ mod tests {
         let rule = MD038;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:10: MD038 Spaces inside code span elements"]
+        );
     }
 
     #[test]
@@ -192,6 +205,9 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // The parser sees ` code` (leading space without trailing), which is flagged
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:6: MD038 Spaces inside code span elements"]
+        );
     }
 }

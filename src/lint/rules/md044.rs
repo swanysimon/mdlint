@@ -87,6 +87,7 @@ impl Rule for MD044 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_no_config() {
@@ -121,7 +122,13 @@ mod tests {
         });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:8: MD044 Proper name 'javascript' should be capitalized as 'JavaScript'",
+                "test.md:1:23: MD044 Proper name 'typescript' should be capitalized as 'TypeScript'",
+            ]
+        );
     }
 
     #[test]

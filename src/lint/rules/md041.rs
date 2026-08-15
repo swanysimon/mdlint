@@ -94,6 +94,7 @@ impl Rule for MD041 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -119,7 +120,10 @@ mod tests {
         let rule = MD041;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD041 First line in file should be a top-level heading"]
+        );
     }
 
     #[test]
@@ -132,7 +136,10 @@ mod tests {
         let rule = MD041;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Should be H1
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD041 First line in file should be a level 1 heading"]
+        );
     }
 
     #[test]

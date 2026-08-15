@@ -99,6 +99,7 @@ impl Rule for MD012 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -134,8 +135,10 @@ mod tests {
         let rule = MD012;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 3); // Third line is the excess blank
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD012 Multiple consecutive blank lines [Expected: 1; Actual: 2]"]
+        );
     }
 
     #[test]
@@ -164,7 +167,10 @@ mod tests {
         let rule = MD012;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD012 Expected: 1; Actual: 2"]
+        );
     }
 
     #[test]
@@ -178,7 +184,10 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD012;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD012 Multiple consecutive blank lines [Expected: 1; Actual: 2]"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

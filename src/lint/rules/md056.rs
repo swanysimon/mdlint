@@ -136,6 +136,7 @@ fn is_separator_line(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -162,7 +163,10 @@ mod tests {
         let rule = MD056;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD056 Table row has 3 columns, expected 2"]
+        );
     }
 
     #[test]
@@ -175,7 +179,10 @@ mod tests {
         let rule = MD056;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Separator has wrong column count
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD056 Table separator has 2 columns, expected 3"]
+        );
     }
 
     #[test]
@@ -190,7 +197,10 @@ mod tests {
         let rule = MD056;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Only middle row is wrong
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:4:1: MD056 Table row has 3 columns, expected 2"]
+        );
     }
 
     #[test]

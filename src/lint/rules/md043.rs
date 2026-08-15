@@ -112,6 +112,7 @@ impl Rule for MD043 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -150,8 +151,10 @@ mod tests {
         });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("Wrong Heading"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD043 Expected heading 'Background', found 'Wrong Heading'"]
+        );
     }
 
     #[test]

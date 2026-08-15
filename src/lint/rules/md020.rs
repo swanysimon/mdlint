@@ -90,6 +90,7 @@ impl Rule for MD020 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
         let fixes: Vec<_> = violations.iter().filter_map(|v| v.fix.clone()).collect();
@@ -115,7 +116,10 @@ mod tests {
         let rule = MD020;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // No space, violation
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD020 No space inside hashes on closed atx style heading"]
+        );
     }
 
     #[test]
@@ -135,7 +139,13 @@ mod tests {
         let rule = MD020;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // Both missing spaces
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD020 No space inside hashes on closed atx style heading",
+                "test.md:2:1: MD020 No space inside hashes on closed atx style heading",
+            ]
+        );
     }
 
     #[test]
@@ -144,7 +154,10 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD020;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD020 No space inside hashes on closed atx style heading"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(fixed, "# Heading #\n");
     }

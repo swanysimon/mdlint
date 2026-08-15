@@ -111,6 +111,7 @@ impl Rule for MD048 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -162,7 +163,11 @@ mod tests {
         let rule = MD048;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Only opening of second block
+        // Only the opening fence of the offending block is reported.
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:5:1: MD048 Code fence style should be 'backtick' (`), found tilde (~)"]
+        );
     }
 
     #[test]
@@ -176,6 +181,10 @@ mod tests {
         let config = serde_json::json!({ "style": "backtick" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1); // Only opening
+        // Only the opening fence is reported, not the closing one.
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD048 Code fence style should be 'backtick' (`), found tilde (~)"]
+        );
     }
 }

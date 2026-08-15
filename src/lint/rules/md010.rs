@@ -88,6 +88,7 @@ impl Rule for MD010 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -120,9 +121,10 @@ mod tests {
         let rule = MD010;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 2);
-        assert_eq!(violations[0].column, Some(1));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD010 Hard tabs found"]
+        );
     }
 
     #[test]
@@ -137,7 +139,10 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // By default, code_blocks is true, so tabs in code blocks are violations
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD010 Hard tabs found"]
+        );
     }
 
     #[test]

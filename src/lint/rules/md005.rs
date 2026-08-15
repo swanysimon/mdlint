@@ -92,6 +92,7 @@ impl Rule for MD005 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -119,7 +120,10 @@ mod tests {
         let rule = MD005;
         let violations = rule.check(&parser, None);
 
-        assert!(!violations.is_empty());
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD005 List item indentation mismatch: expected 0 spaces, found 1"]
+        );
     }
 
     #[test]

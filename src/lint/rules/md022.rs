@@ -111,6 +111,7 @@ impl Rule for MD022 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -146,8 +147,10 @@ mod tests {
         let rule = MD022;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("before"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD022 Heading should be surrounded by blank lines (missing before)"]
+        );
     }
 
     #[test]
@@ -160,8 +163,10 @@ mod tests {
         let rule = MD022;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("after"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD022 Heading should be surrounded by blank lines (missing after)"]
+        );
     }
 
     #[test]
@@ -188,8 +193,10 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("before"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD022 Heading should be surrounded by blank lines (missing before)"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,
@@ -212,8 +219,10 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD022;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("after"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD022 Heading should be surrounded by blank lines (missing after)"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

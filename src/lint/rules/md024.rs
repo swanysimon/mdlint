@@ -118,6 +118,7 @@ impl Rule for MD024 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -143,8 +144,12 @@ mod tests {
         let rule = MD024;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("Heading"));
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:3:1: MD024 Multiple headings with the same content: \"Heading\" (first at line 1)",
+            ]
+        );
     }
 
     #[test]
@@ -172,7 +177,12 @@ mod tests {
         let config = serde_json::json!({ "siblings_only": true });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:3:1: MD024 Multiple sibling headings with the same content: \"Heading\" (first at line 1)",
+            ]
+        );
     }
 
     #[test]
@@ -209,10 +219,11 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(
-            violations.len(),
-            1,
+            rendered(&violations),
+            [
+                "test.md:5:1: MD024 Multiple headings with the same content: \"`mdlint check`\" (first at line 1)"
+            ],
             "Same code headings should be duplicates"
         );
-        assert!(violations[0].message.contains("`mdlint check`"));
     }
 }
