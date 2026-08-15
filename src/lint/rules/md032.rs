@@ -86,7 +86,9 @@ impl Rule for MD032 {
                                     line: line_num + 1,
                                     column: Some(1),
                                     rule: self.name().to_owned(),
-                                    message: "List should be surrounded by blank lines".to_owned(),
+                                    message: "List should be surrounded by blank lines \
+                                         (missing before)"
+                                        .to_owned(),
                                     fix: None,
                                 });
                             }
@@ -99,7 +101,8 @@ impl Rule for MD032 {
                         line: last_list_line + 1,
                         column: Some(1),
                         rule: self.name().to_owned(),
-                        message: "List should be surrounded by blank lines".to_owned(),
+                        message: "List should be surrounded by blank lines (missing after)"
+                            .to_owned(),
                         fix: None,
                     });
                     // Also this new list needs a blank line before it (report at new list line)
@@ -107,7 +110,8 @@ impl Rule for MD032 {
                         line: line_num + 1,
                         column: Some(1),
                         rule: self.name().to_owned(),
-                        message: "List should be surrounded by blank lines".to_owned(),
+                        message: "List should be surrounded by blank lines (missing before)"
+                            .to_owned(),
                         fix: None,
                     });
                     current_marker = Some(marker);
@@ -129,7 +133,7 @@ impl Rule for MD032 {
                     line: line_num + 1, // The line after the list
                     column: Some(1),
                     rule: self.name().to_owned(),
-                    message: "List should be surrounded by blank lines".to_owned(),
+                    message: "List should be surrounded by blank lines (missing after)".to_owned(),
                     fix: None,
                 });
             } else if in_list && line.trim().is_empty() {
@@ -232,7 +236,7 @@ mod tests {
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:2:1: MD032 List should be surrounded by blank lines"]
+            ["test.md:2:1: MD032 List should be surrounded by blank lines (missing before)"]
         );
     }
 
@@ -250,7 +254,7 @@ mod tests {
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:5:1: MD032 List should be surrounded by blank lines"]
+            ["test.md:5:1: MD032 List should be surrounded by blank lines (missing after)"]
         );
     }
 
@@ -364,16 +368,13 @@ mod tests {
         // Each marker change starts a new list, so every boundary reports both
         // "previous list needs a blank after" and "new list needs a blank
         // before".
-        // AIDEV: at line 4 those two land on the same line with the same
-        // message, so they read as one duplicated diagnostic; MD031 avoids this
-        // by tagging its equivalents "(missing before)" / "(missing after)".
         assert_eq!(
             rendered(&violations),
             [
-                "test.md:3:1: MD032 List should be surrounded by blank lines",
-                "test.md:4:1: MD032 List should be surrounded by blank lines",
-                "test.md:4:1: MD032 List should be surrounded by blank lines",
-                "test.md:5:1: MD032 List should be surrounded by blank lines",
+                "test.md:3:1: MD032 List should be surrounded by blank lines (missing after)",
+                "test.md:4:1: MD032 List should be surrounded by blank lines (missing before)",
+                "test.md:4:1: MD032 List should be surrounded by blank lines (missing after)",
+                "test.md:5:1: MD032 List should be surrounded by blank lines (missing before)",
             ]
         );
     }

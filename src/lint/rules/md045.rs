@@ -22,14 +22,14 @@ impl Rule for MD045 {
     fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
         let mut in_image = false;
-        let mut image_start_line = 0;
+        let mut image_start_pos = (0, 0);
         let mut alt_text = String::new();
 
         for (event, range) in parser.parse_with_offsets() {
             match event {
                 Event::Start(Tag::Image { .. }) => {
                     in_image = true;
-                    image_start_line = parser.offset_to_line(range.start);
+                    image_start_pos = parser.offset_to_position(range.start);
                     alt_text.clear();
                 }
                 Event::Text(text) if in_image => {
@@ -39,8 +39,8 @@ impl Rule for MD045 {
                     // Only report if alt_text is completely empty (not just whitespace)
                     if alt_text.is_empty() {
                         violations.push(Violation {
-                            line: image_start_line,
-                            column: Some(1),
+                            line: image_start_pos.0,
+                            column: Some(image_start_pos.1),
                             rule: self.name().to_owned(),
                             message: "Images should have alternate text (alt text)".to_owned(),
                             fix: None,
@@ -82,8 +82,6 @@ mod tests {
         let rule = MD045;
         let violations = rule.check(&parser, None);
 
-        // AIDEV: the alt-less image starts at column 23, but MD045 reports every
-        // violation at column 1, so the column cannot locate it on the line.
         assert_eq!(
             rendered(&violations),
             ["test.md:1:1: MD045 Images should have alternate text (alt text)"]
@@ -109,7 +107,7 @@ mod tests {
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:1:1: MD045 Images should have alternate text (alt text)"]
+            ["test.md:1:23: MD045 Images should have alternate text (alt text)"]
         );
     }
 }

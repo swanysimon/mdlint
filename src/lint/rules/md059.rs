@@ -36,14 +36,14 @@ impl Rule for MD059 {
 
         let mut in_link = false;
         let mut link_text = String::new();
-        let mut link_line = 0;
+        let mut link_pos = (0, 0);
 
         for (event, range) in parser.parse_with_offsets() {
             match event {
                 Event::Start(Tag::Link { .. }) => {
                     in_link = true;
                     link_text.clear();
-                    link_line = parser.offset_to_line(range.start);
+                    link_pos = parser.offset_to_position(range.start);
                 }
                 Event::Text(text) if in_link => {
                     link_text.push_str(&text);
@@ -54,8 +54,8 @@ impl Rule for MD059 {
                     // Check if link text is non-descriptive
                     if non_descriptive.contains(&text_lower.as_str()) {
                         violations.push(Violation {
-                            line: link_line,
-                            column: Some(1),
+                            line: link_pos.0,
+                            column: Some(link_pos.1),
                             rule: self.name().to_owned(),
                             message: format!(
                                 "Link text '{}' is not descriptive; use meaningful text",
@@ -116,7 +116,7 @@ mod tests {
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:1:1: MD059 Link text 'here' is not descriptive; use meaningful text"]
+            ["test.md:1:17: MD059 Link text 'here' is not descriptive; use meaningful text"]
         );
     }
 
@@ -127,13 +127,11 @@ mod tests {
         let rule = MD059;
         let violations = rule.check(&parser, None);
 
-        // AIDEV: both links report column 1 ("read more" actually starts at
-        // column 25); only the quoted text in the message distinguishes them.
         assert_eq!(
             rendered(&violations),
             [
                 "test.md:1:1: MD059 Link text 'Click here' is not descriptive; use meaningful text",
-                "test.md:1:1: MD059 Link text 'read more' is not descriptive; use meaningful text",
+                "test.md:1:24: MD059 Link text 'read more' is not descriptive; use meaningful text",
             ]
         );
     }
