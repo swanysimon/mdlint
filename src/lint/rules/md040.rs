@@ -71,6 +71,7 @@ impl Rule for MD040 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -97,8 +98,10 @@ mod tests {
         let config = serde_json::json!({ "allowed_languages": ["rust", "python"] });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("should have a language"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD040 Fenced code block should have a language specified"]
+        );
     }
 
     #[test]
@@ -112,8 +115,10 @@ mod tests {
         let config = serde_json::json!({ "allowed_languages": ["rust", "python"] });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("not in the allowed list"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD040 Language 'javascript' is not in the allowed list"]
+        );
     }
 
     #[test]

@@ -88,6 +88,7 @@ impl Rule for MD011 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -107,8 +108,12 @@ mod tests {
         let rule = MD011;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 1);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:9: MD011 Reversed link syntax (found '(text)[url]', should be '[text](url)')"
+            ]
+        );
     }
 
     #[test]
@@ -118,7 +123,13 @@ mod tests {
         let rule = MD011;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:7: MD011 Reversed link syntax (found '(text)[url]', should be '[text](url)')",
+                "test.md:1:31: MD011 Reversed link syntax (found '(text)[url]', should be '[text](url)')",
+            ]
+        );
     }
 
     #[test]
@@ -128,8 +139,12 @@ mod tests {
         let rule = MD011;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 1);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:25: MD011 Reversed link syntax (found '(text)[url]', should be '[text](url)')"
+            ]
+        );
     }
 
     #[test]
@@ -174,7 +189,11 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Should only flag the actual reversed link, not code
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 8);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:8:6: MD011 Reversed link syntax (found '(text)[url]', should be '[text](url)')"
+            ]
+        );
     }
 }

@@ -77,6 +77,7 @@ impl Rule for MD018 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -106,8 +107,10 @@ mod tests {
         let rule = MD018;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:2: MD018 No space after hash on atx style heading"]
+        );
     }
 
     #[test]
@@ -120,7 +123,13 @@ mod tests {
         let rule = MD018;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:2: MD018 No space after hash on atx style heading",
+                "test.md:2:3: MD018 No space after hash on atx style heading",
+            ]
+        );
     }
 
     #[test]
@@ -159,7 +168,13 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD018;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:2: MD018 No space after hash on atx style heading",
+                "test.md:3:3: MD018 No space after hash on atx style heading",
+            ]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

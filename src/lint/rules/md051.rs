@@ -134,6 +134,7 @@ fn heading_to_id(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -159,8 +160,10 @@ mod tests {
         let rule = MD051;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("nonexistent"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:1: MD051 Link fragment 'nonexistent' does not match any heading"]
+        );
     }
 
     #[test]

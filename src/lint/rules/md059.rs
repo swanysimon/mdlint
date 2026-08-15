@@ -82,6 +82,7 @@ impl Rule for MD059 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_descriptive_link() {
@@ -100,8 +101,10 @@ mod tests {
         let rule = MD059;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("Click here"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD059 Link text 'Click here' is not descriptive; use meaningful text"]
+        );
     }
 
     #[test]
@@ -111,7 +114,10 @@ mod tests {
         let rule = MD059;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD059 Link text 'here' is not descriptive; use meaningful text"]
+        );
     }
 
     #[test]
@@ -121,7 +127,15 @@ mod tests {
         let rule = MD059;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2);
+        // AIDEV: both links report column 1 ("read more" actually starts at
+        // column 25); only the quoted text in the message distinguishes them.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD059 Link text 'Click here' is not descriptive; use meaningful text",
+                "test.md:1:1: MD059 Link text 'read more' is not descriptive; use meaningful text",
+            ]
+        );
     }
 
     #[test]
@@ -131,6 +145,9 @@ mod tests {
         let rule = MD059;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD059 Link text 'CLICK HERE' is not descriptive; use meaningful text"]
+        );
     }
 }

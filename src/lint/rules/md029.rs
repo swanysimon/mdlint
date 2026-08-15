@@ -132,6 +132,7 @@ fn parse_item_number(trimmed: &str) -> Option<usize> {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -166,9 +167,13 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Default "ordered": items 2 and 3 should be 2 and 3, not 1
-        assert_eq!(violations.len(), 2);
-        assert_eq!(violations[0].line, 2);
-        assert_eq!(violations[1].line, 3);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD029 Ordered list item prefix: expected 2, found 1",
+                "test.md:3:1: MD029 Ordered list item prefix: expected 3, found 1",
+            ]
+        );
     }
 
     #[test]
@@ -181,9 +186,13 @@ mod tests {
         let rule = MD029;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // Lines 2 and 3 are wrong
-        assert_eq!(violations[0].line, 2);
-        assert_eq!(violations[1].line, 3);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD029 Ordered list item prefix: expected 2, found 3",
+                "test.md:3:1: MD029 Ordered list item prefix: expected 3, found 4",
+            ]
+        );
     }
 
     #[test]
@@ -194,8 +203,10 @@ mod tests {
         let config = serde_json::json!({ "style": "ordered" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 2);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD029 Ordered list item prefix: expected 2, found 1"]
+        );
     }
 
     #[test]
@@ -206,8 +217,10 @@ mod tests {
         let config = serde_json::json!({ "style": "one" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 2);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD029 Ordered list item prefix: expected 1, found 2"]
+        );
     }
 
     #[test]
@@ -236,7 +249,13 @@ mod tests {
         let rule = MD029;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD029 Ordered list item prefix: expected 2, found 1",
+                "test.md:3:1: MD029 Ordered list item prefix: expected 3, found 1",
+            ]
+        );
         let fix0 = violations[0].fix.as_ref().expect("fix should be Some");
         assert_eq!(fix0.line_start, 2);
         assert_eq!(fix0.replacement, "2");
@@ -257,7 +276,10 @@ mod tests {
         let rule = MD029;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:5:1: MD029 Ordered list item prefix: expected 2, found 1"]
+        );
         let fix = violations[0].fix.as_ref().expect("fix should be Some");
         assert_eq!(fix.replacement, "2");
         assert_eq!(fix.column_start, Some(1));

@@ -50,6 +50,7 @@ impl Rule for MD042 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_link_with_text() {
@@ -68,7 +69,9 @@ mod tests {
         let rule = MD042;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        // AIDEV: the empty link starts at column 18, but MD042 reports every
+        // violation at column 1, so the column cannot locate it on the line.
+        assert_eq!(rendered(&violations), ["test.md:1:1: MD042 No empty links"]);
     }
 
     #[test]
@@ -90,7 +93,7 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Empty fragment should trigger MD042
-        assert_eq!(violations.len(), 1);
+        assert_eq!(rendered(&violations), ["test.md:1:1: MD042 No empty links"]);
     }
 
     #[test]
@@ -100,6 +103,6 @@ mod tests {
         let rule = MD042;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Only second link has empty destination
+        assert_eq!(rendered(&violations), ["test.md:1:1: MD042 No empty links"]);
     }
 }

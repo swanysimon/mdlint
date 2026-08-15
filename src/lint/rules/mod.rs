@@ -173,3 +173,24 @@ pub fn create_default_registry() -> RuleRegistry {
 
     registry
 }
+
+/// Renders violations exactly as `mdlint check` prints them, one line per
+/// violation, so tests assert the diagnostic a user actually sees rather than
+/// a test-only shape — a change to the displayed format shows up here too.
+/// The path is a fixed stand-in; context lines and colour are disabled.
+#[cfg(test)]
+pub(crate) fn rendered(violations: &[crate::types::Violation]) -> Vec<String> {
+    use crate::format::{DefaultFormatter, Formatter as _};
+
+    let mut result = crate::lint::LintResult::new();
+    result.add_file_result(
+        std::path::PathBuf::from("test.md"),
+        violations.to_vec(),
+        Vec::new(),
+    );
+    DefaultFormatter::without_context(false)
+        .format(&result)
+        .lines()
+        .filter_map(|line| line.strip_prefix("  ").map(str::to_owned))
+        .collect()
+}

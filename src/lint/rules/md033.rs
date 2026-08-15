@@ -91,6 +91,7 @@ fn extract_tag_name(html: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -113,8 +114,10 @@ mod tests {
         let rule = MD033;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("<br>"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD033 Inline HTML element: <br>"]
+        );
     }
 
     #[test]
@@ -126,8 +129,10 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         // Only <div> should be flagged, <br> is allowed
-        assert!(!violations.is_empty());
-        assert!(violations.iter().any(|v| v.message.contains("<div>")));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD033 Inline HTML element: <div>"]
+        );
     }
 
     #[test]
@@ -140,6 +145,9 @@ mod tests {
         let rule = MD033;
         let violations = rule.check(&parser, None);
 
-        assert!(!violations.is_empty());
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD033 Inline HTML element: <div>"]
+        );
     }
 }

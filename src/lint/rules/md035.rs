@@ -120,6 +120,7 @@ fn get_hr_style(line: &str) -> String {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -156,7 +157,10 @@ mod tests {
         let rule = MD035;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:5:1: MD035 Horizontal rule style should be '---', found '***'"]
+        );
     }
 
     #[test]
@@ -170,7 +174,10 @@ mod tests {
         let config = serde_json::json!({ "style": "---" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD035 Horizontal rule style should be '---', found '***'"]
+        );
     }
 
     #[test]
@@ -216,7 +223,10 @@ mod tests {
         let rule = MD035;
         let config = serde_json::json!({ "style": "---" });
         let violations = rule.check(&parser, Some(&config));
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD035 Horizontal rule style should be '---', found '***'"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

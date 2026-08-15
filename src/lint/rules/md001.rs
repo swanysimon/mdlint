@@ -69,6 +69,7 @@ fn heading_level_to_u8(level: HeadingLevel) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -92,9 +93,10 @@ mod tests {
         let rule = MD001;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 2);
-        assert!(violations[0].message.contains("h1 to h3"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD001 Heading level skipped from h1 to h3"]
+        );
     }
 
     #[test]
@@ -108,9 +110,13 @@ mod tests {
         let rule = MD001;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2);
-        assert_eq!(violations[0].line, 2);
-        assert_eq!(violations[1].line, 4);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:2:1: MD001 Heading level skipped from h1 to h4",
+                "test.md:4:1: MD001 Heading level skipped from h2 to h5",
+            ]
+        );
     }
 
     #[test]

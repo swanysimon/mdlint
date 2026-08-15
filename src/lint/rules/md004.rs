@@ -133,6 +133,7 @@ impl Rule for MD004 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -166,7 +167,15 @@ mod tests {
         let rule = MD004;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2); // Second and third items differ from first
+        // mdlint enforces `dash` by default rather than first-marker-wins, so
+        // the asterisk and plus are flagged and the dash is accepted.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD004 List marker style should be Dash",
+                "test.md:2:1: MD004 List marker style should be Dash",
+            ]
+        );
     }
 
     #[test]
@@ -177,7 +186,10 @@ mod tests {
         let config = serde_json::json!({ "style": "dash" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1); // First item uses asterisk
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD004 List marker style should be Dash"]
+        );
     }
 
     #[test]
@@ -268,7 +280,13 @@ mod tests {
         let rule = MD004;
         let config = serde_json::json!({ "style": "dash" });
         let violations = rule.check(&parser, Some(&config));
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD004 List marker style should be Dash",
+                "test.md:2:1: MD004 List marker style should be Dash",
+            ]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,
@@ -296,8 +314,12 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Both non-dash markers violate the default "dash" style
-        assert_eq!(violations.len(), 2);
-        assert_eq!(violations[0].line, 1); // Line with "* List item 1"
-        assert_eq!(violations[1].line, 8); // Line with "+ List item 2"
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD004 List marker style should be Dash",
+                "test.md:8:1: MD004 List marker style should be Dash",
+            ]
+        );
     }
 }

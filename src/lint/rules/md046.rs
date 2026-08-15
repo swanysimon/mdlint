@@ -107,6 +107,7 @@ impl Rule for MD046 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -149,7 +150,10 @@ mod tests {
         let rule = MD046;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:5:1: MD046 Code block style should be 'fenced', found 'indented'"]
+        );
     }
 
     #[test]
@@ -160,6 +164,9 @@ mod tests {
         let config = serde_json::json!({ "style": "fenced" });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD046 Code block style should be 'fenced', found 'indented'"]
+        );
     }
 }

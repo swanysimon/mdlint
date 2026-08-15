@@ -71,6 +71,7 @@ impl Rule for MD009 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -100,9 +101,10 @@ mod tests {
         let rule = MD009;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Line 3 has 3 spaces, Line 1 has 2 (allowed for br)
-        assert_eq!(violations[0].line, 3);
-        assert_eq!(violations[0].column, Some(7));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:3:7: MD009 Trailing spaces (3 spaces)"]
+        );
     }
 
     #[test]
@@ -113,8 +115,10 @@ mod tests {
         let config = serde_json::json!({ "strict": true });
         let violations = rule.check(&parser, Some(&config));
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:7: MD009 Trailing spaces (2 spaces)"]
+        );
     }
 
     #[test]

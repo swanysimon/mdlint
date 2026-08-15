@@ -199,6 +199,7 @@ fn get_list_marker(trimmed: &str) -> Option<ListMarker> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -229,8 +230,10 @@ mod tests {
         let rule = MD032;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 2); // List starts on line 2
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD032 List should be surrounded by blank lines"]
+        );
     }
 
     #[test]
@@ -245,8 +248,10 @@ mod tests {
         let rule = MD032;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 5); // Text after list
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:5:1: MD032 List should be surrounded by blank lines"]
+        );
     }
 
     #[test]
@@ -356,10 +361,21 @@ mod tests {
         let rule = MD032;
         let violations = rule.check(&parser, None);
 
-        // Each marker change is a new list needing blank lines
-        // + needs blank before/after (2 violations)
-        // - needs blank before/after (2 violations)
-        assert_eq!(violations.len(), 4);
+        // Each marker change starts a new list, so every boundary reports both
+        // "previous list needs a blank after" and "new list needs a blank
+        // before".
+        // AIDEV: at line 4 those two land on the same line with the same
+        // message, so they read as one duplicated diagnostic; MD031 avoids this
+        // by tagging its equivalents "(missing before)" / "(missing after)".
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:3:1: MD032 List should be surrounded by blank lines",
+                "test.md:4:1: MD032 List should be surrounded by blank lines",
+                "test.md:4:1: MD032 List should be surrounded by blank lines",
+                "test.md:5:1: MD032 List should be surrounded by blank lines",
+            ]
+        );
     }
 
     #[test]

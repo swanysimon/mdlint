@@ -235,6 +235,7 @@ fn is_table_separator(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -258,8 +259,10 @@ mod tests {
         let rule = MD030;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("found 0"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:2: MD030 Expected 1 space(s) after list marker, found 0"]
+        );
     }
 
     #[test]
@@ -269,8 +272,10 @@ mod tests {
         let rule = MD030;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("found 2"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:2: MD030 Expected 1 space(s) after list marker, found 2"]
+        );
     }
 
     #[test]
@@ -383,11 +388,10 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(
-            violations.len(),
-            1,
+            rendered(&violations),
+            ["test.md:5:2: MD030 Expected 1 space(s) after list marker, found 0"],
             "Real list markers outside code blocks should be checked"
         );
-        assert_eq!(violations[0].line, 5);
     }
 
     #[test]

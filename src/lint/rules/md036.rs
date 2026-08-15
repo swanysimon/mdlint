@@ -107,6 +107,7 @@ fn is_emphasis_only_line(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -129,7 +130,10 @@ mod tests {
         let rule = MD036;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD036 Emphasis used instead of a heading"]
+        );
     }
 
     #[test]
@@ -162,7 +166,10 @@ mod tests {
         let rule = MD036;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD036 Emphasis used instead of a heading"]
+        );
     }
 
     #[test]

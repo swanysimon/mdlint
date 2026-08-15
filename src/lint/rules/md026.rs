@@ -73,6 +73,7 @@ impl Rule for MD026 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_no_trailing_punctuation() {
@@ -91,8 +92,10 @@ mod tests {
         let rule = MD026;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("'.'"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD026 Trailing punctuation in heading: '.'"]
+        );
     }
 
     #[test]

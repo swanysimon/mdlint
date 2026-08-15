@@ -71,6 +71,7 @@ impl Rule for MD034 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -90,8 +91,10 @@ mod tests {
         let rule = MD034;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("https://example.com"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:11: MD034 Bare URL used: https://example.com"]
+        );
     }
 
     #[test]
@@ -111,7 +114,13 @@ mod tests {
         let rule = MD034;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:7: MD034 Bare URL used: https://example.com",
+                "test.md:1:31: MD034 Bare URL used: https://test.com",
+            ]
+        );
     }
 
     #[test]
@@ -188,8 +197,10 @@ mod tests {
         let rule = MD034;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("https://paren.example.com"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:12: MD034 Bare URL used: https://paren.example.com"]
+        );
     }
 
     #[test]
@@ -199,9 +210,11 @@ mod tests {
         let rule = MD034;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:7: MD034 Bare URL used: https://example.com"]
+        );
         // "Visit " is 6 chars, URL starts at column 7 (1-indexed).
-        assert_eq!(violations[0].column, Some(7));
     }
 
     #[test]

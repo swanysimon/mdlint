@@ -72,6 +72,7 @@ impl Rule for MD027 {
 mod tests {
     use super::*;
     use crate::fix::Fixer;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     fn apply_fixes(content: &str, violations: &[Violation]) -> String {
@@ -98,8 +99,10 @@ mod tests {
         let rule = MD027;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:2: MD027 Multiple spaces after blockquote symbol (2 spaces)"]
+        );
     }
 
     #[test]
@@ -109,8 +112,10 @@ mod tests {
         let rule = MD027;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("5 spaces"));
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:2: MD027 Multiple spaces after blockquote symbol (5 spaces)"]
+        );
     }
 
     #[test]
@@ -132,7 +137,10 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD027;
         let violations = rule.check(&parser, None);
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:2: MD027 Multiple spaces after blockquote symbol (2 spaces)"]
+        );
         let fixed = apply_fixes(content, &violations);
         assert_eq!(
             fixed,

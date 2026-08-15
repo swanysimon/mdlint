@@ -76,6 +76,7 @@ impl Rule for MD028 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -101,8 +102,10 @@ mod tests {
         let rule = MD028;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].line, 2);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD028 Blank line inside blockquote"]
+        );
     }
 
     #[test]
@@ -129,6 +132,9 @@ mod tests {
         let rule = MD028;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // First blank line is the violation
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:1: MD028 Blank line inside blockquote"]
+        );
     }
 }

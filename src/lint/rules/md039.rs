@@ -69,6 +69,7 @@ impl Rule for MD039 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_correct_link() {
@@ -87,7 +88,10 @@ mod tests {
         let rule = MD039;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD039 Spaces inside link text"]
+        );
     }
 
     #[test]
@@ -97,7 +101,10 @@ mod tests {
         let rule = MD039;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD039 Spaces inside link text"]
+        );
     }
 
     #[test]
@@ -107,8 +114,16 @@ mod tests {
         let rule = MD039;
         let violations = rule.check(&parser, None);
 
-        // Should report 2 violations: one for leading space, one for trailing
-        assert_eq!(violations.len(), 2);
+        // AIDEV: the leading- and trailing-space violations are reported at the
+        // match start with the same message, so the two are indistinguishable.
+        // Pointing the trailing one at the trailing space would separate them.
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD039 Spaces inside link text",
+                "test.md:1:1: MD039 Spaces inside link text",
+            ]
+        );
     }
 
     #[test]

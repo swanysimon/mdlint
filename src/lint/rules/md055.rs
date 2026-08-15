@@ -175,6 +175,7 @@ impl Rule for MD055 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
     use indoc::indoc;
 
     #[test]
@@ -215,7 +216,13 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Last row is inconsistent: reports 2 violations (missing leading and trailing)
-        assert_eq!(violations.len(), 2);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:3:1: MD055 Table should have leading pipe",
+                "test.md:3:1: MD055 Table should have trailing pipe",
+            ]
+        );
     }
 
     #[test]
@@ -230,7 +237,17 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         // 3 rows (header, separator, data) × 2 violations each (missing leading and trailing)
-        assert_eq!(violations.len(), 6);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD055 Table should have leading pipe",
+                "test.md:1:1: MD055 Table should have trailing pipe",
+                "test.md:2:1: MD055 Table should have leading pipe",
+                "test.md:2:1: MD055 Table should have trailing pipe",
+                "test.md:3:1: MD055 Table should have leading pipe",
+                "test.md:3:1: MD055 Table should have trailing pipe",
+            ]
+        );
     }
 
     #[test]
@@ -274,6 +291,16 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         // 3 rows x 2 violations each (missing leading and trailing pipe)
-        assert_eq!(violations.len(), 6);
+        assert_eq!(
+            rendered(&violations),
+            [
+                "test.md:1:1: MD055 Table should have leading pipe",
+                "test.md:1:1: MD055 Table should have trailing pipe",
+                "test.md:2:1: MD055 Table should have leading pipe",
+                "test.md:2:1: MD055 Table should have trailing pipe",
+                "test.md:3:1: MD055 Table should have leading pipe",
+                "test.md:3:1: MD055 Table should have trailing pipe",
+            ]
+        );
     }
 }

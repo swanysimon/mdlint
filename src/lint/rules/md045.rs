@@ -63,6 +63,7 @@ impl Rule for MD045 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lint::rules::rendered;
 
     #[test]
     fn test_image_with_alt() {
@@ -81,7 +82,12 @@ mod tests {
         let rule = MD045;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1);
+        // AIDEV: the alt-less image starts at column 23, but MD045 reports every
+        // violation at column 1, so the column cannot locate it on the line.
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD045 Images should have alternate text (alt text)"]
+        );
     }
 
     #[test]
@@ -101,6 +107,9 @@ mod tests {
         let rule = MD045;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(violations.len(), 1); // Only second image lacks alt
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD045 Images should have alternate text (alt text)"]
+        );
     }
 }
