@@ -39,7 +39,7 @@ impl Rule for MD039 {
                     if link_text.starts_with(' ') {
                         violations.push(Violation {
                             line: line_number,
-                            column: Some(mat.start() + 1),
+                            column: Some(mat.start() + 2),
                             rule: self.name().to_owned(),
                             message: "Spaces inside link text".to_owned(),
                             fix: None,
@@ -48,7 +48,7 @@ impl Rule for MD039 {
                     if link_text.ends_with(' ') {
                         violations.push(Violation {
                             line: line_number,
-                            column: Some(mat.start() + 1),
+                            column: Some(mat.start() + bracket_end),
                             rule: self.name().to_owned(),
                             message: "Spaces inside link text".to_owned(),
                             fix: None,
@@ -90,7 +90,7 @@ mod tests {
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:1:1: MD039 Spaces inside link text"]
+            ["test.md:1:2: MD039 Spaces inside link text"]
         );
     }
 
@@ -103,7 +103,7 @@ mod tests {
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:1:1: MD039 Spaces inside link text"]
+            ["test.md:1:11: MD039 Spaces inside link text"]
         );
     }
 
@@ -114,14 +114,11 @@ mod tests {
         let rule = MD039;
         let violations = rule.check(&parser, None);
 
-        // AIDEV: the leading- and trailing-space violations are reported at the
-        // match start with the same message, so the two are indistinguishable.
-        // Pointing the trailing one at the trailing space would separate them.
         assert_eq!(
             rendered(&violations),
             [
-                "test.md:1:1: MD039 Spaces inside link text",
-                "test.md:1:1: MD039 Spaces inside link text",
+                "test.md:1:2: MD039 Spaces inside link text",
+                "test.md:1:12: MD039 Spaces inside link text",
             ]
         );
     }

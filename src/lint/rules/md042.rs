@@ -27,10 +27,10 @@ impl Rule for MD042 {
                 // Check if the destination URL is empty or only contains "#"
                 let url_str = dest_url.to_string();
                 if url_str.is_empty() || url_str == "#" {
-                    let line = parser.offset_to_line(range.start);
+                    let (line, column) = parser.offset_to_position(range.start);
                     violations.push(Violation {
                         line,
-                        column: Some(1),
+                        column: Some(column),
                         rule: self.name().to_owned(),
                         message: "No empty links".to_owned(),
                         fix: None,
@@ -69,8 +69,6 @@ mod tests {
         let rule = MD042;
         let violations = rule.check(&parser, None);
 
-        // AIDEV: the empty link starts at column 18, but MD042 reports every
-        // violation at column 1, so the column cannot locate it on the line.
         assert_eq!(rendered(&violations), ["test.md:1:1: MD042 No empty links"]);
     }
 
@@ -103,6 +101,9 @@ mod tests {
         let rule = MD042;
         let violations = rule.check(&parser, None);
 
-        assert_eq!(rendered(&violations), ["test.md:1:1: MD042 No empty links"]);
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:18: MD042 No empty links"]
+        );
     }
 }
