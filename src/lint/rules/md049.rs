@@ -44,6 +44,9 @@ impl Rule for MD049 {
 
             // Look for emphasis patterns: *text* or _text_ (not ** or __)
             let chars: Vec<char> = line.chars().collect();
+            // Byte offset of each char, since the code ranges are byte-based
+            // while the scan below (and the emitted columns) are char-based.
+            let char_offsets: Vec<usize> = line.char_indices().map(|(offset, _)| offset).collect();
             let mut i = 0;
 
             while i < chars.len() {
@@ -79,7 +82,10 @@ impl Rule for MD049 {
 
                                 if !close_is_strong && can_close {
                                     // Skip if this emphasis is inside code
-                                    if is_in_code(line_number, i) {
+                                    if is_in_code(
+                                        line_number,
+                                        char_offsets.get(i).copied().unwrap_or(line.len()),
+                                    ) {
                                         i = j; // Skip to after closing
                                         break;
                                     }
@@ -305,6 +311,18 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         // Should not flag asterisks in code as emphasis markers
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_inline_code_after_multibyte_text() {
+        // The code ranges are byte offsets while the scan is char-based, so
+        // multibyte text ahead of the code span must not shift the lookup.
+        let content = "Café café café `_x_` here.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD049;
+        let violations = rule.check(&parser, None);
+
         assert_eq!(violations.len(), 0);
     }
 }

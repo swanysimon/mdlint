@@ -42,36 +42,44 @@ impl Rule for MD044 {
 
         let mut violations = Vec::new();
 
+        // Case-insensitive with word boundaries; compiled once per name rather
+        // than once per name per line.
+        let patterns: Vec<(&String, Regex)> = proper_names
+            .iter()
+            .filter_map(|name| {
+                Regex::new(&format!(r"(?i)\b{}\b", regex::escape(name)))
+                    .ok()
+                    .map(|re| (name, re))
+            })
+            .collect();
+
+        // The parser's code ranges cover code spans and both fenced and indented
+        // blocks — including the block *contents*, which a per-line "does this
+        // line look like code" test cannot see.
+        let code_ranges = parser.get_code_ranges();
+
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
 
-            // Skip code blocks if configured
-            if !code_blocks
-                && (line.starts_with("    ") || line.starts_with('\t') || line.contains("```"))
-            {
-                continue;
-            }
-
-            // Check each proper name
-            for name in &proper_names {
-                // Create case-insensitive regex with word boundaries
-                let pattern = format!(r"(?i)\b{}\b", regex::escape(name));
-                if let Ok(re) = Regex::new(&pattern) {
-                    for mat in re.find_iter(line) {
-                        let found = mat.as_str();
-                        // Check if capitalization matches
-                        if found != name {
-                            violations.push(Violation {
-                                line: line_number,
-                                column: Some(mat.start() + 1),
-                                rule: self.name().to_owned(),
-                                message: format!(
-                                    "Proper name '{found}' should be capitalized as '{name}'"
-                                ),
-                                fix: None,
-                            });
+            for (name, re) in &patterns {
+                for mat in re.find_iter(line) {
+                    let found = mat.as_str();
+                    if found == name.as_str() {
+                        continue;
+                    }
+                    if !code_blocks {
+                        let absolute = parser.line_offset_to_absolute(line_number, mat.start());
+                        if code_ranges.iter().any(|range| range.contains(&absolute)) {
+                            continue;
                         }
                     }
+                    violations.push(Violation {
+                        line: line_number,
+                        column: Some(mat.start() + 1),
+                        rule: self.name().to_owned(),
+                        message: format!("Proper name '{found}' should be capitalized as '{name}'"),
+                        fix: None,
+                    });
                 }
             }
         }
@@ -88,6 +96,7 @@ impl Rule for MD044 {
 mod tests {
     use super::*;
     use crate::lint::rules::rendered;
+    use indoc::indoc;
 
     #[test]
     fn test_no_config() {
@@ -143,5 +152,51 @@ mod tests {
 
         // Should only match whole word "JavaScript", not "JavaScriptCore"
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_code_blocks_false_skips_block_contents_and_spans() {
+        let content = indoc! {"
+            Run `javascript` first.
+
+            ```js
+            let javascript = 1;
+            ```
+
+            Then javascript again.
+        "};
+        let parser = MarkdownParser::new(content);
+        let rule = MD044;
+        let config = serde_json::json!({
+            "names": ["JavaScript"],
+            "code_blocks": false
+        });
+        let violations = rule.check(&parser, Some(&config));
+
+        // Only the prose occurrence on line 7 survives
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:7:6: MD044 Proper name 'javascript' should be capitalized as 'JavaScript'"]
+        );
+    }
+
+    #[test]
+    fn test_code_blocks_true_checks_code() {
+        let content = indoc! {"
+            ```js
+            let javascript = 1;
+            ```
+        "};
+        let parser = MarkdownParser::new(content);
+        let rule = MD044;
+        let config = serde_json::json!({
+            "names": ["JavaScript"]
+        });
+        let violations = rule.check(&parser, Some(&config));
+
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:2:5: MD044 Proper name 'javascript' should be capitalized as 'JavaScript'"]
+        );
     }
 }
