@@ -1,7 +1,6 @@
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
-use pulldown_cmark::{Event, Tag, TagEnd};
 use regex::Regex;
 use serde_json::Value;
 
@@ -23,29 +22,11 @@ impl Rule for MD011 {
     fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
 
-        // Track code blocks to exclude them from checking
-        let mut code_block_lines = std::collections::HashSet::new();
-        let mut in_code_block = false;
-
-        for (event, range) in parser.parse_with_offsets() {
-            match event {
-                Event::Start(Tag::CodeBlock(_)) => {
-                    in_code_block = true;
-                }
-                Event::End(TagEnd::CodeBlock) => {
-                    in_code_block = false;
-                }
-                Event::Text(_) if in_code_block => {
-                    // Mark all lines that this text event spans
-                    let start_line = parser.offset_to_line(range.start);
-                    let end_line = parser.offset_to_line(range.end.saturating_sub(1));
-                    for line in start_line..=end_line {
-                        code_block_lines.insert(line);
-                    }
-                }
-                _ => {}
-            }
-        }
+        // `(text)[url]` isn't a link, so pulldown-cmark emits it as several
+        // separate Text events — the source lines are the only place the whole
+        // pattern is visible. The parser's precomputed code ranges still do the
+        // exclusion, covering code spans as well as code blocks.
+        let code_ranges = parser.get_code_ranges();
 
         // Pattern for reversed link syntax: (text)[url]
         // Capture the bracket content so we can exclude GFM task list checkboxes ([ ], [x], [X])
@@ -54,11 +35,6 @@ impl Rule for MD011 {
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
 
-            // Skip code blocks
-            if code_block_lines.contains(&line_number) {
-                continue;
-            }
-
             for caps in re.captures_iter(line) {
                 // Skip GFM task list checkboxes: [ ] and [x]/[X]
                 let bracket_content = &caps[1];
@@ -66,6 +42,10 @@ impl Rule for MD011 {
                     continue;
                 }
                 let m = caps.get(0).expect("group 0 always present");
+                let absolute = parser.line_offset_to_absolute(line_number, m.start());
+                if code_ranges.iter().any(|range| range.contains(&absolute)) {
+                    continue;
+                }
                 violations.push(Violation {
                     line: line_number,
                     column: Some(m.start() + 1),
@@ -165,6 +145,16 @@ mod tests {
             - [x] Done task
             - (description)[ ] another task
         "};
+        let parser = MarkdownParser::new(content);
+        let rule = MD011;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_code_span_not_flagged() {
+        let content = "Use `array(0)[index]` and `function(param)[key]` in code.";
         let parser = MarkdownParser::new(content);
         let rule = MD011;
         let violations = rule.check(&parser, None);
