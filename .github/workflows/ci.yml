@@ -23,7 +23,7 @@ jobs:
           cache-key: "lint"
 
       - name: Install mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
         env:
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
@@ -73,7 +73,7 @@ jobs:
           sparse-checkout: python
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Check syntax
         run: uv run python -m py_compile mdlint/__init__.py mdlint/__main__.py
