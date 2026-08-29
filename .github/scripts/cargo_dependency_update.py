@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Refresh Cargo.lock and revert any transitive dependency bump whose new
-version was published on crates.io more recently than MIN_RELEASE_AGE_DAYS.
+"""Run `cargo update` and revert any dependency bump whose new version was
+published on crates.io more recently than MIN_RELEASE_AGE_DAYS.
 
-Renovate manages direct dependency bumps in Cargo.toml (and enforces
-minimumReleaseAge for them), but a plain `cargo update` for transitive
-dependencies is not covered by that policy. This script re-implements the
-same minimum-release-age guard for the transitive graph.
+`cargo update` resolves both in-range direct dependencies and transitive
+dependencies in one pass, so this is the entire weekly Cargo maintenance
+job - Renovate does not manage the cargo manager for this repository (see
+renovate.json), specifically so both kinds of update land in a single PR.
+Renovate's minimumReleaseAge guard does not apply to a raw lockfile
+refresh like this one, so this script re-implements the same 20-day
+policy directly against crates.io.
 """
 
 import json
