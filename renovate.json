@@ -11,12 +11,7 @@
   "separateMajorMinor": false,
   "separateMultipleMajor": false,
   "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": [
-      "at any time"
-    ],
-    "groupName": "all dependencies",
-    "groupSlug": "all-dependencies"
+    "enabled": false
   },
   "packageRules": [
     {
