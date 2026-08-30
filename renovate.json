@@ -16,12 +16,7 @@
   "packageRules": [
     {
       "matchManagers": [
-        "cargo"
-      ],
-      "enabled": false
-    },
-    {
-      "matchManagers": [
+        "cargo",
         "mise",
         "rust-toolchain"
       ],

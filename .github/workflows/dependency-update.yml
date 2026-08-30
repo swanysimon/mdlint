@@ -1,0 +1,81 @@
+name: Dependency update
+
+on:
+  schedule:
+    # Mondays at 18:00 UTC (10am PST / 11am PDT).
+    - cron: "0 18 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Update dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          cache: "false"
+
+      - name: Install mise
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+      # Renovate can't merge its own "regular update" and "lock file
+      # maintenance" branches into a single PR (removed upstream in v43+),
+      # so it never creates anything here. dryRun=full still computes every
+      # update it would make - across cargo, mise, the Rust toolchain, the
+      # Dockerfile, and GitHub Actions digests - and logs the full resulting
+      # file contents at debug level before discarding them. We harvest that
+      # log below and apply it ourselves in one commit.
+      - name: Compute updates with self-hosted Renovate (dry run)
+        env:
+          RENOVATE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_DRY_RUN: full
+          LOG_LEVEL: debug
+          LOG_FORMAT: json
+        run: npx --yes renovate@42.99.0 swanysimon/mdlint | tee renovate.log
+
+      - name: Upload Renovate log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: renovate-dry-run-log
+          path: renovate.log
+          retention-days: 14
+
+      - name: Apply Renovate's computed changes
+        run: python3 .github/scripts/renovate_harvest.py renovate.log
+
+      # Renovate's own minimumReleaseAge guard doesn't reach transitive
+      # dependencies pulled in by a lockfile refresh, so this also re-runs
+      # `cargo update` (a no-op if Renovate already handled everything cargo
+      # needed) and reverts anything published in the last 20 days.
+      - name: Refresh Cargo.lock with a minimum release age guard
+        run: python3 .github/scripts/cargo_dependency_update.py
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "chore: weekly dependency update"
+          title: "chore: weekly dependency update"
+          body: >
+            Automated weekly dependency update covering cargo, mise tools,
+            the Rust toolchain, the Dockerfile, and GitHub Actions digests
+            in a single commit - both in-range/direct bumps and lock file
+            maintenance. Skips any crate version published in the last 20
+            days, matching this repository's `minimumReleaseAge` policy.
+            See the `renovate-dry-run-log` workflow artifact for exactly
+            what Renovate found this run.
+          branch: dependency-update
+          delete-branch: true
