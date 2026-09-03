@@ -24,6 +24,11 @@ no_inline_config = false
 # When true (default), `mdlint check` automatically applies all auto-fixable
 # violations, equivalent to passing --fix on the command line.
 fix = true
+# When true (default), `mdlint format` reflows paragraph/list-item/blockquote/
+# footnote prose to the configured line length (see [rules.MD013].line_length
+# below). Set to false, or pass --no-reflow, for projects that intentionally
+# hand-wrap prose (e.g. one sentence per line).
+reflow = true
 
 # front_matter = "---"   # Uncomment to fix the front-matter delimiter to YAML
 #                        # only. By default mdlint auto-detects both "---"
@@ -88,6 +93,9 @@ code_blocks = true
 maximum = 1
 
 # MD013 — Line length
+# line_length is also the width `mdlint format` reflows prose to (see the
+# top-level `reflow` option above); this section applies whether or not MD013
+# itself is enabled.
 # line_length:         maximum line length (characters).
 # heading_line_length: maximum length for heading lines; kept shorter than prose
 #                      so headings scan well in raw files. Defaults to line_length.

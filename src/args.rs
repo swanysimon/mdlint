@@ -247,6 +247,7 @@ impl CheckArgs {
 }
 
 #[derive(Args, Debug)]
+#[allow(clippy::struct_excessive_bools)] // clap CLI structs use bools for flags, not state machines
 pub struct FormatArgs {
     #[arg(
         value_name = "FILES",
@@ -278,6 +279,13 @@ pub struct FormatArgs {
         help = "Check formatting without modifying files (exits with 1 if any file would change)"
     )]
     pub check: bool,
+
+    #[arg(
+        long,
+        help = "Disable paragraph reflow (wrapping prose to the configured line length)",
+        help_heading = "Formatting"
+    )]
+    pub no_reflow: bool,
 }
 
 impl FormatArgs {
@@ -293,6 +301,14 @@ impl FormatArgs {
     #[must_use]
     pub fn should_respect_ignore(&self) -> bool {
         !self.no_respect_ignore
+    }
+
+    /// Whether prose should be reflowed, combining the CLI flag with the config
+    /// file's `reflow` setting: `--no-reflow` always disables it; otherwise it
+    /// follows `config_reflow`.
+    #[must_use]
+    pub fn should_reflow(&self, config_reflow: bool) -> bool {
+        config_reflow && !self.no_reflow
     }
 }
 

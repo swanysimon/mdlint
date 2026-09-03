@@ -2,7 +2,29 @@ use std::fmt::Write as _;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
-/// Format a Markdown document to canonical style.
+/// Default maximum line length used for paragraph reflow when no other value is configured.
+pub const DEFAULT_LINE_LENGTH: usize = 120;
+
+/// Options controlling optional formatter behaviors.
+#[derive(Debug, Clone, Copy)]
+pub struct FormatOptions {
+    /// When true, paragraph/list-item/blockquote/footnote prose is rejoined and
+    /// rewrapped to `line_length`. Hard line breaks are preserved as forced breaks.
+    pub reflow: bool,
+    /// Maximum line length used when `reflow` is enabled.
+    pub line_length: usize,
+}
+
+impl Default for FormatOptions {
+    fn default() -> Self {
+        Self {
+            reflow: true,
+            line_length: DEFAULT_LINE_LENGTH,
+        }
+    }
+}
+
+/// Format a Markdown document to canonical style, reflowing prose to the default line length.
 ///
 /// Returns the formatted document as a String. The output:
 /// - Always ends with exactly one trailing newline (or is empty for empty input)
@@ -10,13 +32,23 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagE
 /// - Uses ATX-style headings
 /// - Uses `-` for unordered list markers
 /// - Uses backtick fences for code blocks
+/// - Reflows paragraph prose to `FormatOptions::default().line_length`
 #[must_use]
 pub fn format(input: &str) -> String {
+    format_with_options(input, &FormatOptions::default())
+}
+
+/// Format a Markdown document to canonical style with explicit `options`.
+///
+/// See [`format`] for the canonicalizations always applied. When `options.reflow` is
+/// `false`, paragraph prose is left wrapped exactly as it appears in the source.
+#[must_use]
+pub fn format_with_options(input: &str, options: &FormatOptions) -> String {
     if input.trim().is_empty() {
         return String::new();
     }
 
-    let mut state = FormatterState::new();
+    let mut state = FormatterState::new(*options);
     let events: Vec<Event<'_>> = Parser::new_ext(input, mk_options()).collect();
 
     // Precompute per-event lookahead: is the *next* event Start(List(None))?
@@ -100,10 +132,13 @@ struct FormatterState {
     table_data_rows: Vec<Vec<String>>,
     current_row_cells: Vec<String>,
     in_table_head: bool,
+
+    // Formatting options (reflow, line length).
+    options: FormatOptions,
 }
 
 impl FormatterState {
-    fn new() -> Self {
+    fn new(options: FormatOptions) -> Self {
         Self {
             out: String::new(),
             needs_blank: false,
@@ -123,6 +158,7 @@ impl FormatterState {
             table_data_rows: Vec::new(),
             current_row_cells: Vec::new(),
             in_table_head: false,
+            options,
         }
     }
 
@@ -627,6 +663,16 @@ impl FormatterState {
                 text
             }
         };
+
+        if self.options.reflow {
+            self.flush_inline_text_reflowed(text, continuation_prefix);
+        } else {
+            self.flush_inline_text_verbatim(text, continuation_prefix);
+        }
+    }
+
+    /// Emit `text` line-for-line exactly as its soft/hard breaks dictate (no reflow).
+    fn flush_inline_text_verbatim(&mut self, text: &str, continuation_prefix: &str) {
         let bq = "> ".repeat(self.bq_depth);
         let mut lines = text.split('\n').peekable();
 
@@ -665,6 +711,68 @@ impl FormatterState {
                 self.out.push_str(line);
             }
             self.out.push('\n');
+        }
+    }
+
+    /// Emit `text` rejoined and rewrapped to `self.options.line_length`.
+    ///
+    /// Soft breaks (bare `\n`) are treated as ordinary whitespace and collapsed;
+    /// hard breaks (a lone `\` immediately before `\n`, per the odd-backslash-run
+    /// rule used throughout this module) are preserved as forced line breaks that
+    /// split the text into independently-wrapped segments.
+    fn flush_inline_text_reflowed(&mut self, text: &str, continuation_prefix: &str) {
+        // Degenerate/whitespace-only text has no words to wrap; fall back to the
+        // verbatim path, which already handles this shape correctly (a single,
+        // possibly-empty line).
+        if text.trim().is_empty() {
+            self.flush_inline_text_verbatim(text, continuation_prefix);
+            return;
+        }
+
+        let bq = "> ".repeat(self.bq_depth);
+        let current_col = current_line_width(&self.out);
+        let first_line_width = self.options.line_length.saturating_sub(current_col).max(1);
+        let continuation_width = self
+            .options
+            .line_length
+            .saturating_sub(continuation_prefix.chars().count() + bq.chars().count())
+            .max(1);
+
+        let mut emitted_any = false;
+        for (seg_idx, (content, forced_break)) in
+            split_hard_break_segments(text).into_iter().enumerate()
+        {
+            let joined = content.replace('\n', " ");
+            let atoms = tokenize_atoms(&joined);
+            let width = if seg_idx == 0 {
+                first_line_width
+            } else {
+                continuation_width
+            };
+            let wrapped = wrap_atoms(&atoms, width, continuation_width);
+            let line_count = wrapped.len();
+
+            for (i, line) in wrapped.into_iter().enumerate() {
+                let is_first_overall = !emitted_any;
+                if is_first_overall {
+                    if self.bq_depth > 0 && (self.out.ends_with('\n') || self.out.is_empty()) {
+                        self.out.push_str(&bq);
+                    }
+                } else {
+                    self.out.push_str(continuation_prefix);
+                    self.out.push_str(&bq);
+                }
+                if needs_line_escape(&line, !is_first_overall) {
+                    self.out.push_str(&escape_line(&line));
+                } else {
+                    self.out.push_str(&line);
+                }
+                if forced_break && i + 1 == line_count {
+                    self.out.push('\\');
+                }
+                self.out.push('\n');
+                emitted_any = true;
+            }
         }
     }
 
@@ -814,6 +922,190 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
         Parser::new_ext(line, mk_options()).next(),
         Some(Event::Start(Tag::Paragraph))
     )
+}
+
+/// Width (in chars) of the current, not-yet-terminated line at the end of `out`.
+fn current_line_width(out: &str) -> usize {
+    match out.rfind('\n') {
+        Some(idx) => out[idx + 1..].chars().count(),
+        None => out.chars().count(),
+    }
+}
+
+/// Split already-assembled inline text into segments at forced hard-break points.
+///
+/// A hard break is represented in the assembled text as a lone `\` immediately
+/// before a `\n` (an odd-length run of backslashes right before the newline; see
+/// the module-level notes on `on_text`'s backslash doubling). Every other `\n`
+/// (a soft break) is left embedded in the segment's content for the caller to
+/// collapse. Returns `(content, forced_break)` pairs; `forced_break` is true for
+/// every segment except (possibly) the last.
+fn split_hard_break_segments(text: &str) -> Vec<(String, bool)> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    for ch in text.chars() {
+        if ch == '\n' {
+            let run = current.chars().rev().take_while(|&c| c == '\\').count();
+            if run % 2 == 1 {
+                current.pop();
+                segments.push((std::mem::take(&mut current), true));
+                continue;
+            }
+        }
+        current.push(ch);
+    }
+    segments.push((current, false));
+    segments
+}
+
+/// Tokenize `text` into whitespace-separated atoms that must never be split by
+/// reflow: backtick code spans, `[...]`/`![...]` link/image constructs (together
+/// with an immediately following `(...)` destination), and `<...>` raw HTML/
+/// autolink-shaped runs are each kept intact as a single atom. Everything else is
+/// split on Unicode whitespace, matching how a word-wrap normally breaks prose.
+fn tokenize_atoms(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let n = chars.len();
+    let mut atoms = Vec::new();
+    let mut i = 0;
+
+    while i < n {
+        if chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        // Build one atom by repeatedly consuming either an atomic construct
+        // starting at the current position, or a single plain character.  A
+        // backtick or `[`/`![`/`<` can open one of these constructs anywhere
+        // inside a word (e.g. the backtick in `A\`code\``), not only at the
+        // word's first character, so the check happens every iteration.
+        while i < n && !chars[i].is_whitespace() {
+            if chars[i] == '`' {
+                let run_len = consume_run(&chars, i, '`') - i;
+                let mut j = i + run_len;
+                let mut found = false;
+                while j < n {
+                    if chars[j] == '`' {
+                        let close_end = consume_run(&chars, j, '`');
+                        if close_end - j == run_len {
+                            j = close_end;
+                            found = true;
+                            break;
+                        }
+                        j = close_end;
+                    } else {
+                        j += 1;
+                    }
+                }
+                // An unmatched backtick run should not occur here (`emit_inline_code`
+                // only ever emits closed spans), but on any input that doesn't
+                // close, fall back to treating just the opening run as plain
+                // characters rather than swallowing the rest of the text.
+                i = if found { j } else { i + run_len };
+            } else if chars[i] == '[' || (chars[i] == '!' && chars.get(i + 1) == Some(&'[')) {
+                let bracket_start = if chars[i] == '!' { i + 1 } else { i };
+                match try_consume_balanced(&chars, bracket_start, '[', ']') {
+                    Some(mut j) => {
+                        if j < n
+                            && chars[j] == '('
+                            && let Some(end) = try_consume_balanced(&chars, j, '(', ')')
+                        {
+                            j = end;
+                        }
+                        i = j;
+                    }
+                    // Unmatched `[`/`![`: not a link/image, just an ordinary character.
+                    None => i += 1,
+                }
+            } else if chars[i] == '<' {
+                let mut j = i + 1;
+                while j < n && chars[j] != '>' && !chars[j].is_whitespace() {
+                    j += 1;
+                }
+                // Only treat this as an atomic tag/autolink span when it actually
+                // closes; otherwise `<` is just an ordinary character.
+                i = if j < n && chars[j] == '>' {
+                    j + 1
+                } else {
+                    i + 1
+                };
+            } else {
+                i += 1;
+            }
+        }
+        atoms.push(chars[start..i].iter().collect());
+    }
+
+    atoms
+}
+
+/// Advance past a run of consecutive `target` chars starting at `start`, returning
+/// the index just past the run (== `start` if `chars[start]` isn't `target`).
+fn consume_run(chars: &[char], start: usize, target: char) -> usize {
+    let mut i = start;
+    while i < chars.len() && chars[i] == target {
+        i += 1;
+    }
+    i
+}
+
+/// Starting at an `open` char at index `start`, return the index just past the
+/// matching `close` (tracking nesting depth), or `None` if `chars[start]` isn't
+/// `open` or the run is unterminated.
+fn try_consume_balanced(chars: &[char], start: usize, open: char, close: char) -> Option<usize> {
+    if chars.get(start) != Some(&open) {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut i = start;
+    while i < chars.len() {
+        if chars[i] == open {
+            depth += 1;
+        } else if chars[i] == close {
+            depth -= 1;
+            if depth == 0 {
+                return Some(i + 1);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Greedily pack `atoms` (each already whitespace-free) onto lines separated by a
+/// single space, wrapping once a line would exceed `first_width` (for the first
+/// produced line) or `width` (for every line after). An atom wider than the
+/// current line's budget is placed alone on its own line rather than split.
+/// Always returns at least one (possibly empty) line.
+fn wrap_atoms(atoms: &[String], first_width: usize, width: usize) -> Vec<String> {
+    if atoms.is_empty() {
+        return vec![String::new()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    let mut current_width = 0usize;
+    let mut limit = first_width.max(1);
+
+    for atom in atoms {
+        let atom_width = atom.chars().count();
+        if current.is_empty() {
+            current.push_str(atom);
+            current_width = atom_width;
+        } else if current_width + 1 + atom_width <= limit {
+            current.push(' ');
+            current.push_str(atom);
+            current_width += 1 + atom_width;
+        } else {
+            lines.push(std::mem::take(&mut current));
+            limit = width.max(1);
+            current.push_str(atom);
+            current_width = atom_width;
+        }
+    }
+    lines.push(current);
+    lines
 }
 
 #[cfg(test)]
@@ -1535,5 +1827,156 @@ mod tests {
             once, twice,
             "idempotency: code fence info string with backslash"
         );
+    }
+
+    // --- Reflow ---
+
+    fn assert_formats_to_with_options(input: &str, expected: &str, options: FormatOptions) {
+        let got = format_with_options(input, &options);
+        assert_eq!(
+            got, expected,
+            "format_with_options(input) did not match expected.\nInput:\n{input}\nExpected:\n{expected}\nGot:\n{got}"
+        );
+        assert_eq!(
+            format_with_options(expected, &options),
+            expected,
+            "format_with_options(expected) != expected — expected output is not idempotent.\nExpected:\n{expected}"
+        );
+    }
+
+    #[test]
+    fn test_reflow_joins_soft_wrapped_paragraph() {
+        // A soft break (manual line break in the source) is ordinary whitespace
+        // to the reflow pass and gets rejoined onto one line.
+        assert_formats_to(
+            indoc! {"
+                First line
+                continuation here."},
+            "First line continuation here.\n",
+        );
+    }
+
+    #[test]
+    fn test_reflow_wraps_long_paragraph_to_line_length() {
+        let options = FormatOptions {
+            reflow: true,
+            line_length: 20,
+        };
+        assert_formats_to_with_options(
+            "one two three four five six seven",
+            "one two three four\nfive six seven\n",
+            options,
+        );
+        for line in format_with_options("one two three four five six seven", &options).lines() {
+            assert!(line.chars().count() <= 20, "line exceeds width: {line:?}");
+        }
+    }
+
+    #[test]
+    fn test_reflow_preserves_hard_breaks() {
+        // A hard break (trailing double space, canonicalized to `\`) is a forced
+        // break: it survives reflow even though the joined text is short enough
+        // to fit on one line.
+        assert_formats_to("First line  \nSecond line", "First line\\\nSecond line\n");
+    }
+
+    #[test]
+    fn test_reflow_disabled_preserves_source_line_breaks() {
+        let options = FormatOptions {
+            reflow: false,
+            line_length: 120,
+        };
+        assert_formats_to_with_options(
+            indoc! {"
+                First line
+                continuation here."},
+            indoc! {"
+                First line
+                continuation here.
+            "},
+            options,
+        );
+    }
+
+    #[test]
+    fn test_reflow_keeps_list_item_continuation_indented() {
+        let options = FormatOptions {
+            reflow: true,
+            line_length: 20,
+        };
+        assert_formats_to_with_options(
+            "- one two three four five six seven",
+            indoc! {"
+                - one two three four
+                  five six seven
+            "},
+            options,
+        );
+    }
+
+    #[test]
+    fn test_reflow_keeps_blockquote_prefix() {
+        let options = FormatOptions {
+            reflow: true,
+            line_length: 20,
+        };
+        assert_formats_to_with_options(
+            "> one two three four five six seven",
+            indoc! {"
+                > one two three four
+                > five six seven
+            "},
+            options,
+        );
+    }
+
+    #[test]
+    fn test_reflow_does_not_split_code_span() {
+        let options = FormatOptions {
+            reflow: true,
+            line_length: 10,
+        };
+        // The code span is one atom even though its rendered width exceeds the
+        // configured line length — an unsplittable token overflows its own line
+        // rather than being torn apart.
+        assert_formats_to_with_options("a `code span` b", "a\n`code span`\nb\n", options);
+    }
+
+    #[test]
+    fn test_reflow_does_not_split_link() {
+        let options = FormatOptions {
+            reflow: true,
+            line_length: 10,
+        };
+        assert_formats_to_with_options(
+            "a [text](https://example.com/path) b",
+            "a\n[text](https://example.com/path)\nb\n",
+            options,
+        );
+    }
+
+    #[test]
+    fn test_reflow_backtick_immediately_after_word() {
+        // Regression: a backtick opening a code span directly adjacent to other
+        // text (no preceding whitespace) must still be recognised as a code span
+        // boundary, not swallowed as part of the preceding word. Proptest
+        // regression for input "A`\u{b}!\u{b}`".
+        let once = format("A`code`");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: backtick immediately after word");
+        assert_eq!(once, "A`code`\n");
+    }
+
+    #[test]
+    fn test_reflow_unmatched_bracket_and_angle_bracket_are_plain_text() {
+        // Regression: an unmatched `[`/`<` must not be treated as opening an
+        // atomic link/HTML span and swallow the rest of the paragraph.
+        let once = format("a [ b c");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: unmatched bracket");
+
+        let once = format("a < b c");
+        let twice = format(&once);
+        assert_eq!(once, twice, "idempotency: unmatched angle bracket");
     }
 }

@@ -61,8 +61,8 @@ docker run --rm -v "$PWD:/workspace" ghcr.io/swanysimon/mdlint:latest check
 docker run --rm -v "$PWD:/workspace" simonswanson/mdlint:latest       format
 ```
 
-Pre-built binaries for Linux (x86_64/ARM64, glibc and musl), macOS (Intel/Apple Silicon), and Windows are available
-on the [releases page](https://github.com/swanysimon/mdlint/releases). A [Homebrew](https://brew.sh) formula is planned.
+Pre-built binaries for Linux (x86_64/ARM64, glibc and musl), macOS (Intel/Apple Silicon), and Windows are available on
+the [releases page](https://github.com/swanysimon/mdlint/releases). A [Homebrew](https://brew.sh) formula is planned.
 
 ### pre-commit framework
 
@@ -134,6 +134,7 @@ Options:
       --check                      Check formatting only; do not modify files (exits 1 if any file would change)
       --exclude <PATH>             Exclude files or directories
       --no-respect-ignore          Do not respect .gitignore files
+      --no-reflow                  Disable paragraph reflow (wrapping prose to the configured line length)
   -h, --help                       Print help
 ```
 
@@ -158,17 +159,17 @@ Options:
 
 #### markdownlint-cli2
 
-Supports `.markdownlint-cli2.{json,jsonc,yaml,yml}` and standalone `.markdownlint.{json,jsonc,yaml,yml}` rule
-configs, and falls back to the `"markdownlint-cli2"` field in `package.json` if no dedicated config file is found.
-Rule names and their common aliases (e.g. `line-length` for `MD013`) are both recognized. The `gitignore`,
-`noInlineConfig`, and `frontMatterPattern` cli2 options map onto mdlint's equivalent `gitignore`, `no_inline_config`,
-and `front_matter` settings. `.cjs`/`.mjs` configs are evaluated with a Node.js runtime when one is found on `PATH`
-(the same thing `markdownlint-cli2` itself would do when loading them), correctly resolving `require()`, spread
-syntax, and computed values. If Node isn't available, mdlint falls back to a best-effort text scrape and warns that
-dynamic values may not have been resolved; if a config can't be parsed either way, migration fails with a message
-asking you to export it with `console.log(JSON.stringify(config))` and migrate the resulting JSON file instead.
-Rules with no mdlint implementation, and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`,
-`outputFormatters`), are skipped with a warning rather than failing the migration.
+Supports `.markdownlint-cli2.{json,jsonc,yaml,yml}` and standalone `.markdownlint.{json,jsonc,yaml,yml}` rule configs,
+and falls back to the `"markdownlint-cli2"` field in `package.json` if no dedicated config file is found. Rule names and
+their common aliases (e.g. `line-length` for `MD013`) are both recognized. The `gitignore`, `noInlineConfig`, and
+`frontMatterPattern` cli2 options map onto mdlint's equivalent `gitignore`, `no_inline_config`, and `front_matter`
+settings. `.cjs`/`.mjs` configs are evaluated with a Node.js runtime when one is found on `PATH` (the same thing
+`markdownlint-cli2` itself would do when loading them), correctly resolving `require()`, spread syntax, and computed
+values. If Node isn't available, mdlint falls back to a best-effort text scrape and warns that dynamic values may not
+have been resolved; if a config can't be parsed either way, migration fails with a message asking you to export it with
+`console.log(JSON.stringify(config))` and migrate the resulting JSON file instead. Rules with no mdlint implementation,
+and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`, `outputFormatters`), are skipped with a
+warning rather than failing the migration.
 
 ### Examples
 
@@ -196,6 +197,9 @@ mdlint format --check
 
 # format specific files
 mdlint format README.md docs/
+
+# format without reflowing prose (keep hand-wrapped line breaks as-is)
+mdlint format --no-reflow
 
 # use a custom config file
 mdlint check --config path/to/mdlint.toml
@@ -238,6 +242,7 @@ arrays are extended. Priority order (highest to lowest):
 | `gitignore` | `true` | Respect `.gitignore` files when discovering Markdown files. |
 | `no_inline_config` | `false` | Ignore all `<!-- mdlint-disable -->` comments. |
 | `fix` | `true` | `mdlint check` automatically applies all fixable violations; equivalent to passing `--fix` on the CLI. |
+| `reflow` | `true` | `mdlint format` reflows prose to `[rules.MD013].line_length`; equivalent to *not* passing `--no-reflow` on the CLI. |
 | `front_matter` | auto | Front matter delimiter. Auto-detects `---` (YAML) and `+++` (TOML). Set to `"---"` to accept YAML only. |
 | `exclude` | `[]` | Paths/glob patterns excluded from discovery; merged with any `--exclude` CLI flags. |
 | `custom_rules` | `[]` | Paths to external rule modules (future feature). |
@@ -286,8 +291,8 @@ This line may be longer than the configured limit.
 | `<!-- mdlint-disable -->` | Disable all rules from this line onward |
 | `<!-- mdlint-enable -->` | Re-enable all rules |
 
-Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule codes. Set `no_inline_config = true`
-in `mdlint.toml` to ignore all inline comments project-wide.
+Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule codes. Set `no_inline_config = true` in
+`mdlint.toml` to ignore all inline comments project-wide.
 
 ## Exit Codes
 
@@ -299,9 +304,9 @@ in `mdlint.toml` to ignore all inline comments project-wide.
 
 ## Rules
 
-Rules marked ✓ in the **Fix** column are auto-corrected by `mdlint check --fix` and `mdlint format`. Rules without ✓
-are reported by `mdlint check` only and require manual correction. **Default** shows mdlint's configured default for
-the rule's key parameter(s); **markdownlint** shows the
+Rules marked ✓ in the **Fix** column are auto-corrected by `mdlint check --fix` and `mdlint format`. Rules without ✓ are
+reported by `mdlint check` only and require manual correction. **Default** shows mdlint's configured default for the
+rule's key parameter(s); **markdownlint** shows the
 [original markdownlint](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) default where it differs from
 mdlint's. `—` means the rule has no configurable parameters.
 
@@ -316,7 +321,7 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD010](https://github.com/DavidAnson/markdownlint/blob/main/doc/md010.md) | ✓ | `code_blocks: true` |  | Hard tabs | Tabs render inconsistently across editors; format replaces with spaces. Config: `code_blocks` |
 | [MD011](https://github.com/DavidAnson/markdownlint/blob/main/doc/md011.md) |  | — | — | Reversed link syntax | Catches the common typo of swapped parentheses and brackets; should always be enabled |
 | [MD012](https://github.com/DavidAnson/markdownlint/blob/main/doc/md012.md) | ✓ | `maximum: 1` |  | Multiple consecutive blank lines | Config: `maximum` — max consecutive blank lines allowed |
-| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) |  | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
+| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) |  | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` is also the width `mdlint format` reflows prose to (see `reflow`). Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
 | [MD014](https://github.com/DavidAnson/markdownlint/blob/main/doc/md014.md) | ✓ | — | — | Dollar signs used before commands without showing output | `$`-prefixed shell commands cannot be copy-pasted; omit the `$` prompt |
 | [MD018](https://github.com/DavidAnson/markdownlint/blob/main/doc/md018.md) | ✓ | — | — | No space after hash on atx style heading | `#Title` renders inconsistently; format inserts the required space |
 | [MD019](https://github.com/DavidAnson/markdownlint/blob/main/doc/md019.md) | ✓ | — | — | Multiple spaces after hash on atx style heading | `#  Title` → `# Title`; format normalises to one space |
@@ -367,8 +372,8 @@ Contributions are welcome!
 
 ### Development setup
 
-Prerequisites: [mise](https://mise.jdx.dev/) and [Rust](https://rustup.rs/). Optionally, Docker is needed for
-Dockerfile linting. [uv](https://docs.astral.sh/uv/) is required only if working on the Python package.
+Prerequisites: [mise](https://mise.jdx.dev/) and [Rust](https://rustup.rs/). Optionally, Docker is needed for Dockerfile
+linting. [uv](https://docs.astral.sh/uv/) is required only if working on the Python package.
 
 ```bash
 git clone https://github.com/swanysimon/mdlint.git
@@ -391,15 +396,15 @@ All quality checks run via `prek run -a`. This must pass before submitting a pul
 
 ### Release process
 
-Releases use [`cargo-release`](https://github.com/crate-ci/cargo-release), which bumps all package manifests in sync
-and pushes the tag that triggers CI to build, package, and publish everything automatically:
+Releases use [`cargo-release`](https://github.com/crate-ci/cargo-release), which bumps all package manifests in sync and
+pushes the tag that triggers CI to build, package, and publish everything automatically:
 
 ```bash
 cargo release patch --execute   # or minor / major
 ```
 
-Once the tag is pushed, CI verifies manifest versions, builds binaries for all 7 platforms, and publishes to
-crates.io, PyPI, and npm via trusted publishing (no tokens required).
+Once the tag is pushed, CI verifies manifest versions, builds binaries for all 7 platforms, and publishes to crates.io,
+PyPI, and npm via trusted publishing (no tokens required).
 
 ## License
 

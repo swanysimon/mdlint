@@ -349,18 +349,29 @@ fn gfm_table_already_canonical_unchanged() {
 
 #[test]
 fn list_item_continuation_indented() {
-    // A soft-wrapped list item must keep its continuation indented so the
-    // linter does not mistake it for a paragraph outside the list.
+    // A soft-wrapped list item is reflowed: the source's manual line break is
+    // just a soft break, so it gets rejoined onto one line (well under the
+    // default reflow width).
     assert_formats_to(
         indoc! {"
             - First line
               continuation here
         "},
         indoc! {"
-            - First line
-              continuation here
+            - First line continuation here
         "},
     );
+}
+
+#[test]
+fn list_item_continuation_wraps_when_over_line_length() {
+    // A soft-wrapped list item whose joined text exceeds the default line
+    // length is rewrapped, keeping the continuation indented so the linter
+    // does not mistake it for a paragraph outside the list.
+    let long_word = "x".repeat(115);
+    let input = format!("- First line\n  {long_word}\n");
+    let expected = format!("- First line\n  {long_word}\n");
+    assert_formats_to(&input, &expected);
 }
 
 // ── idempotency on complex documents ─────────────────────────────────────────
@@ -509,6 +520,119 @@ fn format_rewrites_file_in_place() {
             - item
         "}
     );
+}
+
+#[test]
+fn format_reflows_soft_wrapped_paragraph_by_default() {
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("doc.md");
+    fs::write(
+        &file,
+        indoc! {"
+            First line
+            continuation here.
+        "},
+    )
+    .unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(result, "First line continuation here.\n");
+}
+
+#[test]
+fn format_no_reflow_flag_preserves_source_line_breaks() {
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("doc.md");
+    let original = indoc! {"
+        First line
+        continuation here.
+    "};
+    fs::write(&file, original).unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", "--no-reflow", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(
+        result, original,
+        "--no-reflow should leave the source's line breaks untouched"
+    );
+}
+
+#[test]
+fn format_config_reflow_false_preserves_source_line_breaks() {
+    let dir = TempDir::new().unwrap();
+    let config = dir.path().join("mdlint.toml");
+    fs::write(&config, "reflow = false\n").unwrap();
+    let file = dir.path().join("doc.md");
+    let original = indoc! {"
+        First line
+        continuation here.
+    "};
+    fs::write(&file, original).unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args([
+            "format",
+            "--config",
+            config.to_str().unwrap(),
+            file.to_str().unwrap(),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(
+        result, original,
+        "reflow = false in config should leave the source's line breaks untouched"
+    );
+}
+
+#[test]
+fn format_cli_flag_overrides_config_reflow_true() {
+    // --no-reflow always wins even when the config file leaves reflow enabled.
+    let dir = TempDir::new().unwrap();
+    let config = dir.path().join("mdlint.toml");
+    fs::write(&config, "reflow = true\n").unwrap();
+    let file = dir.path().join("doc.md");
+    let original = indoc! {"
+        First line
+        continuation here.
+    "};
+    fs::write(&file, original).unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args([
+            "format",
+            "--no-reflow",
+            "--config",
+            config.to_str().unwrap(),
+            file.to_str().unwrap(),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(result, original);
 }
 
 // ── `mdlint check` CLI ───────────────────────────────────────────────────────

@@ -10,7 +10,10 @@ formatter implementation work. Any ambiguity about what the formatter should pro
 1. **One canonical form.** Every valid Markdown input has exactly one correct formatted output.
 2. **Idempotency is a hard requirement.** Formatting an already-formatted file produces no changes.
 3. **Semantic equivalence.** The formatter never changes meaning — only surface syntax.
-4. **No configuration.** The formatter is opinionated. If you disagree with a choice, open an issue.
+4. **Minimal configuration.** The formatter is opinionated and takes no styling options. The one
+   exception is paragraph reflow (see below), which can be switched off — via `--no-reflow` or
+   `reflow = false` in `mdlint.toml` — for projects that intentionally hand-wrap prose (e.g. one
+   sentence per line). If you disagree with any other formatter choice, open an issue.
 
 ---
 
@@ -231,6 +234,21 @@ Headings are never indented.
 
 Not: a heading preceded by spaces (e.g., two spaces then `# heading`)
 
+### Paragraph Reflow (MD013)
+
+Enabled by default. Prose inside paragraphs, list items, blockquotes, and footnote definitions is
+rejoined (soft line breaks are treated as ordinary whitespace) and rewrapped so each line is no
+longer than the configured line length (`[rules.MD013].line_length`, default 120). Hard line breaks
+(the `\` continuation from the Trailing Whitespace rule above) are preserved as forced breaks and
+split the text into independently-wrapped segments. A single "word" (a run of non-whitespace text,
+a code span, a link/image, or a raw HTML/autolink tag) is never split across lines even if it alone
+exceeds the line length.
+
+Headings, code blocks (fenced or indented), and table cells are never reflowed.
+
+Disable with `--no-reflow` on the command line or `reflow = false` in `mdlint.toml`. Either one is
+sufficient to turn reflow off; the CLI flag always wins over the config file.
+
 ### Front Matter
 
 Front matter (YAML `---` blocks or TOML `+++` blocks) at the start of a file is passed through
@@ -240,8 +258,6 @@ verbatim. The formatter does not modify front matter content.
 
 ## What the Formatter Does NOT Change
 
-- **Paragraph text.** The formatter does not reflow paragraphs to a line length. Line breaks within
-  paragraphs are preserved (soft wrapping is the renderer's job, not the formatter's).
 - **Code block contents.** The content inside fenced or indented code blocks is preserved
   character-for-character, including indentation, tabs, and blank lines.
 - **Inline code.** The content inside backtick spans is not modified.

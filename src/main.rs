@@ -74,11 +74,16 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
         return Ok(false);
     }
 
+    let options = formatter::FormatOptions {
+        reflow: args.should_reflow(config.reflow),
+        line_length: config.line_length(),
+    };
+
     let mut any_changed = false;
 
     for path in &files {
         let original = fs::read_to_string(path)?;
-        let formatted = formatter::format(&original);
+        let formatted = formatter::format_with_options(&original, &options);
 
         if formatted == original {
             continue;

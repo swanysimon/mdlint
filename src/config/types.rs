@@ -35,6 +35,11 @@ pub struct Config {
     /// Apply auto-fixes automatically when running `mdlint check`
     #[serde(default = "default_fix")]
     pub fix: bool,
+
+    /// `mdlint format` reflows paragraph/list-item/blockquote/footnote prose to
+    /// the configured line length (see `[rules.MD013].line_length`)
+    #[serde(default = "default_reflow")]
+    pub reflow: bool,
 }
 
 fn default_default_enabled() -> bool {
@@ -49,6 +54,10 @@ fn default_fix() -> bool {
     true
 }
 
+fn default_reflow() -> bool {
+    true
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -60,6 +69,7 @@ impl Default for Config {
             no_inline_config: false,
             exclude: Vec::new(),
             fix: true,
+            reflow: default_reflow(),
         }
     }
 }
@@ -77,6 +87,22 @@ impl Config {
     #[must_use]
     pub fn config(&self) -> &HashMap<String, RuleConfig> {
         &self.rules
+    }
+
+    /// The line length `mdlint format` reflows prose to, taken from
+    /// `[rules.MD013].line_length` (falling back to MD013's own default) so the
+    /// formatter and the linter agree on a single maximum width.
+    #[must_use]
+    pub fn line_length(&self) -> usize {
+        const DEFAULT: usize = 120;
+        match self.rules.get("MD013") {
+            Some(RuleConfig::Config(params)) => params
+                .get("line_length")
+                .and_then(toml::Value::as_integer)
+                .and_then(|v| usize::try_from(v).ok())
+                .unwrap_or(DEFAULT),
+            _ => DEFAULT,
+        }
     }
 
     /// Apply `--select`/`--ignore` CLI overrides on top of the loaded config.
@@ -114,6 +140,36 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reflow_defaults_to_true() {
+        assert!(Config::default().reflow);
+    }
+
+    #[test]
+    fn line_length_defaults_to_120_without_md013_config() {
+        assert_eq!(Config::default().line_length(), 120);
+    }
+
+    #[test]
+    fn line_length_reads_from_md013_rule_config() {
+        let mut config = Config::default();
+        let mut params = HashMap::new();
+        params.insert("line_length".to_owned(), toml::Value::Integer(100));
+        config
+            .rules
+            .insert("MD013".to_owned(), RuleConfig::Config(params));
+        assert_eq!(config.line_length(), 100);
+    }
+
+    #[test]
+    fn line_length_falls_back_when_md013_has_no_line_length_param() {
+        let mut config = Config::default();
+        config
+            .rules
+            .insert("MD013".to_owned(), RuleConfig::Enabled(true));
+        assert_eq!(config.line_length(), 120);
+    }
 
     #[test]
     fn select_empty_is_noop() {
