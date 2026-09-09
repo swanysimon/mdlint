@@ -2,8 +2,8 @@ name: Dependency update
 
 on:
   schedule:
-    # Mondays at 18:00 UTC (10am PST / 11am PDT) - this cron is the only
-    # schedule now; renovate.json intentionally has no schedule of its own.
+    # Mondays at 18:00 UTC (10am PST / 11am PDT), matching renovate.json's
+    # own "on monday" schedule (timezone America/Los_Angeles).
     - cron: "0 18 * * 1"
   workflow_dispatch: {}
 
@@ -17,46 +17,10 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    env:
-      BRANCH: renovate/all-dependencies
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          token: ${{ secrets.RENOVATE_TOKEN }}
 
-      # Real (non-dry-run) self-hosted execution: reads renovate.json exactly
-      # like the previously-used hosted app did, and pushes/updates
-      # $BRANCH directly if it finds direct-dependency updates to make. A
-      # fine-grained PAT is required here (not GITHUB_TOKEN) because the
-      # github-actions manager edits files under .github/workflows/, which
-      # GITHUB_TOKEN is hard-blocked from writing to regardless of the
-      # permissions granted above.
-      - name: Run self-hosted Renovate
-        uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
-        env:
-          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
-          RENOVATE_PLATFORM: github
-          RENOVATE_REPOSITORIES: ${{ github.repository }}
-
-      # lockFileMaintenance is disabled in renovate.json so its output can
-      # share one PR with Renovate's regular updates above instead of a
-      # separate, un-mergeable branch (a hard Renovate limitation, not a
-      # config issue: renovatebot/renovate#2204). We replace it here by
-      # appending a lockfile-refresh commit directly onto the same branch
-      # Renovate just used, rather than parsing anything Renovate produced.
-      - name: Check out the shared branch
-        run: |
-          git fetch origin "$BRANCH" || true
-          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            git checkout "$BRANCH"
-          else
-            git checkout -b "$BRANCH"
-          fi
-
-      # Installed after switching onto $BRANCH so these match whatever
-      # rust-toolchain.toml/mise.toml Renovate itself may have just bumped,
-      # not main's versions.
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
@@ -67,29 +31,15 @@ jobs:
         env:
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
-      - name: Refresh Cargo.lock
-        run: python3 .github/scripts/cargo_dependency_update.py
-
-      - name: Refresh mise.lock
-        run: mise lock --yes
-
-      - name: Commit and push lockfile refresh
+      # Renovate shells out to cargo/mise itself to compute lockfile
+      # changes, so both need to be on PATH; nothing here calls them
+      # directly. Renovate still opens lockFileMaintenance as a separate PR
+      # from regular updates (a hard upstream limitation it doesn't offer a
+      # way around: renovatebot/renovate#2204) - that's accepted as-is
+      # rather than worked around with custom scripting.
+      - name: Run self-hosted Renovate
+        uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
         env:
-          GH_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
-        run: |
-          if git diff --quiet -- Cargo.lock mise.lock; then
-            echo "no lockfile changes"
-            exit 0
-          fi
-          git config user.name "renovate[bot]"
-          git config user.email "29139614+renovate[bot]@users.noreply.github.com"
-          git add Cargo.lock mise.lock
-          git commit -m "chore: refresh lockfiles"
-          git push origin "$BRANCH"
-          if ! gh pr view "$BRANCH" >/dev/null 2>&1; then
-            gh pr create \
-              --title "Refresh lockfiles" \
-              --body "Weekly Cargo.lock/mise.lock refresh (transitive dependencies, skipping anything published in the last 20 days). Renovate found no direct-dependency updates to pair this with this week." \
-              --head "$BRANCH" \
-              --base main
-          fi
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
