@@ -12,16 +12,26 @@ jobs:
   release:
     name: Release Binary (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    # The gnu targets build inside a manylinux image so they link against its
+    # old glibc instead of the runner's. That decouples the floor from the
+    # runner image, which is what broke in #84: ubuntu-latest moved to 24.04
+    # (glibc 2.39) and the binaries stopped running on WSL2 and RHEL 9.
+    # manylinux_2_28 is the oldest image that can still run the node24 actions
+    # pinned below, so the job needs no in-step Docker plumbing.
+    container: ${{ matrix.container }}
     permissions:
       contents: write
+    env:
+      # Asserted after the build. Must match the container's glibc; covers
+      # RHEL 9 (2.34), Ubuntu 22.04 (2.35) and WSL2.
+      GLIBC_FLOOR: "2.28"
     strategy:
       fail-fast: false
       matrix:
         include:
           # Linux x86_64
-          # Pinned to 22.04 (glibc 2.35) so the binary runs on WSL2 and other
-          # 22.04-era systems; bumping the runner raises the minimum glibc.
-          - os: ubuntu-22.04
+          - os: ubuntu-latest
+            container: quay.io/pypa/manylinux_2_28_x86_64@sha256:53390351aeb4688114b02c36a23b3e6ce1166ee9b7afc5df1a4f776354fc764c
             target: x86_64-unknown-linux-gnu
             artifact_name: mdlint
             asset_name: mdlint-linux-x86_64
@@ -35,8 +45,8 @@ jobs:
             archive_format: tar.gz
 
           # Linux aarch64
-          # Pinned to 22.04 (glibc 2.35) for the same reason as x86_64 above.
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
+            container: quay.io/pypa/manylinux_2_28_aarch64@sha256:ad74e53b713f3b07d8c889c526dc0c6500da9827b45e38739570875fef52e28f
             target: aarch64-unknown-linux-gnu
             artifact_name: mdlint
             asset_name: mdlint-linux-aarch64
@@ -79,17 +89,59 @@ jobs:
         with:
           target: ${{ matrix.target }}
           cache-key: "release"
-          # Runner image is part of the key: rust-cache only distinguishes
-          # "Linux", so a 24.04 target/ dir would otherwise be restored onto
-          # 22.04 and its build scripts would want the newer glibc.
-          cache-shared-key: ${{ matrix.os }}-${{ matrix.target }}
+          cache-shared-key: ${{ matrix.target }}
 
       - name: Install musl tools (Linux musl only)
         if: ${{ contains(matrix.target, 'musl') }}
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
+      # The manylinux images are AlmaLinux 8 and package no gh, which the
+      # upload step below needs. Every other runner image ships it.
+      - name: Install GitHub CLI (container only)
+        if: ${{ matrix.container != '' }}
+        env:
+          GH_VERSION: "2.83.0"
+          GH_ARCH: ${{ startsWith(matrix.target, 'aarch64') && 'arm64' || 'amd64' }}
+        run: |
+          set -euo pipefail
+          archive="gh_${GH_VERSION}_linux_${GH_ARCH}"
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${archive}.tar.gz" \
+            | tar -xz -C /tmp
+          install -m 0755 "/tmp/${archive}/bin/gh" /usr/local/bin/gh
+          gh --version
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
+
+      # The container sets the floor; this proves it landed, so a base-image
+      # bump that raises glibc fails before any artifact is uploaded rather
+      # than shipping. npm and the raw tarballs have no wheel-tag mechanism,
+      # so every consumer depends on this check. See issue #84.
+      - name: Verify glibc floor (Linux gnu only)
+        if: ${{ endsWith(matrix.target, '-linux-gnu') }}
+        env:
+          BINARY: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+        run: |
+          set -euo pipefail
+          # `|| true` keeps the check below reachable: under pipefail a grep
+          # that matches nothing would abort the step with no explanation.
+          version=$(readelf -V "$BINARY" | grep -o 'GLIBC_[0-9]\+\.[0-9]\+' | sed 's/GLIBC_//' | sort -uV | tail -1) || true
+          [[ -n $version ]] || { echo "::error::no GLIBC version symbols in $BINARY" >&2; exit 1; }
+          echo "$BINARY requires glibc $version (floor $GLIBC_FLOOR)"
+          if [[ "$(printf '%s\n' "$GLIBC_FLOOR" "$version" | sort -V | tail -1)" != "$GLIBC_FLOOR" ]]; then
+            echo "::error::glibc $version exceeds the $GLIBC_FLOOR floor; this binary would not run on RHEL 9 or WSL2." >&2
+            echo "The container base image likely moved; pin an older manylinux image or raise GLIBC_FLOOR to drop those systems." >&2
+            exit 1
+          fi
+          # A non-numeric marker such as GLIBC_ABI_DT_RELR raises the real
+          # requirement without adding a versioned symbol the check above sees.
+          # GLIBC_PRIVATE is excluded: it versions glibc-internal symbols and
+          # says nothing about the floor, so matching it would fail the release
+          # with a misleading message.
+          if readelf -V "$BINARY" | grep -o 'GLIBC_[A-Z_][A-Za-z_]*' | grep -v '^GLIBC_PRIVATE$'; then
+            echo "::error::unversioned GLIBC ABI marker found; it raises the floor above $GLIBC_FLOOR." >&2
+            exit 1
+          fi
 
       - name: Package release (Unix)
         if: ${{ matrix.os != 'windows-latest' }}

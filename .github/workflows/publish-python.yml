@@ -34,16 +34,26 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Read the glibc floor out of the binary rather than hardcoding it
+          # Read the glibc floor out of the binary rather than hardcoding it, so
+          # the wheel tag can never overstate what the binary actually runs on.
+          # release-binaries.yml builds in a manylinux container and asserts the
+          # floor; this only reports it. The legacy manylinux2014 alias is added
+          # when the floor is 2.17, for pip older than 20.3 which predates the
+          # PEP 600 tags; above 2.17 no such alias exists.
           glibc_tag() {
-            local version
-            version=$(readelf -V "$1" | grep -o 'GLIBC_[0-9]*\.[0-9]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+            local version arch tag
+            arch="$2"
+            # `|| true` keeps the guard below reachable: under pipefail a grep
+            # that matches nothing would abort the step with no explanation.
+            version=$(readelf -V "$1" | grep -o 'GLIBC_[0-9]\+\.[0-9]\+' | sed 's/GLIBC_//' | sort -uV | tail -1) || true
             [[ -n $version ]] || { echo "no GLIBC version symbols in $1" >&2; exit 1; }
-            echo "manylinux_${version//./_}"
+            tag="manylinux_${version//./_}_${arch}"
+            [[ $version == "2.17" ]] && tag="${tag}.manylinux2014_${arch}"
+            echo "$tag"
           }
 
-          x86_64_tag="$(glibc_tag /tmp/binaries/mdlint-linux-x86_64)_x86_64"
-          aarch64_tag="$(glibc_tag /tmp/binaries/mdlint-linux-aarch64)_aarch64"
+          x86_64_tag="$(glibc_tag /tmp/binaries/mdlint-linux-x86_64 x86_64)"
+          aarch64_tag="$(glibc_tag /tmp/binaries/mdlint-linux-aarch64 aarch64)"
           echo "derived glibc wheel tags: $x86_64_tag $aarch64_tag"
 
           declare -A platforms=(
