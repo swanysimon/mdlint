@@ -19,7 +19,9 @@ jobs:
       matrix:
         include:
           # Linux x86_64
-          - os: ubuntu-latest
+          # Pinned to 22.04 (glibc 2.35) so the binary runs on WSL2 and other
+          # 22.04-era systems; bumping the runner raises the minimum glibc.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact_name: mdlint
             asset_name: mdlint-linux-x86_64
@@ -33,7 +35,8 @@ jobs:
             archive_format: tar.gz
 
           # Linux aarch64
-          - os: ubuntu-24.04-arm
+          # Pinned to 22.04 (glibc 2.35) for the same reason as x86_64 above.
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             artifact_name: mdlint
             asset_name: mdlint-linux-aarch64
@@ -76,7 +79,10 @@ jobs:
         with:
           target: ${{ matrix.target }}
           cache-key: "release"
-          cache-shared-key: ${{ matrix.target }}
+          # Runner image is part of the key: rust-cache only distinguishes
+          # "Linux", so a 24.04 target/ dir would otherwise be restored onto
+          # 22.04 and its build scripts would want the newer glibc.
+          cache-shared-key: ${{ matrix.os }}-${{ matrix.target }}
 
       - name: Install musl tools (Linux musl only)
         if: ${{ contains(matrix.target, 'musl') }}
