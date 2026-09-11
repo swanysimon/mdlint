@@ -20,6 +20,13 @@
   },
   "packageRules": [
     {
+      "description": "Release binaries pin ubuntu-22.04 (glibc 2.35) so they run on WSL2.",
+      "matchManagers": [
+        "github-runners"
+      ],
+      "enabled": false
+    },
+    {
       "matchManagers": [
         "cargo",
         "mise",
