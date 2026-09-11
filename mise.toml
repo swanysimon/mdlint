@@ -1,4 +1,5 @@
 [tools]
+actionlint = "1.7.12"
 cargo-release = "1.1.2"
 hadolint = "2.14.0"
 prek = "0.4.11"
