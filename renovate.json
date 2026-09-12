@@ -18,6 +18,19 @@
     "groupName": "all dependencies",
     "groupSlug": "all-dependencies"
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track digest-pinned container images in workflows. The github-actions manager reads container:/image: only as literal strings, so anything behind ${{ matrix.container }} is invisible to it.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "(?:container|image):\\s+[\"']?(?<depName>[^\\s@\"']+?)(?::(?<currentValue>[^\\s@\"'/]+))?@(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "matchManagers": [
