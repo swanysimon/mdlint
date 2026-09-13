@@ -132,8 +132,8 @@ mod tests {
         "#};
 
         let config = parse_toml_config(content, Path::new("test.toml")).unwrap();
-        assert!(config.gitignore);
-        assert!(config.default_enabled);
+        assert!(config.gitignore());
+        assert!(config.default_enabled());
         assert_eq!(config.rules.len(), 2);
     }
 
@@ -153,8 +153,8 @@ mod tests {
         );
 
         let config = load_config(&config_path).unwrap().unwrap();
-        assert!(config.gitignore);
-        assert!(config.default_enabled);
+        assert!(config.gitignore());
+        assert!(config.default_enabled());
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
         write(temp_dir.path(), "mdlint.toml", "gitignore = true\n");
 
         let config = discover_config(&sub_dir).unwrap();
-        assert!(config.gitignore);
+        assert!(config.gitignore());
     }
 
     #[test]
@@ -184,7 +184,7 @@ mod tests {
         );
 
         let config = discover_config(temp_dir.path()).unwrap();
-        assert!(!config.gitignore);
+        assert!(!config.gitignore());
     }
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
         );
 
         let config = discover_config(temp_dir.path()).unwrap();
-        assert!(!config.gitignore);
+        assert!(!config.gitignore());
     }
 
     #[test]
@@ -214,7 +214,7 @@ mod tests {
         write(&sub_dir, "package.json", r#"{"name": "example"}"#);
 
         let config = discover_config(&sub_dir).unwrap();
-        assert!(config.no_inline_config);
+        assert!(config.no_inline_config());
         let configs = find_all_configs(&sub_dir).unwrap();
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].0, temp_dir.path().join("mdlint.toml"));
@@ -295,6 +295,6 @@ mod tests {
         );
 
         let config = load_explicit_config(&path).unwrap();
-        assert!(!config.default_enabled);
+        assert!(!config.default_enabled());
     }
 }

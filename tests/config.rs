@@ -156,3 +156,60 @@ fn explicit_config_flag_errors_when_manifest_has_no_mdlint_section() {
         "unexpected stderr: {stderr}"
     );
 }
+
+#[test]
+fn parent_config_scalar_survives_a_child_config_that_omits_it() {
+    // Regression: a nearer config that says nothing about `fix` must not reset it to the
+    // built-in default and start rewriting files.
+    let root = TempDir::new().unwrap();
+    let child = root.path().join("child");
+    fs::create_dir(&child).unwrap();
+    fs::write(root.path().join("mdlint.toml"), "fix = false\n").unwrap();
+    fs::write(
+        child.join("mdlint.toml"),
+        "[rules.MD013]\nline_length = 90\n",
+    )
+    .unwrap();
+
+    let doc = child.join("doc.md");
+    let unfixed = "#Heading\n";
+    fs::write(&doc, unfixed).unwrap();
+
+    Command::new(mdlint_bin())
+        .arg("check")
+        .current_dir(&child)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&doc).unwrap(),
+        unfixed,
+        "fix = false in the parent config was reset by the child config"
+    );
+}
+
+#[test]
+fn config_gitignore_false_disables_gitignore_discovery() {
+    // Regression: `gitignore` was only ever read from the CLI flag, so setting it in a
+    // config file did nothing.
+    let dir = TempDir::new().unwrap();
+    Command::new("git")
+        .arg("init")
+        .current_dir(dir.path())
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_PREFIX")
+        .output()
+        .unwrap();
+    fs::write(dir.path().join(".gitignore"), "ignored.md\n").unwrap();
+    fs::write(dir.path().join("ignored.md"), "#Heading\n").unwrap();
+
+    fs::write(dir.path().join("mdlint.toml"), "gitignore = true\n").unwrap();
+    assert_eq!(check_in(dir.path()), 0, "ignored file should be skipped");
+
+    fs::write(dir.path().join("mdlint.toml"), "gitignore = false\n").unwrap();
+    assert_eq!(check_in(dir.path()), 1, "ignored file should be checked");
+}

@@ -27,7 +27,7 @@ impl LintEngine {
             .flat_map(|rule| self.violations(&parser, rule))
             .collect();
 
-        if !self.config.no_inline_config {
+        if !self.config.no_inline_config() {
             let suppressed = parse_inline_config(content);
             if !suppressed.is_empty() {
                 violations.retain(|v| {
@@ -63,7 +63,7 @@ impl LintEngine {
             }
             None => {
                 // If default_enabled is true and no specific config exists, enable the rule
-                if self.config.default_enabled {
+                if self.config.default_enabled() {
                     None
                 } else {
                     return Vec::new();
@@ -210,7 +210,7 @@ mod tests {
 
     fn engine_all_rules() -> LintEngine {
         LintEngine::new(Config {
-            default_enabled: true,
+            default_enabled: Some(true),
             ..Config::default()
         })
     }
@@ -287,8 +287,8 @@ mod tests {
             No heading here
         "};
         let engine = LintEngine::new(Config {
-            default_enabled: true,
-            no_inline_config: true,
+            default_enabled: Some(true),
+            no_inline_config: Some(true),
             ..Config::default()
         });
         let violations = engine.lint_content(content).unwrap();

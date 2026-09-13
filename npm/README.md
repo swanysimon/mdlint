@@ -262,13 +262,41 @@ Options go under a top-level `"mdlint"` key. The keys are identical to the TOML 
 
 ### Configuration hierarchy
 
-Configs are discovered by walking up the directory tree. Scalar values from closer configs override those farther away;
-arrays are extended. Priority order (highest to lowest):
+Discovery walks up from the working directory to the filesystem root, taking **at most one config per directory** — the
+first of the four file names above that actually holds mdlint settings. Every config found along the way is merged,
+with the one nearest the working directory winning.
 
-1. `--config` flag on the CLI
-2. `mdlint.toml` / `.mdlint.toml` / `pyproject.toml` / `package.json` in the current directory
-3. Config files in parent directories (walking up to the filesystem root)
-4. Built-in defaults
+Priority, highest to lowest:
+
+1. CLI flags — `--select`, `--ignore`, `--fix` / `--no-fix`, `--exclude`, `--no-respect-ignore`
+2. `--config <path>`, which **replaces discovery entirely**: no other config file is read, not even one in the working
+  directory
+3. The config in the working directory
+4. Configs in parent directories, nearest first, up to the filesystem root
+5. Built-in defaults
+
+`--no-config` skips 2 through 4 and runs on built-in defaults alone.
+
+How values from different configs combine:
+
+- **Scalars** — `default_enabled`, `fix`, `gitignore`, `no_inline_config`, `front_matter`: the nearest config that
+  *sets* the option wins. A config that omits an option leaves whatever an outer config set it to, rather than
+  resetting it to the built-in default.
+- **Arrays** — `exclude`, `custom_rules`: accumulate, so every config in the chain contributes its entries. There is
+  no way to remove an entry an outer config added.
+- **`[rules.MDxxx]`**: merged per rule code. The nearest config that configures a rule replaces that rule's whole
+  section — parameters are not merged one at a time, so a closer `line_length = 90` drops any other MD013 parameters
+  an outer config had set.
+
+CLI flags then apply on top of the merged result:
+
+- `--fix` / `--no-fix` overrides `fix`.
+- `--exclude` is added to `exclude` rather than replacing it.
+- `--no-respect-ignore` forces `.gitignore` off, and so does `gitignore = false` in any config; `.gitignore` is
+  respected only when neither turns it off.
+- `--select` turns `default_enabled` off and enables just the listed rules, keeping any parameters those rules were
+  given in a config.
+- `--ignore` disables the listed rules, overriding both the config files and `--select`.
 
 ### Global options
 

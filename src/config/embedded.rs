@@ -90,7 +90,7 @@ mod tests {
         "#};
 
         let config = parse_pyproject(content, path()).unwrap().unwrap();
-        assert!(!config.gitignore);
+        assert!(!config.gitignore());
         assert_eq!(config.exclude, vec!["docs/generated".to_owned()]);
         match config.rules.get("MD013") {
             Some(RuleConfig::Config(params)) => {
@@ -116,9 +116,9 @@ mod tests {
     #[test]
     fn pyproject_defaults_apply_to_omitted_fields() {
         let config = parse_pyproject("[tool.mdlint]\n", path()).unwrap().unwrap();
-        assert!(config.default_enabled);
-        assert!(config.gitignore);
-        assert!(config.fix);
+        assert!(config.default_enabled());
+        assert!(config.gitignore());
+        assert!(config.fix());
         assert!(config.rules.is_empty());
     }
 
@@ -148,7 +148,7 @@ mod tests {
         "#};
 
         let config = parse_package_json(content, path()).unwrap().unwrap();
-        assert!(!config.default_enabled);
+        assert!(!config.default_enabled());
         assert_eq!(config.exclude, vec!["dist".to_owned()]);
         assert!(matches!(
             config.rules.get("MD033"),

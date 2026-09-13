@@ -14,7 +14,7 @@ fn fixture(path: &str) -> String {
 
 fn all_rules_engine() -> LintEngine {
     LintEngine::new(Config {
-        default_enabled: true,
+        default_enabled: Some(true),
         ..Config::default()
     })
 }
@@ -154,7 +154,7 @@ fn format_output_for_nested_list_passes_check() {
 fn check_clean_file_has_no_violations() {
     let content = fixture("format/expected.md");
     let engine = LintEngine::new(Config {
-        default_enabled: true,
+        default_enabled: Some(true),
         rules: {
             // MD041 requires a top-level heading — our fixture has one, but MD013
             // line length and other cosmetic rules might fire; only disable none.
