@@ -4,6 +4,12 @@
 # mdlint searches upward from the working directory; configs closer to the
 # root override those further away (scalar values) or extend them (arrays).
 #
+# The same options can live in a manifest you already have: under a
+# [tool.mdlint] table in pyproject.toml, or a top-level "mdlint" key in
+# package.json. In pyproject.toml every key below is nested one level deeper,
+# so `gitignore = true` becomes part of [tool.mdlint] and [rules.MD013]
+# becomes [tool.mdlint.rules.MD013].
+#
 # Most projects need no config at all. `mdlint format` is opinionated and
 # requires no configuration. This file is for teams that want to disable
 # specific check rules or adjust a few rule parameters.

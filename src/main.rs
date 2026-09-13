@@ -17,7 +17,14 @@ use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    process::exit(run().map_or(2i32, i32::from));
+    let exit_code = match run() {
+        Ok(has_violations) => i32::from(has_violations),
+        Err(error) => {
+            eprintln!("error: {error}");
+            2
+        }
+    };
+    process::exit(exit_code);
 }
 
 fn run() -> Result<bool> {

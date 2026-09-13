@@ -212,13 +212,53 @@ mdlint migrate --from markdownlint-cli2 .markdownlint-cli2.jsonc --output mdlint
 
 ## Configuration
 
-mdlint uses TOML configuration files, discovered by searching upward from the current directory. The tool searches for
-these files in order (first found wins per directory level), walking up from the current directory:
+mdlint is configured in TOML, discovered by searching upward from the current directory. Settings can live in a
+dedicated file or inside a manifest your project already has. Within a directory, the first of these that holds mdlint
+settings wins:
 
 1. `mdlint.toml`
 2. `.mdlint.toml`
+3. `pyproject.toml` — under a `[tool.mdlint]` table
+4. `package.json` — under a top-level `"mdlint"` key
 
-Planned: `package.json` and `pyproject.toml` support.
+A `pyproject.toml` or `package.json` without mdlint settings is not a config: the search walks past it to the parent
+directory, so an unrelated manifest never shadows a config higher up. Pointing `--config` at a manifest that has no
+mdlint section is an error rather than a silent fall back to defaults.
+
+### pyproject.toml
+
+Options go under `[tool.mdlint]`, rules under `[tool.mdlint.rules.MDxxx]` — the same layout as `mdlint.toml`, nested
+one level deeper:
+
+```toml
+[tool.mdlint]
+gitignore = true
+exclude = ["docs/generated"]
+
+[tool.mdlint.rules.MD013]
+line_length = 100
+
+[tool.mdlint.rules.MD033]
+enabled = false
+```
+
+### package.json
+
+Options go under a top-level `"mdlint"` key. The keys are identical to the TOML ones:
+
+```json
+{
+  "name": "my-project",
+  "mdlint": {
+    "gitignore": true,
+    "exclude": ["docs/generated"],
+    "rules": {
+      "MD013": { "line_length": 100 },
+      "MD033": { "enabled": false }
+    }
+  }
+}
+```
 
 ### Configuration hierarchy
 
@@ -226,7 +266,7 @@ Configs are discovered by walking up the directory tree. Scalar values from clos
 arrays are extended. Priority order (highest to lowest):
 
 1. `--config` flag on the CLI
-2. `mdlint.toml` / `.mdlint.toml` in the current directory
+2. `mdlint.toml` / `.mdlint.toml` / `pyproject.toml` / `package.json` in the current directory
 3. Config files in parent directories (walking up to the filesystem root)
 4. Built-in defaults
 

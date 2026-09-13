@@ -36,6 +36,9 @@ src/
 ### Configuration System
 
 - TOML is the config format (`mdlint.toml` or `.mdlint.toml`); hierarchical discovery walks up from cwd
+- Settings can also live in a manifest: `[tool.mdlint]` in `pyproject.toml`, `"mdlint"` in `package.json`
+  (`src/config/embedded.rs`). A manifest with no mdlint section returns `Ok(None)` so discovery keeps
+  walking up instead of stopping there; `--config` pointed at such a manifest is an error
 - Config merging: later (closer to root) configs override earlier; arrays extend rather than replace
 - Front matter: string-based detection for YAML (`---`) and TOML (`+++`) delimiters avoids regex overhead
 
