@@ -7,40 +7,26 @@ on:
     - cron: "0 18 * * 1"
   workflow_dispatch: {}
 
-permissions:
-  contents: read
+# Renovate authenticates with RENOVATE_TOKEN, never GITHUB_TOKEN, so the
+# automatic token needs no permissions at all.
+permissions: {}
 
 jobs:
   update:
     name: Update dependencies
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-        with:
-          cache: "false"
-
-      - name: Install mise
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
-        env:
-          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
-
-      # Renovate shells out to cargo/mise itself to compute lockfile
-      # changes, so both need to be on PATH; nothing here calls them
-      # directly. Renovate still opens lockFileMaintenance as a separate PR
-      # from regular updates (a hard upstream limitation it doesn't offer a
-      # way around: renovatebot/renovate#2204) - that's accepted as-is
-      # rather than worked around with custom scripting.
+      # Everything happens inside the Renovate container: it clones the
+      # repository itself and installs whatever toolchain a lockfile update
+      # needs. The runner's workspace and PATH are not mounted into it, so
+      # there is nothing useful to check out or install here.
+      #
+      # Renovate opens lockFileMaintenance as a separate PR from regular
+      # updates (a hard upstream limitation: renovatebot/renovate#2204);
+      # accepted as-is rather than worked around with custom scripting.
       - name: Run self-hosted Renovate
         uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
         env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_PLATFORM: github
           RENOVATE_REPOSITORIES: ${{ github.repository }}
-          LOG_LEVEL: debug
