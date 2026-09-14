@@ -136,24 +136,12 @@ impl Rule for MD032 {
                     message: "List should be surrounded by blank lines (missing after)".to_owned(),
                     fix: None,
                 });
-            } else if in_list && line.trim().is_empty() {
-                // Blank line during list - might be end
-                // Look ahead to see if list continues with same marker
-                let mut continues = false;
-                for future_line in lines.iter().skip(line_num + 1) {
-                    if let Some(future_marker) = get_list_marker(future_line.trim_start()) {
-                        if Some(future_marker) == current_marker {
-                            continues = true;
-                        }
-                        break;
-                    } else if !future_line.trim().is_empty() {
-                        break;
-                    }
-                }
-                if !continues {
-                    in_list = false;
-                    current_marker = None;
-                }
+            } else if in_list
+                && line.trim().is_empty()
+                && !list_continues_after_blank(lines, line_num, current_marker)
+            {
+                in_list = false;
+                current_marker = None;
             }
         }
 
@@ -163,6 +151,24 @@ impl Rule for MD032 {
     fn fixable(&self) -> bool {
         false
     }
+}
+
+/// After a blank line inside a list, reports whether the same list resumes.
+/// The first marker found decides it: a matching marker continues the list, a
+/// different one starts a new list. Any other non-blank content ends the list.
+fn list_continues_after_blank(
+    lines: &[&str],
+    line_num: usize,
+    current_marker: Option<ListMarker>,
+) -> bool {
+    for future_line in lines.iter().skip(line_num + 1) {
+        if let Some(future_marker) = get_list_marker(future_line.trim_start()) {
+            return Some(future_marker) == current_marker;
+        } else if !future_line.trim().is_empty() {
+            return false;
+        }
+    }
+    false
 }
 
 /// Returns true if the line starts with `1.` or `1)` (the only ordered marker
