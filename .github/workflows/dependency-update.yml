@@ -30,7 +30,7 @@ jobs:
       # that permits it; it is global-only config, so it lives here rather
       # than in renovate.json, and must stay in sync with that command.
       - name: Run self-hosted Renovate
-        uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
+        uses: renovatebot/github-action@c314dda4a9a93b08239ec978f2043b9a433b9ac4 # v46.3.0
         env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_PLATFORM: github
