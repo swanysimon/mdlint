@@ -21,15 +21,18 @@ jobs:
       # needs. The runner's workspace and PATH are not mounted into it, so
       # there is nothing useful to check out or install here.
       #
-      # Renovate normally opens lockFileMaintenance as a separate,
-      # unmergeable PR from regular updates (renovatebot/renovate#2204).
-      # renovate.json works around this with its own config, not a script:
-      # a packageRule strips lockFileMaintenance's default
-      # additionalBranchPrefix, so it resolves to the exact same branch
-      # name as the regular grouped update and lands in the same PR.
+      # lockFileMaintenance would always land in its own branch and PR,
+      # which cannot be merged into the regular update PR (hardcoded in
+      # Renovate: lib/workers/repository/updates/branch-name.ts). It is
+      # disabled in renovate.json in favour of a postUpgradeTasks
+      # `cargo update`, which refreshes transitive dependencies inside the
+      # regular update branch instead. allowedCommands is the allowlist
+      # that permits it; it is global-only config, so it lives here rather
+      # than in renovate.json, and must stay in sync with that command.
       - name: Run self-hosted Renovate
         uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
         env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_PLATFORM: github
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ALLOWED_COMMANDS: '["^cargo update$"]'
