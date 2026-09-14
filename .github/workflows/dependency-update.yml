@@ -21,9 +21,12 @@ jobs:
       # needs. The runner's workspace and PATH are not mounted into it, so
       # there is nothing useful to check out or install here.
       #
-      # Renovate opens lockFileMaintenance as a separate PR from regular
-      # updates (a hard upstream limitation: renovatebot/renovate#2204);
-      # accepted as-is rather than worked around with custom scripting.
+      # Renovate normally opens lockFileMaintenance as a separate,
+      # unmergeable PR from regular updates (renovatebot/renovate#2204).
+      # renovate.json works around this with its own config, not a script:
+      # a packageRule strips lockFileMaintenance's default
+      # additionalBranchPrefix, so it resolves to the exact same branch
+      # name as the regular grouped update and lands in the same PR.
       - name: Run self-hosted Renovate
         uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
         env:
