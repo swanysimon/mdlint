@@ -97,26 +97,57 @@ pub fn fix_to_text_edit(fix: &Fix, content: &str) -> TextEdit {
     }
 }
 
-/// Build a `TextEdit` that replaces the entire document with `formatted`.
+/// Build the edits that turn `content` into `formatted`, narrowed to the lines
+/// that actually differ.
 ///
-/// The end range is `(line_count, 0)` — the start of the line after the last,
-/// which captures any trailing newline.
+/// Returns an empty vec when the document is already formatted.
+///
+/// Replacing the whole document would be simpler, but reflow touches nearly
+/// every paragraph, so a whole-document replace on each format-on-save would
+/// move the cursor and collapse undo granularity. Trimming the common leading
+/// and trailing lines keeps the edit proportional to the real change.
 #[allow(clippy::cast_possible_truncation)] // LSP positions are u32; line counts in real files fit
-pub fn whole_doc_edit(content: &str, formatted: &str) -> TextEdit {
-    let line_count = content.lines().count() as u32;
-    TextEdit {
+pub fn minimal_edits(content: &str, formatted: &str) -> Vec<TextEdit> {
+    if content == formatted {
+        return vec![];
+    }
+
+    // `split_inclusive` keeps each line's own newline, so a slice of elements
+    // concatenates back to exactly the text spanned by the line range below.
+    let old: Vec<&str> = content.split_inclusive('\n').collect();
+    let new: Vec<&str> = formatted.split_inclusive('\n').collect();
+
+    let max_trim = old.len().min(new.len());
+    let prefix = old
+        .iter()
+        .zip(&new)
+        .take_while(|(a, b)| a == b)
+        .count()
+        .min(max_trim);
+    let suffix = old
+        .iter()
+        .rev()
+        .zip(new.iter().rev())
+        .take_while(|(a, b)| a == b)
+        .count()
+        .min(max_trim - prefix);
+
+    vec![TextEdit {
         range: Range {
             start: Position {
-                line: 0,
+                line: prefix as u32,
                 character: 0,
             },
             end: Position {
-                line: line_count,
+                line: (old.len() - suffix) as u32,
                 character: 0,
             },
         },
-        new_text: formatted.to_owned(),
-    }
+        new_text: new
+            .get(prefix..new.len() - suffix)
+            .unwrap_or_default()
+            .concat(),
+    }]
 }
 
 /// Convert a `file://` URI to a `PathBuf`. Returns `None` for non-file schemes.
@@ -188,5 +219,56 @@ mod tests {
     fn test_uri_non_file() {
         let uri = Uri::from_str("untitled:foo.md").unwrap();
         assert!(uri_to_path(&uri).is_none());
+    }
+
+    #[test]
+    fn minimal_edits_empty_when_already_formatted() {
+        assert!(minimal_edits("# Title\n", "# Title\n").is_empty());
+    }
+
+    #[test]
+    fn minimal_edits_spans_only_the_changed_lines() {
+        let edits = minimal_edits("a\nb\nc\n", "a\nB\nc\n");
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0].range.start.line, 1);
+        assert_eq!(edits[0].range.end.line, 2);
+        assert_eq!(edits[0].new_text, "B\n");
+    }
+
+    #[test]
+    fn minimal_edits_represents_a_pure_insertion_as_an_empty_range() {
+        let edits = minimal_edits("a\nb\n", "a\nx\nb\n");
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0].range.start.line, 1);
+        assert_eq!(edits[0].range.end.line, 1);
+        assert_eq!(edits[0].new_text, "x\n");
+    }
+
+    /// Applying the edit must reproduce the target exactly, including when the
+    /// whole document differs and when a trailing newline is added.
+    #[test]
+    fn minimal_edits_round_trip() {
+        for (old, new) in [
+            ("a\nb\nc\n", "a\nB\nc\n"),
+            ("a\nb\n", "a\nx\nb\n"),
+            ("one\ntwo\n", "totally\ndifferent\n"),
+            ("", "added\n"),
+            ("no trailing newline", "no trailing newline\n"),
+            ("drop\nlines\nhere\n", "drop\n"),
+        ] {
+            let edits = minimal_edits(old, new);
+            let lines: Vec<&str> = old.split_inclusive('\n').collect();
+            let mut got = String::new();
+            let mut cursor = 0usize;
+            for edit in &edits {
+                let start = (edit.range.start.line as usize).min(lines.len());
+                let end = (edit.range.end.line as usize).min(lines.len());
+                got.push_str(&lines[cursor..start].concat());
+                got.push_str(&edit.new_text);
+                cursor = end;
+            }
+            got.push_str(&lines[cursor..].concat());
+            assert_eq!(got, new, "round trip failed for {old:?} -> {new:?}");
+        }
     }
 }

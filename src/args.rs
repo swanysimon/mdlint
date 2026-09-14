@@ -247,6 +247,7 @@ impl CheckArgs {
 }
 
 #[derive(Args, Debug)]
+#[allow(clippy::struct_excessive_bools)] // clap CLI structs use bools for flags, not state machines
 pub struct FormatArgs {
     #[arg(
         value_name = "FILES",
@@ -278,9 +279,29 @@ pub struct FormatArgs {
         help = "Check formatting without modifying files (exits with 1 if any file would change)"
     )]
     pub check: bool,
+
+    #[arg(
+        long,
+        help = "Reflow paragraphs to MD013's line_length. Use `--no-reflow` to disable",
+        overrides_with = "no_reflow"
+    )]
+    pub reflow: bool,
+
+    #[arg(long, hide = true, overrides_with = "reflow")]
+    pub no_reflow: bool,
 }
 
 impl FormatArgs {
+    /// `Some` when `--reflow`/`--no-reflow` was given, overriding the config.
+    #[must_use]
+    pub fn should_reflow(&self) -> Option<bool> {
+        match (self.reflow, self.no_reflow) {
+            (true, _) => Some(true),
+            (_, true) => Some(false),
+            (false, false) => None,
+        }
+    }
+
     #[must_use]
     pub fn files(&self) -> Vec<PathBuf> {
         if self.files.is_empty() {
