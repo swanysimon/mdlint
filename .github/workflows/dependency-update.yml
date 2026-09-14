@@ -20,16 +20,64 @@ jobs:
       # repository itself and installs whatever toolchain a lockfile update
       # needs. The runner's workspace and PATH are not mounted into it, so
       # there is nothing useful to check out or install here.
-      #
-      # Renovate normally opens lockFileMaintenance as a separate,
-      # unmergeable PR from regular updates (renovatebot/renovate#2204).
-      # renovate.json works around this with its own config, not a script:
-      # a packageRule strips lockFileMaintenance's default
-      # additionalBranchPrefix, so it resolves to the exact same branch
-      # name as the regular grouped update and lands in the same PR.
       - name: Run self-hosted Renovate
         uses: renovatebot/github-action@37beffda261423addd537c33f2d126df7f6ffbab # v46.2.6
         env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_PLATFORM: github
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+
+      # Renovate can't be configured to put lockFileMaintenance on the same
+      # branch as a regular grouped update - it's hardcoded, not a config
+      # gap: lib/workers/repository/updates/branch-name.ts unconditionally
+      # prefixes the group slug with "lock-file-maintenance-" for that
+      # update type. Renovate has already done all the actual
+      # dependency-update work above; this step only merges its own output
+      # branches together with plain git so there's one PR instead of two.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Merge Renovate's branches into renovate/all-dependencies
+        env:
+          GH_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          git config user.name "renovate[bot]"
+          git config user.email "29139614+renovate[bot]@users.noreply.github.com"
+          git fetch origin 'refs/heads/renovate/*:refs/remotes/origin/renovate/*'
+
+          mapfile -t extra_branches < <(
+            git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/renovate/*' |
+            sed 's#^origin/##' | grep -v '^renovate/all-dependencies$'
+          )
+
+          if [[ ${#extra_branches[@]} -eq 0 ]]; then
+            echo "no extra Renovate branches to merge"
+            exit 0
+          fi
+
+          if git rev-parse --verify origin/renovate/all-dependencies >/dev/null 2>&1; then
+            git checkout -B renovate/all-dependencies origin/renovate/all-dependencies
+          else
+            git checkout -B renovate/all-dependencies origin/main
+          fi
+
+          for branch in "${extra_branches[@]}"; do
+            git merge --no-edit "origin/$branch"
+          done
+
+          git push origin renovate/all-dependencies
+
+          for branch in "${extra_branches[@]}"; do
+            git push origin --delete "$branch"
+          done
+
+          if ! gh pr view renovate/all-dependencies >/dev/null 2>&1; then
+            gh pr create \
+              --title "Update all dependencies" \
+              --body "Regular dependency updates from Renovate, merged with its lockFileMaintenance output so there's one PR instead of two." \
+              --head renovate/all-dependencies \
+              --base main
+          fi

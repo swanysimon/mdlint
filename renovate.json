@@ -49,12 +49,6 @@
       "pinDigests": true
     },
     {
-      "matchUpdateTypes": [
-        "lockFileMaintenance"
-      ],
-      "additionalBranchPrefix": ""
-    },
-    {
       "matchPackageNames": [
         "*"
       ],
