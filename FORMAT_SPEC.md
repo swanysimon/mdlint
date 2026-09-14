@@ -10,7 +10,9 @@ formatter implementation work. Any ambiguity about what the formatter should pro
 1. **One canonical form.** Every valid Markdown input has exactly one correct formatted output.
 2. **Idempotency is a hard requirement.** Formatting an already-formatted file produces no changes.
 3. **Semantic equivalence.** The formatter never changes meaning — only surface syntax.
-4. **No configuration.** The formatter is opinionated. If you disagree with a choice, open an issue.
+4. **Almost no configuration.** The formatter is opinionated. It accepts exactly one input: the fill
+   column used for paragraph reflow, read from `rules.MD013.line_length`. Every other choice is
+   fixed. If you disagree with one, open an issue.
 
 ---
 
@@ -110,12 +112,18 @@ what numbers appear in the source — non-contiguous or repeated numbers are cor
 
 ### List Indentation (MD007)
 
-Nested list items are indented by 2 spaces relative to their parent marker.
+Nested list items are indented to their parent item's content column: two
+spaces under a `-` marker, three under a `1.` marker. Less than that and the
+nested list re-parses as a sibling list at the outer level.
 
 ```markdown
 - Top level
   - Nested once
     - Nested twice
+
+1. Top level
+   - Nested once
+     - Nested twice
 ```
 
 ### Blank Lines Around Lists (MD032)
@@ -152,6 +160,47 @@ Always use `**` for strong (bold). Never `__`.
 ```markdown
 This is **critical**.
 ```
+
+### Paragraph Reflow (MD013)
+
+Paragraph text is reflowed. Existing line breaks inside a paragraph carry no meaning in CommonMark —
+they render as a single space — so the formatter discards them and refills the paragraph greedily up
+to the fill column.
+
+The fill column is `rules.MD013.line_length` (default 120), measured in characters, not bytes. Taking
+it from MD013 rather than a separate key means a formatted file can never fail MD013 for a reason the
+formatter was able to fix.
+
+```markdown
+Input, wrapped at whatever width the author's editor happened to use:
+
+A paragraph that was
+hard-wrapped at
+some arbitrary column.
+
+Output, refilled:
+
+A paragraph that was hard-wrapped at some arbitrary column.
+```
+
+Reflow applies to paragraph text only. It does not apply to headings, code blocks, HTML blocks, front
+matter, table cells, or link reference definitions.
+
+Line breaks are only ever inserted at a space that appears in the source text or at a former soft
+break. The formatter never breaks inside a link destination, a code span, an inline HTML tag, or
+immediately after a hard-break marker, because a break in any of those positions changes meaning.
+
+Two consequences follow:
+
+- **A token longer than the fill column is never broken.** A long URL emits an over-width line.
+  MD013's existing exemption for lines consisting only of a link covers the common case; anything
+  else remains a reported MD013 violation that the formatter cannot fix.
+- **Hard breaks are preserved.** A paragraph containing hard breaks is split into segments at each
+  hard break, and each segment is refilled independently.
+
+Where a break would place text at the start of a line such that it re-parses as a block element (a
+list marker, an ATX heading, a thematic rule, a setext underline), the formatter first tries to break
+earlier. If no earlier break opportunity exists, it breaks anyway and escapes the line.
 
 ### Trailing Whitespace (MD009)
 
@@ -240,8 +289,8 @@ verbatim. The formatter does not modify front matter content.
 
 ## What the Formatter Does NOT Change
 
-- **Paragraph text.** The formatter does not reflow paragraphs to a line length. Line breaks within
-  paragraphs are preserved (soft wrapping is the renderer's job, not the formatter's).
+- **Paragraph wording.** Reflow moves the line breaks between words (see "Paragraph Reflow"), but the
+  words themselves, and their order, are never altered.
 - **Code block contents.** The content inside fenced or indented code blocks is preserved
   character-for-character, including indentation, tabs, and blank lines.
 - **Inline code.** The content inside backtick spans is not modified.
@@ -275,3 +324,10 @@ produce identical output for all fixable rules. There must be no divergence betw
 
 Rules that the formatter enforces but the linter cannot report (because they require whole-document
 context beyond what a per-violation fix can express) are formatter-only behaviors documented above.
+
+MD013 is the one deliberate exception to the "no divergence" rule, in the opposite direction:
+`mdlint format` fixes over-long paragraph lines by reflowing them, but `mdlint check --fix` does not.
+Reflow is a whole-paragraph rewrite, and expressing it as a per-violation `Fix` would mean
+reimplementing the wrapping logic inside the rule, where only a `MarkdownParser` is available rather
+than formatter state. Duplicating it in two places is worse than the divergence. Run `mdlint format`
+to fix line length.

@@ -1,5 +1,7 @@
 use std::fmt::Write as _;
 
+use crate::config::{Config, RuleConfig};
+
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 /// Format a Markdown document to canonical style.
@@ -12,11 +14,54 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagE
 /// - Uses backtick fences for code blocks
 #[must_use]
 pub fn format(input: &str) -> String {
+    format_with(input, &FormatOptions::default())
+}
+
+/// The fill column used when no configuration supplies one.  Matches MD013's
+/// own `line_length` default so the two agree out of the box.
+pub const DEFAULT_WIDTH: usize = 120;
+
+/// The formatter's only configuration input: the fill column for paragraph
+/// reflow, measured in characters.  Sourced from `rules.MD013.line_length` so a
+/// formatted file can never fail MD013 for something the formatter could fix.
+#[derive(Debug, Clone, Copy)]
+pub struct FormatOptions {
+    pub width: usize,
+}
+
+impl Default for FormatOptions {
+    fn default() -> Self {
+        Self {
+            width: DEFAULT_WIDTH,
+        }
+    }
+}
+
+impl From<&Config> for FormatOptions {
+    /// Reflow is always on; only the column is configurable.  MD013's
+    /// `enabled = false` is deliberately not honoured here -- the formatter is
+    /// opinionated, and disabling a *lint* should not change canonical style.
+    fn from(config: &Config) -> Self {
+        let width = match config.rules.get("MD013") {
+            Some(RuleConfig::Config(params)) => params.get("line_length"),
+            _ => None,
+        }
+        .and_then(toml::Value::as_integer)
+        .and_then(|value| usize::try_from(value).ok())
+        .filter(|&width| width > 0)
+        .unwrap_or(DEFAULT_WIDTH);
+        Self { width }
+    }
+}
+
+/// Format a Markdown document, reflowing paragraphs to `options.width`.
+#[must_use]
+pub fn format_with(input: &str, options: &FormatOptions) -> String {
     if input.trim().is_empty() {
         return String::new();
     }
 
-    let mut state = FormatterState::new();
+    let mut state = FormatterState::new(options.width);
     let events: Vec<Event<'_>> = Parser::new_ext(input, mk_options()).collect();
 
     // Precompute per-event lookahead: is the *next* event Start(List(None))?
@@ -74,6 +119,12 @@ struct FormatterState {
     // Inline content buffer, flushed when a block element closes.
     inline: String,
 
+    // Byte offsets into `inline` at which a line break may be inserted.  Each
+    // offset points at a space that a break would replace.  Only `on_text` and
+    // `SoftBreak` contribute; everything else (code spans, link syntax, inline
+    // HTML, emphasis markers) is atomic, so a break can never land inside it.
+    break_offsets: Vec<usize>,
+
     // Code block state
     in_code_block: bool,
     code_block_indent: String,
@@ -94,6 +145,9 @@ struct FormatterState {
     // Supplies cross-event right-flank context for the `_`/`~` escape check.
     next_text_char: Option<char>,
 
+    // Fill column for paragraph reflow, in characters.
+    width: usize,
+
     // Table state
     table_alignments: Vec<Alignment>,
     table_head_cells: Vec<String>,
@@ -103,15 +157,17 @@ struct FormatterState {
 }
 
 impl FormatterState {
-    fn new() -> Self {
+    fn new(width: usize) -> Self {
         Self {
             out: String::new(),
+            width,
             needs_blank: false,
             list_depth: 0,
             list_starts: Vec::new(),
             in_tight_item: false,
             bq_depth: 0,
             inline: String::new(),
+            break_offsets: Vec::new(),
             in_code_block: false,
             code_block_indent: String::new(),
             list_item_widths: Vec::new(),
@@ -136,19 +192,44 @@ impl FormatterState {
                 self.out.push_str(&h);
             }
             Event::InlineHtml(h) => {
+                // Breaking right before inline HTML would start a line with a
+                // tag, where CommonMark reads it as an HTML block.  The emitter
+                // would then escape it, turning the tag into literal text and
+                // changing the document.  Withdraw the break opportunity so the
+                // tag can never land at column 0.
+                if let Some(preceding) = self.inline.len().checked_sub(1)
+                    && self.break_offsets.last() == Some(&preceding)
+                {
+                    self.break_offsets.pop();
+                }
                 self.inline.push_str(&h);
             }
-            Event::SoftBreak => {
-                self.inline.push('\n');
-            }
+            Event::SoftBreak
+                // A soft break renders as a space and carries no meaning of its
+                // own, so it is recorded as a break opportunity like any other
+                // space and the wrapper decides where the line actually ends.
+                if is_space_significant(self.inline.chars().next_back()) => {
+                    self.break_offsets.push(self.inline.len());
+                    self.inline.push(' ');
+                }
             Event::HardBreak => {
                 // Backslash + newline = hard line break in CommonMark.
                 // Using backslash style avoids trailing-whitespace stripping.
                 self.inline.push_str("\\\n");
             }
             Event::Rule => {
-                self.emit_blank_if_needed();
+                if self.in_tight_item {
+                    // `- ---` is itself a thematic break and would swallow the
+                    // list item on re-parse, so the rule goes on its own line
+                    // inside the item rather than beside the marker.
+                    self.out.push('\n');
+                    self.in_tight_item = false;
+                } else {
+                    self.emit_blank_if_needed();
+                }
+                let indent = self.list_continuation_prefix();
                 self.write_bq_prefix();
+                self.out.push_str(&indent);
                 self.out.push_str("---\n");
                 self.needs_blank = true;
             }
@@ -214,7 +295,6 @@ impl FormatterState {
                 self.in_code_block = true;
             }
             Tag::List(start) => {
-                self.list_item_widths.push(0);
                 if self.list_depth == 0 {
                     self.emit_blank_if_needed();
                 } else {
@@ -225,7 +305,7 @@ impl FormatterState {
                     // (e.g. `Text("Item 1")` in `- Item 1\n  - Nested`).
                     if self.in_tight_item && !self.inline.is_empty() {
                         let text = std::mem::take(&mut self.inline);
-                        let prefix = "  ".repeat(self.list_depth);
+                        let prefix = self.list_continuation_prefix();
                         self.flush_inline_text(&text, &prefix);
                         self.in_tight_item = false;
                     } else if self.in_tight_item {
@@ -236,6 +316,7 @@ impl FormatterState {
                         self.in_tight_item = false;
                     }
                 }
+                self.list_item_widths.push(0);
                 self.list_depth += 1;
                 // Ordered lists always start at 1 in canonical form (MD029).
                 self.list_starts.push(start.map(|_| 1u64));
@@ -247,7 +328,16 @@ impl FormatterState {
                     self.emit_blank_if_needed();
                 }
                 self.in_tight_item = true;
-                let indent = "  ".repeat(self.list_depth.saturating_sub(1));
+                // A nested item starts at its parent item's content column --
+                // 3 under `1. `, 2 under `- `.  Anything less and the re-parser
+                // reads it as a sibling list at the outer level instead.
+                let indent = " ".repeat(
+                    self.list_item_widths
+                        .len()
+                        .checked_sub(2)
+                        .and_then(|parent| self.list_item_widths.get(parent).copied())
+                        .unwrap_or(0),
+                );
                 let marker = match self.list_starts.last_mut() {
                     Some(Some(n)) => {
                         let s = format!("{indent}{n}. ");
@@ -324,7 +414,7 @@ impl FormatterState {
                     if self.list_depth == 0 {
                         self.write_bq_prefix();
                     }
-                    let prefix = "  ".repeat(self.list_depth);
+                    let prefix = self.list_continuation_prefix();
                     self.flush_inline_text(&text, &prefix);
                     self.needs_blank = true;
                 }
@@ -332,6 +422,8 @@ impl FormatterState {
             }
             TagEnd::Heading(level) => {
                 let text = std::mem::take(&mut self.inline);
+                // Headings are never wrapped; drop the opportunities unused.
+                self.break_offsets.clear();
                 let hashes = "#".repeat(level as usize);
                 self.write_bq_prefix();
                 // Collapse hard and soft breaks to spaces, then trim.  Trim must
@@ -339,7 +431,7 @@ impl FormatterState {
                 // removes; trimming first would strip a hard-break marker's `\`,
                 // leaving it unescaped and breaking idempotency on re-parse.
                 let heading_raw = collapse_heading_breaks(&text);
-                let heading_text = heading_raw.trim();
+                let heading_text = escape_trailing_hashes(heading_raw.trim());
                 writeln!(self.out, "{hashes} {heading_text}").expect("writing to String is infallible");
                 self.needs_blank = true;
             }
@@ -381,7 +473,7 @@ impl FormatterState {
                         // Empty tight item: the marker was already written; just terminate the line.
                         self.out.push('\n');
                     } else {
-                        let prefix = "  ".repeat(self.list_depth);
+                        let prefix = self.list_continuation_prefix();
                         self.flush_inline_text(&text, &prefix);
                     }
                     self.in_tight_item = false;
@@ -415,6 +507,8 @@ impl FormatterState {
             }
             TagEnd::TableCell => {
                 let cell = std::mem::take(&mut self.inline);
+                // Cell content is never wrapped; drop the opportunities unused.
+                self.break_offsets.clear();
                 self.current_row_cells.push(cell);
             }
             TagEnd::TableHead => {
@@ -514,7 +608,24 @@ impl FormatterState {
             let prev_inline_char = self.inline.chars().next_back();
             let chars: Vec<char> = text.chars().collect();
             let mut s = String::with_capacity(text.len() + 4);
+            // Offsets are relative to the final position of `s` within `inline`,
+            // and escaping shifts them, so they must be taken while building `s`
+            // rather than derived from `text`.
+            let base = self.inline.len();
+            let mut breaks = Vec::new();
             for (i, &ch) in chars.iter().enumerate() {
+                // Collapse runs of spaces to one.  A break consumes exactly the
+                // space it lands on, so a run would leave a stray space at a line
+                // edge that `finish` then trims -- changing the text between
+                // passes and breaking idempotency.  Runs render as one space
+                // anyway, so collapsing them costs nothing.
+                if ch == ' ' {
+                    if is_space_significant(s.chars().next_back().or(prev_inline_char)) {
+                        breaks.push(base + s.len());
+                        s.push(' ');
+                    }
+                    continue;
+                }
                 match ch {
                     '\\' => s.push_str("\\\\"),
                     '`' => s.push_str("\\`"),
@@ -552,6 +663,7 @@ impl FormatterState {
                     _ => s.push(ch),
                 }
             }
+            self.break_offsets.extend(breaks);
             self.inline.push_str(&s);
         }
     }
@@ -579,8 +691,10 @@ impl FormatterState {
     }
 
     /// Returns the continuation indent for the current innermost list item —
-    /// i.e. the number of spaces needed to keep a block element (like a code
-    /// fence) inside that item.  Empty string when not inside a list.
+    /// i.e. the number of spaces needed to keep following content (a wrapped
+    /// paragraph line, a code fence) inside that item.  This is the item's
+    /// content column, so it already includes the indent of any outer levels.
+    /// Empty string when not inside a list.
     fn list_continuation_prefix(&self) -> String {
         " ".repeat(self.list_item_widths.last().copied().unwrap_or(0))
     }
@@ -597,14 +711,25 @@ impl FormatterState {
         self.needs_blank = false;
     }
 
+    /// Write the blockquote marker for the current line, unless it is already
+    /// there.
+    ///
+    /// Block openers call this without knowing whether an enclosing construct
+    /// already opened the line -- a list marker inside the quote, for instance.
+    /// Writing unconditionally appended a second `>` that the re-parser read as
+    /// a deeper quote, so `> - # x` gained one nesting level on every pass.
     fn write_bq_prefix(&mut self) {
-        self.out.push_str(&"> ".repeat(self.bq_depth));
+        let bq = "> ".repeat(self.bq_depth);
+        if self.needs_bq_prefix(&bq) {
+            self.out.push_str(&bq);
+        }
     }
 
     /// Flush inline text to output.
     /// Each line in `text` gets the blockquote prefix prepended (except the first,
     /// which follows whatever was already written on the current output line).
     fn flush_inline_text(&mut self, text: &str, continuation_prefix: &str) {
+        let offsets = std::mem::take(&mut self.break_offsets);
         // Strip trailing hard-break markers (`\\\n`) preceded by only whitespace.
         // A `\` before a line ending that is at the end of a block is re-parsed by
         // pulldown-cmark as a literal `\`, not a hard break — so emitting `\\\n` at
@@ -628,44 +753,96 @@ impl FormatterState {
             }
         };
         let bq = "> ".repeat(self.bq_depth);
-        let mut lines = text.split('\n').peekable();
+        self.write_bq_prefix();
+        let cont_indent = continuation_prefix.chars().count() + bq.chars().count();
+        let cont_width = self.width.saturating_sub(cont_indent).max(1);
 
-        if let Some(first) = lines.next() {
-            if self.bq_depth > 0 && (self.out.ends_with('\n') || self.out.is_empty()) {
-                self.out.push_str(&bq);
-            }
-            if needs_line_escape(first, false) {
-                self.out.push_str(&escape_line(first));
-            } else {
-                self.out.push_str(first);
-            }
-            self.out.push('\n');
-        }
+        // Hard breaks split the buffer into segments that must stay separate;
+        // each is refilled on its own.
+        let mut seg_start = 0usize;
+        let segments: Vec<(usize, &str)> = text
+            .split('\n')
+            .map(|segment| {
+                let start = seg_start;
+                seg_start += segment.len() + 1;
+                (start, segment)
+            })
+            .collect();
+        let last_index = segments.len().saturating_sub(1);
+        let mut first_line = true;
 
-        while let Some(line) = lines.next() {
-            if lines.peek().is_none() && line.is_empty() {
-                // Trailing empty string from split: don't emit an extra newline.
-                break;
+        for (index, (start, segment)) in segments.into_iter().enumerate() {
+            if !first_line {
+                if index == last_index && segment.is_empty() {
+                    // Trailing empty string from split: don't emit an extra newline.
+                    break;
+                }
+                // Skip blank or whitespace-only continuation lines.  Inside a paragraph
+                // a blank line is impossible in real Markdown (it ends the paragraph).
+                // These arise from: (a) consecutive breaks (HardBreak + SoftBreak with
+                // no text) whose combined `\n`s produce an empty slot when split; or (b)
+                // lines consisting entirely of Unicode whitespace, which finish()'s
+                // trim_end() reduces to blank anyway.  Both cases strand any preceding
+                // hard-break marker as a literal `\` that on_text doubles on re-parse.
+                if segment.trim_end().is_empty() {
+                    continue;
+                }
             }
-            // Skip blank or whitespace-only continuation lines.  Inside a paragraph
-            // a blank line is impossible in real Markdown (it ends the paragraph).
-            // These arise from: (a) consecutive breaks (HardBreak + SoftBreak with
-            // no text) whose combined `\n`s produce an empty slot when split; or (b)
-            // lines consisting entirely of Unicode whitespace, which finish()'s
-            // trim_end() reduces to blank anyway.  Both cases strand any preceding
-            // hard-break marker as a literal `\` that on_text doubles on re-parse.
-            if line.trim_end().is_empty() {
-                continue;
-            }
-            self.out.push_str(continuation_prefix);
-            self.out.push_str(&bq);
-            if needs_line_escape(line, true) {
-                self.out.push_str(&escape_line(line));
+
+            // Break opportunities recorded against `inline`, rebased onto this
+            // segment.  An offset at `start` would be a leading space, and one at
+            // the segment end is the hard-break newline itself: neither is usable.
+            let breaks: Vec<usize> = offsets
+                .iter()
+                .filter(|&&offset| offset > start && offset < start + segment.len())
+                .map(|&offset| offset - start)
+                .collect();
+
+            // The opening line continues whatever is already on the output line
+            // (a list marker, a footnote label), so its budget is what remains.
+            let first_width = if first_line {
+                self.width.saturating_sub(self.current_column()).max(1)
             } else {
-                self.out.push_str(line);
+                cont_width
+            };
+
+            for line in wrap_segment(segment, &breaks, first_width, cont_width) {
+                if !first_line {
+                    self.out.push_str(continuation_prefix);
+                    self.out.push_str(&bq);
+                }
+                if needs_line_escape(line, !first_line) {
+                    self.out.push_str(&escape_line(line));
+                } else {
+                    self.out.push_str(line);
+                }
+                self.out.push('\n');
+                first_line = false;
             }
-            self.out.push('\n');
         }
+    }
+
+    /// The current (unterminated) output line.
+    fn current_line(&self) -> &str {
+        self.out
+            .rfind('\n')
+            .map_or(self.out.as_str(), |index| &self.out[index + 1..])
+    }
+
+    /// Number of characters already written on the current output line.
+    fn current_column(&self) -> usize {
+        self.current_line().chars().count()
+    }
+
+    /// Whether the blockquote marker still has to be written on this output line.
+    ///
+    /// It is already there when the block opener wrote it -- a paragraph inside
+    /// the quote, or a list marker nested within it.  It is *not* there when a
+    /// list marker outside the quote opened the line, which is how a blockquote
+    /// inside a list item used to lose its marker entirely and be flattened into
+    /// the item's paragraph.
+    fn needs_bq_prefix(&self, bq: &str) -> bool {
+        !bq.is_empty() && !self.current_line().starts_with(bq)
     }
 
     fn finish(mut self) -> String {
@@ -731,12 +908,125 @@ fn collapse_heading_breaks(text: &str) -> String {
                 out.push('\\');
             }
         } else if ch == '\n' {
-            out.push(' ');
+            // The text before a break may already end in a space, and doubling it
+            // here would survive into the heading only to be collapsed by on_text
+            // on the next pass.
+            if is_space_significant(out.chars().next_back()) {
+                out.push(' ');
+            }
         } else {
             out.push(ch);
         }
     }
     out
+}
+
+/// Escape a trailing run of `#` in heading text.
+///
+/// `## text #` is a *closed* ATX heading: the trailing run is a closing sequence
+/// and is dropped on re-parse, losing a character each pass.  A backslash before
+/// the run makes it literal text, and `\#` parses back to `#`, so the escape is
+/// re-derived identically on every pass.
+fn escape_trailing_hashes(text: &str) -> String {
+    let run = text.chars().rev().take_while(|&ch| ch == '#').count();
+    if run == 0 {
+        return text.to_owned();
+    }
+    let split = text.len() - run;
+    format!("{}\\{}", &text[..split], &text[split..])
+}
+
+/// Whether a space following `prev` carries any meaning.
+///
+/// A space is dropped when it would double an existing one or sit at the start
+/// of a line (after a hard break, or at the very start of the block).  Both are
+/// invisible when rendered, and both would otherwise leave a stray space at a
+/// line edge for `finish` to trim -- changing the text between passes.
+fn is_space_significant(prev: Option<char>) -> bool {
+    !matches!(prev, None | Some(' ' | '\n'))
+}
+
+/// Greedily break `segment` into lines fitting the given character budgets,
+/// breaking only at the ascending byte offsets in `breaks` (each a space that
+/// the break replaces).
+///
+/// A token longer than the budget is never split: the line overflows instead.
+/// Splitting it would corrupt exactly the things that get long -- URLs, paths,
+/// identifiers -- so an over-width line is the lesser harm.
+fn wrap_segment<'a>(
+    segment: &'a str,
+    breaks: &[usize],
+    first_width: usize,
+    cont_width: usize,
+) -> Vec<&'a str> {
+    let mut lines = Vec::new();
+    let mut start = 0usize;
+    let mut width = first_width;
+
+    loop {
+        let rest = &segment[start..];
+        if rest.chars().count() <= width {
+            lines.push(rest);
+            return lines;
+        }
+        let Some(chosen) = next_break(segment, breaks, start, width) else {
+            lines.push(rest);
+            return lines;
+        };
+        let chosen = retreat_past_structure(segment, breaks, start, chosen, cont_width);
+        lines.push(&segment[start..chosen]);
+        start = chosen + 1;
+        width = cont_width;
+        if start >= segment.len() {
+            return lines;
+        }
+    }
+}
+
+/// The break to use for a line starting at `start` with `width` characters
+/// available: the furthest one that still fits, or -- when even the first word
+/// overflows -- the first one past the budget.
+fn next_break(segment: &str, breaks: &[usize], start: usize, width: usize) -> Option<usize> {
+    breaks
+        .iter()
+        .copied()
+        .filter(|&offset| offset > start)
+        .take_while(|&offset| segment[start..offset].chars().count() <= width)
+        .last()
+        .or_else(|| breaks.iter().copied().find(|&offset| offset > start))
+}
+
+/// Pull `chosen` back to an earlier break when the line it would open re-parses
+/// as a block element -- a list marker, an ATX heading, a fence.
+///
+/// This is cosmetic only. The emitter escapes any structural line regardless, so
+/// correctness never rests on the retreat succeeding; it just keeps backslashes
+/// out of the output when there is an earlier place to break. When there is not,
+/// `chosen` comes back unchanged and the escape does its job.
+fn retreat_past_structure(
+    segment: &str,
+    breaks: &[usize],
+    start: usize,
+    chosen: usize,
+    cont_width: usize,
+) -> usize {
+    let mut candidate = chosen;
+    loop {
+        let end = next_break(segment, breaks, candidate + 1, cont_width).unwrap_or(segment.len());
+        if !needs_line_escape(&segment[candidate + 1..end], true) {
+            return candidate;
+        }
+        // Strictly decreasing, so this terminates.
+        match breaks
+            .iter()
+            .copied()
+            .rev()
+            .find(|&offset| offset > start && offset < candidate)
+        {
+            Some(earlier) => candidate = earlier,
+            None => return chosen,
+        }
+    }
 }
 
 /// Escape `line` so that it round-trips through pulldown-cmark as plain text.
@@ -1534,6 +1824,83 @@ mod tests {
         assert_eq!(
             once, twice,
             "idempotency: code fence info string with backslash"
+        );
+    }
+
+    // ── regressions found by the reflow proptest generator ───────────────────
+    // All five predate reflow; the generator's dense structural characters and
+    // multi-line paragraphs are what surfaced them.
+
+    #[test]
+    fn test_hard_break_in_heading_does_not_double_space() {
+        // collapse_heading_breaks turned the break into a space next to the one
+        // already ending the text, which on_text then collapsed on pass two.
+        let once = format("a a \\\na a\n---\n");
+        assert_eq!(
+            once,
+            format(&once),
+            "idempotency: hard break inside heading"
+        );
+    }
+
+    #[test]
+    fn test_heading_text_ending_in_hash_is_escaped() {
+        // `## a #` is a closed ATX heading: the trailing `#` is a closing
+        // sequence and was dropped on re-parse, losing a character each pass.
+        assert_eq!(format("a #\n---\n"), "## a \\#\n");
+        let once = format("a #\n---\n");
+        assert_eq!(once, format(&once), "idempotency: heading ending in hash");
+    }
+
+    #[test]
+    fn test_nested_list_under_ordered_item_indents_to_content_column() {
+        // Two spaces put the nested list below `1. `'s content column, so it
+        // re-parsed as a sibling list at the outer level.
+        // The nested list goes on its own line, indented to column 3 -- the
+        // content column of `1. ` -- so it stays inside the ordered item.
+        let once = format("1. - a\n");
+        assert_eq!(once, "1.\n   - a\n");
+        assert_eq!(
+            once,
+            format(&once),
+            "idempotency: nested list under ordered"
+        );
+    }
+
+    #[test]
+    fn test_blockquote_inside_list_item_keeps_its_marker() {
+        // The first line never got its `>`, so the blockquote was flattened into
+        // the item's paragraph and silently disappeared.
+        assert_eq!(format("- > alpha bravo\n"), "- > alpha bravo\n");
+        let once = format("- > alpha\n  > bravo\n");
+        assert_eq!(once, format(&once), "idempotency: blockquote in list item");
+    }
+
+    #[test]
+    fn test_thematic_break_in_tight_list_item_stays_in_the_item() {
+        // `- ---` is itself a thematic break, which swallowed the list entirely.
+        let once = format("+ ---\n");
+        assert_eq!(once, format(&once), "idempotency: rule in tight list item");
+        assert!(
+            once.starts_with("-\n"),
+            "rule must not share the marker line: {once:?}"
+        );
+    }
+
+    /// Known pre-existing bug, unrelated to reflow: `Event::Html` writes the raw
+    /// block straight to the output with no blockquote or list-item prefix, so
+    /// the container is lost and the document changes on the next pass. Part of
+    /// the same family as the blockquote-in-list-item and rule-in-list-item bugs
+    /// fixed above, but the fix needs prefixing every line of an opaque HTML
+    /// block, which is a larger change than those.
+    #[test]
+    #[ignore = "pre-existing: HTML block inside a container loses its prefix"]
+    fn test_html_block_in_blockquote_keeps_marker() {
+        let once = format("> alpha\n> <div> beta\n");
+        assert_eq!(once, format(&once), "idempotency: HTML block in blockquote");
+        assert!(
+            once.lines().all(|line| line.starts_with('>')),
+            "every line must stay inside the blockquote: {once:?}"
         );
     }
 }

@@ -21,6 +21,22 @@ fn assert_formats_to(input: &str, expected: &str) {
     );
 }
 
+/// Same contract as `assert_formats_to`, at an explicit fill column so that
+/// wrapping cases stay short enough to verify by eye.
+fn assert_formats_at_width(input: &str, expected: &str, width: usize) {
+    let options = formatter::FormatOptions { width };
+    let got = formatter::format_with(input, &options);
+    assert_eq!(
+        got, expected,
+        "format_with(input, {width}) did not match expected.\nInput:\n{input}\nExpected:\n{expected}\nGot:\n{got}"
+    );
+    let twice = formatter::format_with(expected, &options);
+    assert_eq!(
+        twice, expected,
+        "format_with(expected, {width}) != expected — not idempotent.\nExpected:\n{expected}\nTwice:\n{twice}"
+    );
+}
+
 fn mdlint_bin() -> std::path::PathBuf {
     // Use the debug build so tests don't need a release build.
     let mut p = std::env::current_exe().unwrap();
@@ -348,18 +364,132 @@ fn gfm_table_already_canonical_unchanged() {
 }
 
 #[test]
-fn list_item_continuation_indented() {
-    // A soft-wrapped list item must keep its continuation indented so the
-    // linter does not mistake it for a paragraph outside the list.
+fn list_item_soft_wrap_is_rejoined() {
+    // The source break carries no meaning and the joined line fits the fill
+    // column, so reflow discards it.
     assert_formats_to(
         indoc! {"
             - First line
               continuation here
         "},
         indoc! {"
-            - First line
-              continuation here
+            - First line continuation here
         "},
+    );
+}
+
+#[test]
+fn list_item_continuation_indented_to_content_column() {
+    // A wrapped list item keeps its continuation at the item's content column,
+    // so the linter does not mistake it for a paragraph outside the list. That
+    // column is the marker width: two for `- `, three for `1. `.
+    assert_formats_at_width(
+        "- alpha bravo charlie delta\n",
+        "- alpha bravo\n  charlie delta\n",
+        16,
+    );
+    assert_formats_at_width(
+        "1. alpha bravo charlie delta\n",
+        "1. alpha bravo\n   charlie delta\n",
+        16,
+    );
+}
+
+// ── paragraph reflow ─────────────────────────────────────────────────────────
+
+#[test]
+fn paragraph_is_unwrapped_and_refilled() {
+    assert_formats_at_width(
+        "alpha bravo\ncharlie delta echo\nfoxtrot\n",
+        "alpha bravo charlie\ndelta echo foxtrot\n",
+        20,
+    );
+}
+
+#[test]
+fn reflow_never_breaks_inside_a_link_destination() {
+    // A break inside `](...)` would destroy the link, so the whole destination
+    // is atomic even though it pushes the line over the fill column.
+    assert_formats_at_width(
+        "alpha [text](https://example.com/a/long/path) bravo\n",
+        "alpha\n[text](https://example.com/a/long/path)\nbravo\n",
+        12,
+    );
+}
+
+#[test]
+fn reflow_never_breaks_inside_a_code_span() {
+    assert_formats_at_width(
+        "alpha `code with spaces` bravo\n",
+        "alpha\n`code with spaces`\nbravo\n",
+        12,
+    );
+}
+
+#[test]
+fn overlong_token_overflows_rather_than_splitting() {
+    // Splitting would corrupt the URL; an over-width line is the lesser harm.
+    assert_formats_at_width(
+        "a https://example.com/very/long b\n",
+        "a\nhttps://example.com/very/long\nb\n",
+        10,
+    );
+}
+
+#[test]
+fn hard_breaks_survive_reflow() {
+    // Each hard-break segment is refilled independently and the `\` is kept.
+    assert_formats_at_width(
+        "alpha bravo charlie\\\ndelta echo foxtrot\n",
+        "alpha bravo\ncharlie\\\ndelta echo\nfoxtrot\n",
+        14,
+    );
+}
+
+#[test]
+fn reflow_breaks_earlier_to_avoid_creating_a_list_item() {
+    // Breaking after `bravobravo` would put `- delta` at column 0, where it
+    // re-parses as a list. The wrapper retreats to the previous opportunity.
+    assert_formats_at_width(
+        "alpha bravobravo - delta echo\n",
+        "alpha\nbravobravo -\ndelta echo\n",
+        16,
+    );
+}
+
+#[test]
+fn reflow_escapes_when_no_earlier_break_exists() {
+    // Nothing to retreat to, so the structural line is escaped instead.
+    assert_formats_at_width(
+        "alphaalphaalpha - delta\n",
+        "alphaalphaalpha\n\\- delta\n",
+        16,
+    );
+}
+
+#[test]
+fn runs_of_spaces_collapse() {
+    // Required for idempotency: a break landing inside a run would strand a
+    // space at a line edge for `finish` to trim, changing the text each pass.
+    assert_formats_to("alpha    bravo\n", "alpha bravo\n");
+}
+
+#[test]
+fn blockquote_reflow_keeps_the_marker_on_every_line() {
+    assert_formats_at_width(
+        "> alpha bravo charlie delta\n",
+        "> alpha bravo\n> charlie delta\n",
+        16,
+    );
+}
+
+#[test]
+fn headings_are_never_wrapped() {
+    // ATX headings cannot span lines, so MD013 on a heading stays unfixable.
+    assert_formats_at_width(
+        "# alpha bravo charlie delta echo\n",
+        "# alpha bravo charlie delta echo\n",
+        16,
     );
 }
 

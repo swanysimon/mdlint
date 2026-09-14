@@ -92,12 +92,11 @@ fn formatting(conn: &Connection, req: &Request, docs: &DocumentStore) {
         return;
     };
     let content = content.to_owned();
-    let formatted = formatter::format(&content);
-    let edits: Vec<TextEdit> = if formatted == content {
-        vec![]
-    } else {
-        vec![convert::whole_doc_edit(&content, &formatted)]
-    };
+    // Same config the CLI would use: without this the server would reflow at the
+    // default width while `mdlint format` used the configured one.
+    let options = formatter::FormatOptions::from(&load_config(uri));
+    let formatted = formatter::format_with(&content, &options);
+    let edits: Vec<TextEdit> = convert::minimal_edits(&content, &formatted);
     let resp = Response::new_ok(req.id.clone(), edits);
     let _ = conn.sender.send(Message::Response(resp));
 }

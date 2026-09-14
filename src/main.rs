@@ -75,10 +75,11 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     }
 
     let mut any_changed = false;
+    let options = formatter::FormatOptions::from(config);
 
     for path in &files {
         let original = fs::read_to_string(path)?;
-        let formatted = formatter::format(&original);
+        let formatted = formatter::format_with(&original, &options);
 
         if formatted == original {
             continue;

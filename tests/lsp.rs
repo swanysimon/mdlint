@@ -9,6 +9,22 @@ use std::thread;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+/// Apply whole-line `TextEdit`s (both ends at character 0) to `content`.
+fn apply_edits(content: &str, edits: &[TextEdit]) -> String {
+    let lines: Vec<&str> = content.split_inclusive('\n').collect();
+    let mut out = String::new();
+    let mut cursor = 0usize;
+    for edit in edits {
+        let start = (edit.range.start.line as usize).min(lines.len());
+        let end = (edit.range.end.line as usize).min(lines.len());
+        out.push_str(&lines[cursor..start].concat());
+        out.push_str(&edit.new_text);
+        cursor = end;
+    }
+    out.push_str(&lines[cursor..].concat());
+    out
+}
+
 fn next_message(conn: &Connection) -> Message {
     conn.receiver.recv().expect("expected a message")
 }
@@ -151,12 +167,23 @@ fn lsp_full_lifecycle() {
         Ok(result) => serde_json::from_value(result).unwrap(),
         Err(error) => panic!("formatting error: {error:?}"),
     };
-    // Content needs formatting; expect exactly one whole-doc edit.
+    // Content needs formatting; expect one edit that reproduces the formatted
+    // document when applied.
     assert_eq!(edits.len(), 1, "expected one TextEdit");
     assert_eq!(
-        edits[0].new_text,
+        apply_edits(content, &edits),
         formatter::format(content),
-        "TextEdit new_text must equal formatter::format(content)"
+        "applying the returned edits must yield the formatted document"
+    );
+    // The only change is a blank line between the two headings, so the edit must
+    // not span the whole document.
+    assert_eq!(
+        edits[0].range.start.line, 1,
+        "edit should start at the change"
+    );
+    assert_eq!(
+        edits[0].new_text, "\n",
+        "edit should insert only the blank line"
     );
 
     // 4. codeAction for the line of any fixable violation
