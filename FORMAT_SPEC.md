@@ -211,6 +211,11 @@ which is how deliberately hand-wrapped prose is preserved. Because reflow rewrit
 or none of it, a directive covering any part of a paragraph protects the whole paragraph.
 `no_inline_config = true` disables this along with every other inline directive.
 
+Switching MD013 off in configuration (`[rules.MD013] enabled = false`, or
+`default_enabled = false` without enabling it) disables reflow for the whole project. The inline
+comment and the config key are the same switch spelled two ways, so they mean the same thing. Every
+other canonical style rule still applies; only the refilling of paragraphs stops.
+
 ### Trailing Whitespace (MD009)
 
 No trailing spaces or tabs on any line. Hard line breaks (two trailing spaces before a newline) are

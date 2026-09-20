@@ -33,6 +33,10 @@ pub struct FormatOptions {
     /// When true, `<!-- mdlint-disable MD013 -->` comments are ignored and every
     /// paragraph is reflowed.  Mirrors the config key of the same name.
     pub no_inline_config: bool,
+    /// Whether to reflow at all.  False when MD013 is switched off in config:
+    /// disabling the rule inline already stops reflow, and the config key is the
+    /// same switch by another spelling.
+    pub reflow: bool,
 }
 
 impl Default for FormatOptions {
@@ -40,6 +44,7 @@ impl Default for FormatOptions {
         Self {
             width: DEFAULT_WIDTH,
             no_inline_config: false,
+            reflow: true,
         }
     }
 }
@@ -60,6 +65,7 @@ impl From<&Config> for FormatOptions {
         Self {
             width,
             no_inline_config: config.no_inline_config,
+            reflow: config.rule_enabled("MD013"),
         }
     }
 }
@@ -105,7 +111,8 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
     for (((event, range), next_is_ul), next_char) in
         events.into_iter().zip(lookahead).zip(next_text_char)
     {
-        state.reflow_suppressed = suppressed.contains(&line_at(&line_starts, range.start));
+        state.reflow_suppressed =
+            !options.reflow || suppressed.contains(&line_at(&line_starts, range.start));
         state.next_is_unordered_list = next_is_ul;
         state.next_text_char = next_char;
         state.process(event);
@@ -120,7 +127,7 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
 /// Reuses the linter's directive parser so `<!-- mdlint-disable MD013 -->` means
 /// the same thing to both halves of the tool.
 fn reflow_suppressed_lines(input: &str, options: &FormatOptions) -> HashSet<usize> {
-    if options.no_inline_config {
+    if options.no_inline_config || !options.reflow {
         return HashSet::new();
     }
     let directives = parse_inline_config(input);
@@ -537,7 +544,8 @@ impl FormatterState {
                 // leaving it unescaped and breaking idempotency on re-parse.
                 let heading_raw = collapse_heading_breaks(&text);
                 let heading_text = escape_trailing_hashes(heading_raw.trim());
-                writeln!(self.out, "{hashes} {heading_text}").expect("writing to String is infallible");
+                writeln!(self.out, "{hashes} {heading_text}")
+                    .expect("writing to String is infallible");
                 self.needs_blank = true;
             }
             TagEnd::CodeBlock => {
@@ -593,7 +601,8 @@ impl FormatterState {
                     if title.is_empty() {
                         write!(self.inline, "]({dest})").expect("writing to String is infallible");
                     } else {
-                        write!(self.inline, "]({dest} \"{title}\")").expect("writing to String is infallible");
+                        write!(self.inline, "]({dest} \"{title}\")")
+                            .expect("writing to String is infallible");
                     }
                 }
             }
@@ -2047,7 +2056,6 @@ mod tests {
         assert_eq!(once, format(&once), "idempotency: empty blockquote");
     }
 
-
     /// Known gap: continuation lines carry the full container prefix, but the
     /// line that *opens* a block still writes only the blockquote marker. A
     /// blockquote nested inside a list item therefore opens at column 0 instead
@@ -2063,9 +2071,9 @@ mod tests {
         let once = format("- > - alpha\n");
         assert_eq!(once, format(&once), "idempotency: list > quote > list");
         assert!(
-            once.lines().all(|line| line.starts_with("- ") || line.starts_with("  ")),
+            once.lines()
+                .all(|line| line.starts_with("- ") || line.starts_with("  ")),
             "nested content must stay inside the outer item: {once:?}"
         );
     }
-
 }

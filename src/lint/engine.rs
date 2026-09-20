@@ -45,30 +45,17 @@ impl LintEngine {
     }
 
     fn violations(&self, parser: &MarkdownParser, rule: &dyn Rule) -> Vec<Violation> {
-        let rule_config = self.config.config().get(rule.name());
-        let config_value = match rule_config {
-            Some(RuleConfig::Enabled(false)) => return Vec::new(),
-            Some(RuleConfig::Enabled(true)) => None,
+        if !self.config.rule_enabled(rule.name()) {
+            return Vec::new();
+        }
+        let config_value = match self.config.config().get(rule.name()) {
             Some(RuleConfig::Config(cfg)) => {
                 // Convert TOML config to JSON for rule consumption
                 let mut table = toml::map::Map::new();
                 table.extend(cfg.clone());
-                let toml_value = toml::Value::Table(table);
-                let json_value: Value = toml_to_json(toml_value);
-
-                if let Some(Value::Bool(false)) = json_value.get("enabled") {
-                    return Vec::new();
-                }
-                Some(json_value)
+                Some(toml_to_json(toml::Value::Table(table)))
             }
-            None => {
-                // If default_enabled is true and no specific config exists, enable the rule
-                if self.config.default_enabled {
-                    None
-                } else {
-                    return Vec::new();
-                }
-            }
+            _ => None,
         };
 
         rule.check(parser, config_value.as_ref())

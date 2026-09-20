@@ -244,6 +244,15 @@ paragraph protects all of it. Two fixes were needed to make this trustworthy:
   span; that masked 165 real violations on the rules tables. Those rows cannot be shortened and are not reflowed, so
   `tables = false` is now set for this repository.
 
+**Disabling MD013 disables reflow.** `[rules.MD013] enabled = false` now stops reflow for the whole project, matching
+what the inline comment already did — the two are one switch spelled two ways. The enabled-check moved onto
+`Config::rule_enabled` so the linter and the formatter cannot drift apart on what "disabled" means.
+
+**The container-prefix family.** HTML blocks and empty blockquotes inside a container no longer lose their markers, and
+continuation lines now carry a stack of what each open container contributes rather than two prefixes concatenated in a
+fixed order — a list in a quote continues under the quote marker, a quote in a list under the item indent. With those
+fixed the proptest generator was widened so hazards may open a source line; 20,000 cases pass.
+
 Verified, no change needed:
 
 - `mdlint migrate` emits `[rules.MD013] line_length = N` in the shape `FormatOptions::from` reads, so a migrated
@@ -253,5 +262,8 @@ Verified, no change needed:
 
 Still open:
 
-- [ ] `[rules.MD013] enabled = false` does not disable reflow; only `line_length` is read.
-- [ ] Raw HTML blocks and empty blockquotes inside a container lose the container prefix (see above).
+- [ ] Block *openers* still write only the blockquote marker, not the enclosing container prefix, so a blockquote nested
+  inside a list item opens at column 0 and the list is lost. Continuation lines are fixed; openers need every site —
+  item markers, fences, tables, headings, rules — to write `container_prefix` instead of calling `write_bq_prefix`. See
+  the ignored `test_blockquote_nested_in_list_opens_with_the_full_prefix`. The proptest corpus holds `>` out for this
+  reason; putting it back is how to find whatever else is in this family.

@@ -296,9 +296,10 @@ Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule co
 `mdlint.toml` to ignore all inline comments project-wide.
 
 Disabling **MD013** also stops `mdlint format` reflowing: paragraphs covered by the directive keep the line breaks you
-gave them. This is the way to protect deliberately hand-wrapped prose — one sentence per line, an aligned list, ASCII
-art in a paragraph — from being refilled. Reflow rewrites a whole paragraph or none of it, so a directive covering any
-part of a paragraph protects all of it.
+gave them. Setting `enabled = false` under `[rules.MD013]` does the same thing for the whole project — the comment and
+the config key are one switch, spelled two ways. This is the way to protect deliberately hand-wrapped prose — one
+sentence per line, an aligned list, ASCII art in a paragraph — from being refilled. Reflow rewrites a whole paragraph or
+none of it, so a directive covering any part of a paragraph protects all of it.
 
 ```markdown
 <!-- mdlint-disable MD013 -->

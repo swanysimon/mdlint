@@ -90,7 +90,8 @@ maximum = 1
 # MD013 — Line length
 # line_length:         maximum line length (characters).  Also the fill column
 #                      used by `mdlint format`, which reflows paragraphs to it.
-#                      Lowering this rewraps every paragraph in the project.
+#                      Lowering this rewraps every paragraph in the project;
+#                      setting `enabled = false` stops reflow altogether.
 # heading_line_length: maximum length for heading lines; kept shorter than prose
 #                      so headings scan well in raw files. Defaults to line_length.
 # code_blocks:         when true, lines inside code blocks are also checked.

@@ -580,6 +580,7 @@ fn no_inline_config_reflows_a_protected_paragraph_anyway() {
     let options = formatter::FormatOptions {
         width: 30,
         no_inline_config: true,
+        ..Default::default()
     };
     assert_eq!(
         formatter::format_with(input, &options),
@@ -589,6 +590,27 @@ fn no_inline_config_reflows_a_protected_paragraph_anyway() {
             alpha bravo charlie delta
         "},
         "no_inline_config must ignore the directive and reflow"
+    );
+}
+
+#[test]
+fn disabling_md013_in_config_disables_reflow() {
+    // The same switch as `<!-- mdlint-disable MD013 -->`, spelled in config.
+    let input = "alpha bravo\ncharlie delta\n";
+    let options = formatter::FormatOptions {
+        width: 30,
+        reflow: false,
+        ..Default::default()
+    };
+    assert_eq!(formatter::format_with(input, &options), input);
+    // ...but the rest of the canonical style is still applied.
+    let options = formatter::FormatOptions {
+        reflow: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        formatter::format_with("Setext\n======\n", &options),
+        "# Setext\n"
     );
 }
 
