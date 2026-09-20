@@ -71,8 +71,9 @@ mid-sentence text into block structure: `1.`, `#`, `-`, `>`, `|`, `---`, `<!--`,
   `needs_line_escape` already uses pulldown-cmark itself as the oracle, so new CommonMark edge cases keep being handled
   automatically.
 
-- [x] Never break an overlong token. A 200-character URL emits an over-width line. Confirm that MD013's existing
-  `link_only_lines` exemption covers the reflow output so `format` and `check` do not disagree on those lines.
+- [x] Never break an overlong token. A 200-character URL emits an over-width line. The existing `link_only_lines`
+  exemption turned out to cover only lines starting with `[`, so bare URLs were still flagged; MD013 now also exempts
+  any prose line with no space in its content. See "Follow-up" below.
 
 - [x] Exempt from reflow: headings (already collapsed by `TagEnd::Heading` and un-wrappable in ATX, so MD013's
   `heading_line_length` stays permanently unfixable), code blocks, HTML blocks, front matter, table cells (the
@@ -212,3 +213,35 @@ Still open, deliberately not fixed here:
   fix means prefixing every line of an opaque HTML block. See the ignored `test_html_block_in_blockquote_keeps_marker`.
   The proptest generator is scoped to single paragraphs to stay off this seam; re-widening it is the way to find the
   rest of the family.
+
+---
+
+## Follow-up
+
+Landed after the first pass, each as its own commit:
+
+- **MD013 no longer flags lines the formatter cannot break.** The old exemption tested for a leading `[`, which missed
+  bare URLs and autolinks, so `mdlint format` emitted overlong-token lines that `mdlint check` then rejected and
+  `format` could not fix — a permanently red result for anyone running both, which the pre-commit hooks do. The
+  exemption is now "no space in the content past any list or blockquote marker", restricted to prose so that an explicit
+  `tables = true` still checks table delimiter rows.
+- **The format golden fixture covers reflow.** `tests/fixtures/format/input.md` had no multi-line paragraphs, so the
+  end-to-end path tested every behaviour except the one that rewrites the most text.
+- **Documentation.** Reflow is described in all three READMEs, the `mdlint format` usage section warns about the
+  first-run rewrite, `mdlint.default.toml` documents `line_length` as the fill column, and CLAUDE.md records the
+  formatter lessons.
+
+Verified, no change needed:
+
+- `mdlint migrate` emits `[rules.MD013] line_length = N` in the shape `FormatOptions::from` reads, so a migrated
+  markdownlint-cli2 config drives the fill column correctly.
+- Performance is fine: 24,000 lines of hard-wrapped prose reflow in about 70 ms, despite the retreat path calling
+  `needs_line_escape`, which parses.
+
+Still open:
+
+- [ ] No escape hatch for deliberately hard-wrapped prose. Anyone writing one sentence per line (semantic line breaks)
+  loses that formatting with no way to opt out — `<!-- mdlint-disable MD013 -->` suppresses the *lint*, not the
+  formatter. Worth deciding whether the formatter should honour an inline directive.
+- [ ] `[rules.MD013] enabled = false` does not disable reflow; only `line_length` is read.
+- [ ] Raw HTML blocks and empty blockquotes inside a container lose the container prefix (see above).
