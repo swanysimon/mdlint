@@ -116,10 +116,10 @@ mid-sentence text into block structure: `1.`, `#`, `-`, `>`, `|`, `---`, `<!--`,
   `find_all_configs` walks up from `/tmp` and finds nothing, giving defaults — verify that still holds once
   `formatting()` loads config, or pin it with an explicit temp dir.
 
-- [ ] Do **not** add `documentRangeFormattingProvider`. Reflow makes "format selection" more desirable, but range
+- **Decision:** do not add `documentRangeFormattingProvider`. Reflow makes "format selection" more desirable, but range
   formatting over a reflowing formatter needs block-boundary snapping. YAGNI until someone asks.
 
-- [ ] Known and unrelated: `did_change` calls `load_config` on every keystroke, which is a filesystem walk per edit.
+- **Decision:** left alone — `did_change` calls `load_config` on every keystroke, which is a filesystem walk per edit.
   Adding one more call in `formatting()` (rare, on save) does not worsen it. Noted, not fixed.
 
 ---
@@ -208,11 +208,10 @@ and multi-line paragraphs are simply better at reaching them than `.*` was. Fixe
 
 Still open, deliberately not fixed here:
 
-- [ ] Raw HTML blocks (and empty blockquotes) inside a container lose the container prefix. `Event::Html` writes the
-  block straight to the output with no `>` or list indent. Same family as the two container bugs fixed above, but the
-  fix means prefixing every line of an opaque HTML block. See the ignored `test_html_block_in_blockquote_keeps_marker`.
-  The proptest generator is scoped to single paragraphs to stay off this seam; re-widening it is the way to find the
-  rest of the family.
+- [x] Raw HTML blocks and empty blockquotes inside a container lost the container prefix, and continuation lines
+  concatenated the list indent and the quote marker in a fixed order. Fixed: `Event::Html` prefixes every line, an empty
+  blockquote is recognised at its End event and still emitted, and a container stack records what each open container
+  contributes in the order it was opened. What remains of this family is block *openers* — see below.
 
 ---
 
