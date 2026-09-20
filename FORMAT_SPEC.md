@@ -192,9 +192,11 @@ immediately after a hard-break marker, because a break in any of those positions
 
 Two consequences follow:
 
-- **A token longer than the fill column is never broken.** A long URL emits an over-width line.
-  MD013's existing exemption for lines consisting only of a link covers the common case; anything
-  else remains a reported MD013 violation that the formatter cannot fix.
+- **A token longer than the fill column is never broken.** A long URL, path, or identifier emits an
+  over-width line rather than being corrupted. MD013 exempts prose lines it cannot break -- those
+  whose content past any list or blockquote marker holds no space -- so the formatter never produces
+  output that the linter then complains about. Headings are the exception: they cannot be wrapped at
+  all, so `heading_line_length` stays a genuinely unfixable check.
 - **Hard breaks are preserved.** A paragraph containing hard breaks is split into segments at each
   hard break, and each segment is refilled independently.
 

@@ -114,7 +114,11 @@ impl Rule for MD013 {
             let is_link_only = link_only_lines.contains(&line_number);
 
             // Skip lines that only contain links or images (can't be shortened)
-            if is_link_only {
+            // and prose lines the formatter has no way to break.  Headings,
+            // tables, and code blocks are governed by their own config flags, so
+            // an explicit `tables = true` still means "check them".
+            let governed_by_own_flag = is_heading || is_code_block || is_table;
+            if is_link_only || (!governed_by_own_flag && is_unbreakable(line)) {
                 continue;
             }
 
@@ -153,6 +157,47 @@ impl Rule for MD013 {
     fn fixable(&self) -> bool {
         false
     }
+}
+
+/// Whether the formatter has anywhere to break `line`.
+///
+/// `mdlint format` only ever breaks at a space in the content, so a line whose
+/// content is a single token -- a long URL, a path, an identifier -- cannot be
+/// shortened by any means the tool has. Reflow produces such lines deliberately
+/// rather than corrupt the token, so reporting them is noise the reader cannot
+/// act on.
+///
+/// This generalises the older "starts with `[`" check, which missed bare URLs
+/// and autolinks. Both are kept: the older one also exempts link-only lines that
+/// *do* contain spaces.
+///
+/// Applies to prose only. Headings, tables, and code blocks have their own
+/// config flags and are left to those.
+fn is_unbreakable(line: &str) -> bool {
+    !content_after_block_markers(line).trim_end().contains(' ')
+}
+
+/// `line` with its indent, blockquote markers, and one list marker removed, so
+/// that only the content the formatter could rewrap is considered.
+fn content_after_block_markers(line: &str) -> &str {
+    let mut rest = line.trim_start();
+    while let Some(after) = rest.strip_prefix('>') {
+        rest = after.trim_start();
+    }
+
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    if digits > 0 {
+        if let Some(after) = rest[digits..].strip_prefix(['.', ')'])
+            && after.starts_with(' ')
+        {
+            return after.trim_start();
+        }
+    } else if let Some(after) = rest.strip_prefix(['-', '*', '+'])
+        && after.starts_with(' ')
+    {
+        return after.trim_start();
+    }
+    rest
 }
 
 #[cfg(test)]
@@ -341,5 +386,33 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_bare_long_url_is_not_flagged() {
+        // `mdlint format` puts an overlong URL on its own line rather than break
+        // it, so flagging that line would be an unfixable complaint about the
+        // formatter's own output.
+        let content = format!("https://example.com/{}", "segment/".repeat(20));
+        let parser = MarkdownParser::new(&content);
+        let config = serde_json::json!({ "line_length": 80 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_single_long_token_in_a_list_item_is_not_flagged() {
+        let content = format!("- https://example.com/{}", "segment/".repeat(20));
+        let parser = MarkdownParser::new(&content);
+        let config = serde_json::json!({ "line_length": 80 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_long_line_with_a_space_is_still_flagged() {
+        // The exemption must not swallow lines the formatter could have wrapped.
+        let content = format!("word {}", "x".repeat(200));
+        let parser = MarkdownParser::new(&content);
+        let config = serde_json::json!({ "line_length": 80 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 1);
     }
 }
