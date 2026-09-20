@@ -295,6 +295,21 @@ This line may be longer than the configured limit.
 Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule codes. Set `no_inline_config = true` in
 `mdlint.toml` to ignore all inline comments project-wide.
 
+Disabling **MD013** also stops `mdlint format` reflowing: paragraphs covered by the directive keep the line breaks you
+gave them. This is the way to protect deliberately hand-wrapped prose — one sentence per line, an aligned list, ASCII
+art in a paragraph — from being refilled. Reflow rewrites a whole paragraph or none of it, so a directive covering any
+part of a paragraph protects all of it.
+
+```markdown
+<!-- mdlint-disable MD013 -->
+
+These line breaks are deliberate
+and the formatter will leave them
+exactly where they are.
+
+<!-- mdlint-enable MD013 -->
+```
+
 ## Exit Codes
 
 | Code | Meaning |

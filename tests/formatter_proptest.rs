@@ -102,7 +102,10 @@ proptest! {
         text in paragraph(hazard_word()),
         width in 8usize..80,
     ) {
-        let options = FormatOptions { width };
+        let options = FormatOptions {
+        width,
+        ..Default::default()
+    };
         let once = format_with(&text, &options);
         let twice = format_with(&once, &options);
         prop_assert_eq!(
@@ -121,7 +124,10 @@ proptest! {
         text in paragraph("[a-z]{1,8}".prop_map(String::from)),
         width in 12usize..80,
     ) {
-        let options = FormatOptions { width };
+        let options = FormatOptions {
+        width,
+        ..Default::default()
+    };
         let out = format_with(&text, &options);
         for line in out.lines() {
             prop_assert!(

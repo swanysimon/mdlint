@@ -204,6 +204,13 @@ Where a break would place text at the start of a line such that it re-parses as 
 list marker, an ATX heading, a thematic rule, a setext underline), the formatter first tries to break
 earlier. If no earlier break opportunity exists, it breaks anyway and escapes the line.
 
+Reflow is suppressed wherever MD013 is switched off by an inline comment
+(`<!-- mdlint-disable MD013 -->`, `<!-- mdlint-disable-next-line MD013 -->`, or a blanket
+`<!-- mdlint-disable -->`). Protected paragraphs keep the author's line breaks and are not refilled,
+which is how deliberately hand-wrapped prose is preserved. Because reflow rewrites a whole paragraph
+or none of it, a directive covering any part of a paragraph protects the whole paragraph.
+`no_inline_config = true` disables this along with every other inline directive.
+
 ### Trailing Whitespace (MD009)
 
 No trailing spaces or tabs on any line. Hard line breaks (two trailing spaces before a newline) are

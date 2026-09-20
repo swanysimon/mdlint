@@ -24,7 +24,10 @@ fn assert_formats_to(input: &str, expected: &str) {
 /// Same contract as `assert_formats_to`, at an explicit fill column so that
 /// wrapping cases stay short enough to verify by eye.
 fn assert_formats_at_width(input: &str, expected: &str, width: usize) {
-    let options = formatter::FormatOptions { width };
+    let options = formatter::FormatOptions {
+        width,
+        ..Default::default()
+    };
     let got = formatter::format_with(input, &options);
     assert_eq!(
         got, expected,
@@ -490,6 +493,102 @@ fn headings_are_never_wrapped() {
         "# alpha bravo charlie delta echo\n",
         "# alpha bravo charlie delta echo\n",
         16,
+    );
+}
+
+// ── reflow honours inline directives ─────────────────────────────────────────
+//
+// Width 30 is chosen so the two outcomes differ: "alpha bravo charlie delta" is
+// 25 characters, so an unprotected paragraph joins onto one line while a
+// protected one keeps its two.
+
+#[test]
+fn disable_md013_protects_a_paragraph_from_reflow() {
+    assert_formats_at_width(
+        indoc! {"
+            <!-- mdlint-disable MD013 -->
+
+            alpha bravo
+            charlie delta
+
+            <!-- mdlint-enable MD013 -->
+
+            echo foxtrot
+            golf hotel
+        "},
+        indoc! {"
+            <!-- mdlint-disable MD013 -->
+
+            alpha bravo
+            charlie delta
+
+            <!-- mdlint-enable MD013 -->
+
+            echo foxtrot golf hotel
+        "},
+        30,
+    );
+}
+
+#[test]
+fn disable_next_line_protects_the_following_paragraph() {
+    // The formatter inserts a blank line after the comment, so the directive has
+    // to reach past it or the protection would vanish on the second pass.
+    assert_formats_at_width(
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+            alpha bravo
+            charlie delta
+        "},
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+
+            alpha bravo
+            charlie delta
+        "},
+        30,
+    );
+}
+
+#[test]
+fn blanket_disable_also_protects_reflow() {
+    assert_formats_at_width(
+        indoc! {"
+            <!-- mdlint-disable -->
+
+            alpha bravo
+            charlie delta
+        "},
+        indoc! {"
+            <!-- mdlint-disable -->
+
+            alpha bravo
+            charlie delta
+        "},
+        30,
+    );
+}
+
+#[test]
+fn no_inline_config_reflows_a_protected_paragraph_anyway() {
+    let input = indoc! {"
+        <!-- mdlint-disable MD013 -->
+
+        alpha bravo
+        charlie delta
+    "};
+    let options = formatter::FormatOptions {
+        width: 30,
+        no_inline_config: true,
+    };
+    assert_eq!(
+        formatter::format_with(input, &options),
+        indoc! {"
+            <!-- mdlint-disable MD013 -->
+
+            alpha bravo charlie delta
+        "},
+        "no_inline_config must ignore the directive and reflow"
     );
 }
 

@@ -1,6 +1,9 @@
 use std::fmt::Write as _;
 
 use crate::config::{Config, RuleConfig};
+use crate::lint::parse_inline_config;
+use std::collections::HashSet;
+use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
@@ -27,12 +30,16 @@ pub const DEFAULT_WIDTH: usize = 120;
 #[derive(Debug, Clone, Copy)]
 pub struct FormatOptions {
     pub width: usize,
+    /// When true, `<!-- mdlint-disable MD013 -->` comments are ignored and every
+    /// paragraph is reflowed.  Mirrors the config key of the same name.
+    pub no_inline_config: bool,
 }
 
 impl Default for FormatOptions {
     fn default() -> Self {
         Self {
             width: DEFAULT_WIDTH,
+            no_inline_config: false,
         }
     }
 }
@@ -50,7 +57,10 @@ impl From<&Config> for FormatOptions {
         .and_then(|value| usize::try_from(value).ok())
         .filter(|&width| width > 0)
         .unwrap_or(DEFAULT_WIDTH);
-        Self { width }
+        Self {
+            width,
+            no_inline_config: config.no_inline_config,
+        }
     }
 }
 
@@ -62,11 +72,20 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
     }
 
     let mut state = FormatterState::new(options.width);
-    let events: Vec<Event<'_>> = Parser::new_ext(input, mk_options()).collect();
+    let suppressed = reflow_suppressed_lines(input, options);
+    let line_starts = line_start_offsets(input);
+    let events: Vec<(Event<'_>, Range<usize>)> = Parser::new_ext(input, mk_options())
+        .into_offset_iter()
+        .collect();
 
     // Precompute per-event lookahead: is the *next* event Start(List(None))?
     let lookahead: Vec<bool> = (0..events.len())
-        .map(|i| matches!(events.get(i + 1), Some(Event::Start(Tag::List(None)))))
+        .map(|i| {
+            matches!(
+                events.get(i + 1).map(|(event, _)| event),
+                Some(Event::Start(Tag::List(None)))
+            )
+        })
         .collect();
 
     // Precompute the first character of the immediately following Text event, if
@@ -77,19 +96,52 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
     // event (emphasis marker, code, break, block end) is a non-alphanumeric
     // boundary, represented as None.
     let next_text_char: Vec<Option<char>> = (0..events.len())
-        .map(|i| match events.get(i + 1) {
+        .map(|i| match events.get(i + 1).map(|(event, _)| event) {
             Some(Event::Text(t)) => t.chars().next(),
             _ => None,
         })
         .collect();
 
-    for ((event, next_is_ul), next_char) in events.into_iter().zip(lookahead).zip(next_text_char) {
+    for (((event, range), next_is_ul), next_char) in
+        events.into_iter().zip(lookahead).zip(next_text_char)
+    {
+        state.reflow_suppressed = suppressed.contains(&line_at(&line_starts, range.start));
         state.next_is_unordered_list = next_is_ul;
         state.next_text_char = next_char;
         state.process(event);
     }
 
     state.finish()
+}
+
+/// Lines on which MD013 is suppressed by an inline comment, and where the
+/// formatter must therefore leave the author's line breaks alone.
+///
+/// Reuses the linter's directive parser so `<!-- mdlint-disable MD013 -->` means
+/// the same thing to both halves of the tool.
+fn reflow_suppressed_lines(input: &str, options: &FormatOptions) -> HashSet<usize> {
+    if options.no_inline_config {
+        return HashSet::new();
+    }
+    let directives = parse_inline_config(input);
+    ["*", "MD013"]
+        .iter()
+        .filter_map(|rule| directives.get(*rule))
+        .flatten()
+        .copied()
+        .collect()
+}
+
+/// Byte offset at which each line starts, for mapping event ranges to lines.
+fn line_start_offsets(input: &str) -> Vec<usize> {
+    std::iter::once(0)
+        .chain(input.match_indices('\n').map(|(index, _)| index + 1))
+        .collect()
+}
+
+/// The 1-indexed line containing `offset`.
+fn line_at(line_starts: &[usize], offset: usize) -> usize {
+    line_starts.partition_point(|&start| start <= offset).max(1)
 }
 
 fn mk_options() -> Options {
@@ -148,6 +200,15 @@ struct FormatterState {
     // Fill column for paragraph reflow, in characters.
     width: usize,
 
+    // Set per event by the outer loop: true when this event sits on a line where
+    // an inline comment has switched MD013 off.
+    reflow_suppressed: bool,
+
+    // Sticky version of the above for the block being accumulated.  Reflow
+    // rewrites a whole paragraph or nothing, so a directive covering any part of
+    // one protects all of it.  Cleared when the block is flushed.
+    block_reflow_suppressed: bool,
+
     // Table state
     table_alignments: Vec<Alignment>,
     table_head_cells: Vec<String>,
@@ -161,6 +222,8 @@ impl FormatterState {
         Self {
             out: String::new(),
             width,
+            reflow_suppressed: false,
+            block_reflow_suppressed: false,
             needs_blank: false,
             list_depth: 0,
             list_starts: Vec::new(),
@@ -183,6 +246,7 @@ impl FormatterState {
     }
 
     fn process(&mut self, event: Event<'_>) {
+        self.block_reflow_suppressed |= self.reflow_suppressed;
         match event {
             Event::Start(tag) => self.on_start(tag),
             Event::End(tag) => self.on_end(tag),
@@ -203,6 +267,11 @@ impl FormatterState {
                     self.break_offsets.pop();
                 }
                 self.inline.push_str(&h);
+            }
+            Event::SoftBreak if self.reflow_suppressed => {
+                // Reflow is switched off here, so the author's line break is
+                // deliberate: keep it exactly where they put it.
+                self.inline.push('\n');
             }
             Event::SoftBreak
                 // A soft break renders as a space and carries no meaning of its
@@ -424,6 +493,7 @@ impl FormatterState {
                 let text = std::mem::take(&mut self.inline);
                 // Headings are never wrapped; drop the opportunities unused.
                 self.break_offsets.clear();
+                self.block_reflow_suppressed = false;
                 let hashes = "#".repeat(level as usize);
                 self.write_bq_prefix();
                 // Collapse hard and soft breaks to spaces, then trim.  Trim must
@@ -509,6 +579,7 @@ impl FormatterState {
                 let cell = std::mem::take(&mut self.inline);
                 // Cell content is never wrapped; drop the opportunities unused.
                 self.break_offsets.clear();
+                self.block_reflow_suppressed = false;
                 self.current_row_cells.push(cell);
             }
             TagEnd::TableHead => {
@@ -755,7 +826,14 @@ impl FormatterState {
         let bq = "> ".repeat(self.bq_depth);
         self.write_bq_prefix();
         let cont_indent = continuation_prefix.chars().count() + bq.chars().count();
-        let cont_width = self.width.saturating_sub(cont_indent).max(1);
+        // A protected block keeps whatever line lengths the author chose.
+        let width = if self.block_reflow_suppressed {
+            usize::MAX
+        } else {
+            self.width
+        };
+        self.block_reflow_suppressed = false;
+        let cont_width = width.saturating_sub(cont_indent).max(1);
 
         // Hard breaks split the buffer into segments that must stay separate;
         // each is refilled on its own.
@@ -801,7 +879,7 @@ impl FormatterState {
             // The opening line continues whatever is already on the output line
             // (a list marker, a footnote label), so its budget is what remains.
             let first_width = if first_line {
-                self.width.saturating_sub(self.current_column()).max(1)
+                width.saturating_sub(self.current_column()).max(1)
             } else {
                 cont_width
             };

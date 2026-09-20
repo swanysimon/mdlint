@@ -231,6 +231,19 @@ Landed after the first pass, each as its own commit:
   first-run rewrite, `mdlint.default.toml` documents `line_length` as the fill column, and CLAUDE.md records the
   formatter lessons.
 
+**Reflow honours inline directives.** `<!-- mdlint-disable MD013 -->`, `disable-next-line`, and the blanket
+`<!-- mdlint-disable -->` now stop the formatter reflowing as well as stopping the lint, which is the escape hatch for
+deliberately hand-wrapped prose. Reflow rewrites a whole paragraph or none of it, so a directive covering any part of a
+paragraph protects all of it. Two fixes were needed to make this trustworthy:
+
+- `disable-next-line` now attaches to the next line *with content*. The formatter inserts a blank line after a comment
+  that sits against a block, so counting lines literally protected the blank and released the text on the second pass.
+- A directive must own its line, and directives inside fenced code blocks are ignored entirely. Previously any
+  `<!-- ... -->` anywhere in a line counted, so documentation *about* directives applied them. This repository's README
+  had silently disabled MD013 from the middle of the file to the end because one sentence quoted a directive in a code
+  span; that masked 165 real violations on the rules tables. Those rows cannot be shortened and are not reflowed, so
+  `tables = false` is now set for this repository.
+
 Verified, no change needed:
 
 - `mdlint migrate` emits `[rules.MD013] line_length = N` in the shape `FormatOptions::from` reads, so a migrated
@@ -240,8 +253,5 @@ Verified, no change needed:
 
 Still open:
 
-- [ ] No escape hatch for deliberately hard-wrapped prose. Anyone writing one sentence per line (semantic line breaks)
-  loses that formatting with no way to opt out — `<!-- mdlint-disable MD013 -->` suppresses the *lint*, not the
-  formatter. Worth deciding whether the formatter should honour an inline directive.
 - [ ] `[rules.MD013] enabled = false` does not disable reflow; only `line_length` is read.
 - [ ] Raw HTML blocks and empty blockquotes inside a container lose the container prefix (see above).
