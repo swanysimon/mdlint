@@ -592,6 +592,28 @@ fn no_inline_config_reflows_a_protected_paragraph_anyway() {
     );
 }
 
+// ── container prefixes on wrapped lines ──────────────────────────────────────
+
+#[test]
+fn list_inside_blockquote_continues_with_the_quote_outermost() {
+    assert_formats_at_width(
+        "> - alpha bravo charlie delta\n",
+        "> - alpha bravo charlie\n>   delta\n",
+        24,
+    );
+}
+
+#[test]
+fn blockquote_inside_list_continues_with_the_list_outermost() {
+    // The mirror image of the case above: concatenating two fixed prefixes can
+    // only ever get one of the two orders right.
+    assert_formats_at_width(
+        "- > echo foxtrot golf hotel\n",
+        "- > echo foxtrot golf\n  > hotel\n",
+        24,
+    );
+}
+
 // ── idempotency on complex documents ─────────────────────────────────────────
 
 #[test]

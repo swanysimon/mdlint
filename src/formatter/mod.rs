@@ -168,6 +168,16 @@ struct FormatterState {
     // Blockquote state
     bq_depth: usize,
 
+    // Output length when each open blockquote started, so an empty one can be
+    // recognised at its End event and still emitted.
+    bq_open_lengths: Vec<usize>,
+
+    // What each open container contributes to the start of a continued line, in
+    // the order the containers were opened.  Order is the whole point: `> - x`
+    // continues as `>   x` while `- > x` continues as `  > x`, and concatenating
+    // two independent prefixes can only ever get one of them right.
+    container_prefix: Vec<String>,
+
     // Inline content buffer, flushed when a block element closes.
     inline: String,
 
@@ -229,6 +239,8 @@ impl FormatterState {
             list_starts: Vec::new(),
             in_tight_item: false,
             bq_depth: 0,
+            bq_open_lengths: Vec::new(),
+            container_prefix: Vec::new(),
             inline: String::new(),
             break_offsets: Vec::new(),
             in_code_block: false,
@@ -253,7 +265,24 @@ impl FormatterState {
             Event::Text(t) => self.on_text(&t),
             Event::Code(c) => self.emit_inline_code(&c),
             Event::Html(h) => {
-                self.out.push_str(&h);
+                // The block is opaque, but every line of it still has to carry
+                // the markers of whatever contains it.  Writing it raw let an
+                // HTML block inside a blockquote or list item escape its
+                // container entirely.
+                let prefix = self.continuation_prefix();
+                if prefix.is_empty() {
+                    self.out.push_str(&h);
+                } else {
+                    for line in h.split_inclusive('\n') {
+                        // Mid-line means a list marker already opened this line
+                        // and is serving as the prefix.
+                        if self.out.ends_with('\n') || self.out.is_empty() {
+                            self.out.push_str(&prefix);
+                        }
+                        self.out.push_str(line);
+                    }
+                }
+                self.in_tight_item = false;
             }
             Event::InlineHtml(h) => {
                 // Breaking right before inline HTML would start a line with a
@@ -374,7 +403,7 @@ impl FormatterState {
                     // (e.g. `Text("Item 1")` in `- Item 1\n  - Nested`).
                     if self.in_tight_item && !self.inline.is_empty() {
                         let text = std::mem::take(&mut self.inline);
-                        let prefix = self.list_continuation_prefix();
+                        let prefix = self.continuation_prefix();
                         self.flush_inline_text(&text, &prefix);
                         self.in_tight_item = false;
                     } else if self.in_tight_item {
@@ -418,6 +447,10 @@ impl FormatterState {
                 if let Some(w) = self.list_item_widths.last_mut() {
                     *w = marker.len();
                 }
+                // This item's own contribution: the marker minus the indent its
+                // parent already accounts for.
+                self.container_prefix
+                    .push(" ".repeat(marker.len() - indent.len()));
                 self.write_bq_prefix();
                 self.out.push_str(&marker);
             }
@@ -444,6 +477,8 @@ impl FormatterState {
             Tag::BlockQuote(_) => {
                 self.emit_blank_if_needed();
                 self.bq_depth += 1;
+                self.bq_open_lengths.push(self.out.len());
+                self.container_prefix.push("> ".to_owned());
             }
             Tag::FootnoteDefinition(label) => {
                 self.emit_blank_if_needed();
@@ -483,7 +518,7 @@ impl FormatterState {
                     if self.list_depth == 0 {
                         self.write_bq_prefix();
                     }
-                    let prefix = self.list_continuation_prefix();
+                    let prefix = self.continuation_prefix();
                     self.flush_inline_text(&text, &prefix);
                     self.needs_blank = true;
                 }
@@ -535,19 +570,21 @@ impl FormatterState {
                     }
                 }
             }
-            TagEnd::Item
+            TagEnd::Item => {
                 // Tight list item: the content was never wrapped in Paragraph.
-                if self.in_tight_item => {
+                if self.in_tight_item {
                     let text = std::mem::take(&mut self.inline);
                     if text.is_empty() {
                         // Empty tight item: the marker was already written; just terminate the line.
                         self.out.push('\n');
                     } else {
-                        let prefix = self.list_continuation_prefix();
+                        let prefix = self.continuation_prefix();
                         self.flush_inline_text(&text, &prefix);
                     }
                     self.in_tight_item = false;
                 }
+                self.container_prefix.pop();
+            }
             TagEnd::Emphasis => self.inline.push('*'),
             TagEnd::Strong => self.inline.push_str("**"),
             TagEnd::Strikethrough => self.inline.push_str("~~"),
@@ -567,12 +604,21 @@ impl FormatterState {
                 self.needs_blank = true;
             }
             TagEnd::BlockQuote(_) => {
+                // An empty blockquote still renders as one.  Dropping it silently
+                // deletes a block, and can leave two lists adjacent that the
+                // quote had been separating.
+                if self.bq_open_lengths.pop() == Some(self.out.len()) {
+                    self.write_bq_prefix();
+                    self.out.push('\n');
+                }
                 self.bq_depth -= 1;
+                self.container_prefix.pop();
                 self.needs_blank = true;
             }
             TagEnd::FootnoteDefinition => {
                 let text = std::mem::take(&mut self.inline);
-                self.flush_inline_text(&text, "");
+                let prefix = self.continuation_prefix();
+                self.flush_inline_text(&text, &prefix);
                 self.needs_blank = true;
             }
             TagEnd::TableCell => {
@@ -823,9 +869,8 @@ impl FormatterState {
                 text
             }
         };
-        let bq = "> ".repeat(self.bq_depth);
         self.write_bq_prefix();
-        let cont_indent = continuation_prefix.chars().count() + bq.chars().count();
+        let cont_indent = continuation_prefix.chars().count();
         // A protected block keeps whatever line lengths the author chose.
         let width = if self.block_reflow_suppressed {
             usize::MAX
@@ -887,7 +932,6 @@ impl FormatterState {
             for line in wrap_segment(segment, &breaks, first_width, cont_width) {
                 if !first_line {
                     self.out.push_str(continuation_prefix);
-                    self.out.push_str(&bq);
                 }
                 if needs_line_escape(line, !first_line) {
                     self.out.push_str(&escape_line(line));
@@ -901,6 +945,12 @@ impl FormatterState {
     }
 
     /// The current (unterminated) output line.
+    /// What a continued line of the current block must start with: every open
+    /// container's marker or indent, in the order they were opened.
+    fn continuation_prefix(&self) -> String {
+        self.container_prefix.concat()
+    }
+
     fn current_line(&self) -> &str {
         self.out
             .rfind('\n')
@@ -1965,14 +2015,10 @@ mod tests {
         );
     }
 
-    /// Known pre-existing bug, unrelated to reflow: `Event::Html` writes the raw
-    /// block straight to the output with no blockquote or list-item prefix, so
-    /// the container is lost and the document changes on the next pass. Part of
-    /// the same family as the blockquote-in-list-item and rule-in-list-item bugs
-    /// fixed above, but the fix needs prefixing every line of an opaque HTML
-    /// block, which is a larger change than those.
+    /// `Event::Html` used to write the raw block straight to the output with no
+    /// blockquote or list-item prefix, so the container was lost and the document
+    /// changed on the next pass.  Last of the container-prefix family.
     #[test]
-    #[ignore = "pre-existing: HTML block inside a container loses its prefix"]
     fn test_html_block_in_blockquote_keeps_marker() {
         let once = format("> alpha\n> <div> beta\n");
         assert_eq!(once, format(&once), "idempotency: HTML block in blockquote");
@@ -1981,4 +2027,45 @@ mod tests {
             "every line must stay inside the blockquote: {once:?}"
         );
     }
+
+    #[test]
+    fn test_html_block_in_list_item_keeps_its_indent() {
+        let once = format("- <div>alpha</div>\n");
+        assert_eq!(once, "- <div>alpha</div>\n");
+        assert_eq!(once, format(&once), "idempotency: HTML block in list item");
+    }
+
+    #[test]
+    fn test_empty_blockquote_is_preserved() {
+        // Dropping it deletes a block, and can leave two lists adjacent that the
+        // quote had been keeping apart.
+        let once = format("1. a\n>\n- b\n");
+        assert!(
+            once.contains("\n>\n"),
+            "empty blockquote must survive: {once:?}"
+        );
+        assert_eq!(once, format(&once), "idempotency: empty blockquote");
+    }
+
+
+    /// Known gap: continuation lines carry the full container prefix, but the
+    /// line that *opens* a block still writes only the blockquote marker. A
+    /// blockquote nested inside a list item therefore opens at column 0 instead
+    /// of at the item's content column, and the list is lost on re-parse.
+    ///
+    /// Fixing it means every block opener -- item markers, fences, tables,
+    /// headings, rules -- writing the enclosing `container_prefix` rather than
+    /// calling `write_bq_prefix`, which is a wider change than the container
+    /// bugs fixed so far.
+    #[test]
+    #[ignore = "known gap: block openers do not write the enclosing container prefix"]
+    fn test_blockquote_nested_in_list_opens_with_the_full_prefix() {
+        let once = format("- > - alpha\n");
+        assert_eq!(once, format(&once), "idempotency: list > quote > list");
+        assert!(
+            once.lines().all(|line| line.starts_with("- ") || line.starts_with("  ")),
+            "nested content must stay inside the outer item: {once:?}"
+        );
+    }
+
 }

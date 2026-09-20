@@ -41,3 +41,4 @@ cc c8cebc8ecc5c207fd6bdf9ac41a04bee603ab586769d0450294a22acbf7b6c6e # shrinks to
 cc 94f66b18f0247fd99cac4983154d8be0c8f27084b29c44ab99b880340ac3f2fe # shrinks to text = "> a a a a a a a a a a a a a a a a\n> <div> a\n", width = 8
 cc 329756d91c95785d93320aa5d1957cc47711f8cbffa624dc061cfd18bb7735f6 # shrinks to text = "1. a\n>\n- a a a a a a a a a a a a a a a a\n", width = 8
 cc 1a2d73bed7eb59e2dc49467f09427d6b7c1990e1d6f5098f1de240d65ed0eb9b # shrinks to text = "> - # a a a a a a a a a a a a a a a a a\n", width = 8
+cc 351a0d6a7a79f3dd27beef49c3f7a4adecdf2f38bca2a2e248d78584b22f95a4 # shrinks to text = "a a a a a a a a a a a a a\n- > - a a a a\n", width = 8

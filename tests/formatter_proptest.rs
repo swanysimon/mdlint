@@ -53,44 +53,41 @@ fn hazard_word() -> impl Strategy<Value = String> {
     prop_oneof![
         6 => "[a-z]{1,8}",
         1 => prop::sample::select(vec![
-            "*", "**", "[", "]", "_", "`", "<", ">", "|", "#", "-", "+",
+            "*", "**", "[", "]", "_", "`", "<", "|", "#", "-", "+",
             "1.", "---", "===", "~~", "!", "\\", "<div>", "](x)",
         ])
         .prop_map(str::to_owned),
     ]
 }
 
-/// A single multi-line paragraph. Random line breaks in the source are what
-/// reflow has to discard, and `.*` almost never generates them next to hazard
-/// characters.
+/// A multi-line paragraph, possibly containing block structure. Random line
+/// breaks in the source are what reflow has to discard, and `.*` almost never
+/// generates them next to hazard characters.
 ///
-/// The document only ever *starts*, and each source line only ever starts,
-/// with an ordinary word. Letting a hazard open
-/// a line would make the input a list, a heading or a blockquote instead of one
-/// paragraph, which tests container handling rather than reflow -- and the
-/// formatter has pre-existing bugs there (see the ignored
-/// `test_html_block_in_blockquote_keeps_marker`). Hazards still appear at the
-/// start of *output* lines, because the wrapper is free to break in front of
-/// one; that is the case this property exists to cover.
+/// A hazard may open a source line, which turns that part of the input into a
+/// list, heading, blockquote or HTML block rather than plain prose. That
+/// exercises container handling as well as reflow, which is where this generator
+/// has found most of its bugs. Hazards also land at the start of *output* lines,
+/// because the wrapper is free to break in front of one.
+///
+/// `>` is held out of the corpus. It is the one hazard that can nest a
+/// *different kind* of container inside a list (or a list inside itself), and
+/// block openers still write only the blockquote marker rather than the whole
+/// enclosing prefix -- see the ignored
+/// `test_blockquote_nested_in_list_opens_with_the_full_prefix`. Blockquote
+/// behaviour is covered by the unit tests instead.
 fn paragraph(word: impl Strategy<Value = String>) -> impl Strategy<Value = String> {
-    (
-        "[a-z]{1,8}",
-        prop::collection::vec((word, prop::bool::ANY), 20..60),
-    )
-        .prop_map(|(first, parts)| {
-            let mut text = first;
-            for (word, newline) in &parts {
-                let opens_a_block = !word.starts_with(|ch: char| ch.is_ascii_lowercase());
-                text.push(if *newline && !opens_a_block {
-                    '\n'
-                } else {
-                    ' '
-                });
-                text.push_str(word);
+    prop::collection::vec((word, prop::bool::ANY), 20..60).prop_map(|parts| {
+        let mut text = String::new();
+        for (index, (word, newline)) in parts.iter().enumerate() {
+            if index > 0 {
+                text.push(if *newline { '\n' } else { ' ' });
             }
-            text.push('\n');
-            text
-        })
+            text.push_str(word);
+        }
+        text.push('\n');
+        text
+    })
 }
 
 proptest! {
