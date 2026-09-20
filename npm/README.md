@@ -18,6 +18,8 @@ Run `mdlint format` and stop thinking about it.
 ## Features
 
 - **Formatter first**: `mdlint format` rewrites files to a canonical style — no configuration required
+- **Reflows prose**: paragraphs are unwrapped and refilled to the configured line length, so where you happened to press
+  Enter stops showing up in diffs
 - **Linter second**: `mdlint check` reports violations; fixable rules are auto-corrected by `mdlint format` or
   `mdlint check --fix`
 - **Fast**: written in Rust for performance
@@ -123,6 +125,10 @@ Global options:
 ### mdlint format
 
 Format Markdown files with opinionated style.
+
+Paragraphs are reflowed: existing line breaks inside a paragraph are discarded and the text is refilled up to
+`rules.MD013.line_length` (default 120). Headings, tables, code blocks, and HTML are left alone. Note that this rewrites
+every file with hard-wrapped prose the first time you run it.
 
 ```text
 Usage: mdlint format [OPTIONS] [FILES]...
@@ -305,6 +311,10 @@ rule's key parameter(s); **markdownlint** shows the [original
 markdownlint](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) default where it differs from mdlint's.
 `—` means the rule has no configurable parameters.
 
+MD013 is marked `✓*` because it is the one rule the two paths disagree on: `mdlint format` fixes over-long paragraphs by
+reflowing them, but `mdlint check --fix` does not. Reflow rewrites a whole paragraph, which a per-violation fix cannot
+express.
+
 | Rule | Fix | Default | markdownlint | Description | Notes |
 | --- | --- | --- | --- | --- | --- |
 | [MD001](https://github.com/DavidAnson/markdownlint/blob/main/doc/md001.md) |  | — | — | Heading levels should only increment by one level at a time | Catches accidental heading skips (e.g. h1 → h3 without h2) |
@@ -316,7 +326,7 @@ markdownlint](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)
 | [MD010](https://github.com/DavidAnson/markdownlint/blob/main/doc/md010.md) | ✓ | `code_blocks: true` |  | Hard tabs | Tabs render inconsistently across editors; format replaces with spaces. Config: `code_blocks` |
 | [MD011](https://github.com/DavidAnson/markdownlint/blob/main/doc/md011.md) |  | — | — | Reversed link syntax | Catches the common typo of swapped parentheses and brackets; should always be enabled |
 | [MD012](https://github.com/DavidAnson/markdownlint/blob/main/doc/md012.md) | ✓ | `maximum: 1` |  | Multiple consecutive blank lines | Config: `maximum` — max consecutive blank lines allowed |
-| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) |  | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
+| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) | ✓* | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` doubles as the formatter's fill column, so `mdlint format` reflows paragraphs to it; `mdlint check --fix` does not (see above). Headings and long unbreakable tokens such as URLs cannot be wrapped and are still reported. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
 | [MD014](https://github.com/DavidAnson/markdownlint/blob/main/doc/md014.md) | ✓ | — | — | Dollar signs used before commands without showing output | `$`-prefixed shell commands cannot be copy-pasted; omit the `$` prompt |
 | [MD018](https://github.com/DavidAnson/markdownlint/blob/main/doc/md018.md) | ✓ | — | — | No space after hash on atx style heading | `#Title` renders inconsistently; format inserts the required space |
 | [MD019](https://github.com/DavidAnson/markdownlint/blob/main/doc/md019.md) | ✓ | — | — | Multiple spaces after hash on atx style heading | `#  Title` → `# Title`; format normalises to one space |

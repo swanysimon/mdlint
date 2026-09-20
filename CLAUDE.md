@@ -71,6 +71,20 @@ src/
 - `src/formatter/mod.rs` = canonical markdown rewriter; `src/format/` = output formatters (JSON, SARIF, JUnit, default)
   — different concerns, different directories
 - Raw HTML blocks and code block contents are passed through verbatim
+- Paragraph reflow: `inline` is a flat `String` with escapes already applied, so it cannot be wrapped by splitting on
+  whitespace — spaces occur inside link destinations, code spans, and inline HTML. A parallel `break_offsets` vec
+  records where a break is legal; only `on_text` and `SoftBreak` push to it, which makes everything else atomic by
+  construction
+- Reflow forces two normalisations, both required for idempotency: runs of spaces collapse to one (a break landing
+  inside a run strands a space at a line edge that `finish` then trims, changing the text every pass), and no break is
+  allowed immediately before inline HTML (escaping a tag at column 0 would turn it into literal text)
+- When a break would put text at column 0 that re-parses as a block element, the wrapper retreats to an earlier
+  opportunity; `needs_line_escape`/`escape_line` stay as the fallback, so correctness never rests on the retreat
+- Container prefixes are per-line state: `write_bq_prefix` must not write a `>` that the line already has, or a
+  blockquote nested in a list item gains a level on every pass. Nested list markers indent to the *parent item's content
+  column* (`list_item_widths.last()`), not two spaces per level — three under an ordered `1.` marker
+- Known gap: `Event::Html` writes raw HTML blocks straight to `out` with no container prefix, so an HTML block inside a
+  blockquote or list item loses its container. See the ignored `test_html_block_in_blockquote_keeps_marker`
 
 ### Code Quality
 
