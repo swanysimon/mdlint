@@ -88,7 +88,7 @@ impl LintEngine {
 /// - `<!-- mdlint-disable-next-line -->` / `<!-- mdlint-disable-next-line MD001 -->`
 ///
 /// Returns a map from rule name (or `"*"` for all rules) to the set of suppressed line numbers.
-fn parse_inline_config(content: &str) -> HashMap<String, HashSet<usize>> {
+pub(crate) fn parse_inline_config(content: &str) -> HashMap<String, HashSet<usize>> {
     let lines: Vec<&str> = content.lines().collect();
     let total_lines = lines.len();
 
@@ -97,14 +97,46 @@ fn parse_inline_config(content: &str) -> HashMap<String, HashSet<usize>> {
     // Completed ranges: rule -> [(start, end)]
     let mut ranges: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
 
+    // Fenced code blocks hold *examples* of directives, not directives.  Reading
+    // them lets documentation reach out and change the document that contains it:
+    // this project's own README silently suppressed MD013 from the middle of the
+    // file to the end because an example opened a disable it never closed.
+    let mut fence: Option<(char, usize)> = None;
+
     for (idx, line) in lines.iter().enumerate() {
         let line_num = idx + 1;
+        let trimmed = line.trim_start();
+
+        if let Some((delimiter, opened_len)) = fence {
+            let run = trimmed.chars().take_while(|&ch| ch == delimiter).count();
+            if run >= opened_len && trimmed[run..].trim().is_empty() {
+                fence = None;
+            }
+            continue;
+        }
+        let backticks = trimmed.chars().take_while(|&ch| ch == '`').count();
+        let tildes = trimmed.chars().take_while(|&ch| ch == '~').count();
+        if backticks >= 3 {
+            fence = Some(('`', backticks));
+            continue;
+        }
+        if tildes >= 3 {
+            fence = Some(('~', tildes));
+            continue;
+        }
+
         let Some((kind, rule_names)) = extract_directive(line) else {
             continue;
         };
         match kind {
             DirectiveKind::DisableNextLine => {
-                let next = line_num + 1;
+                // Attach to the next line with content, not to whitespace.  The
+                // formatter inserts a blank line after the comment when it sits
+                // against a block, and the directive has to survive that or it
+                // would protect the blank line and release the text.
+                let next = (line_num..total_lines)
+                    .find(|&index| !lines[index].trim().is_empty())
+                    .map_or(line_num + 1, |index| index + 1);
                 for rule in rules_or_all(rule_names) {
                     ranges.entry(rule).or_default().push((next, next));
                 }
@@ -156,9 +188,14 @@ enum DirectiveKind {
 /// Extract an mdlint directive from a line, returning the kind and the list of rule names
 /// (empty = apply to all rules). Returns `None` if the line contains no directive.
 fn extract_directive(line: &str) -> Option<(DirectiveKind, Vec<String>)> {
-    let start = line.find("<!--")?;
-    let end = line[start..].find("-->")?;
-    let body = line[start + 4..start + end].trim();
+    // The comment must own the line.  Matching one anywhere lets prose *about*
+    // directives act as one: this project's README disabled MD013 from the middle
+    // of the file to the end because a sentence quoted a directive in a code span.
+    let trimmed = line.trim();
+    if !trimmed.starts_with("<!--") || !trimmed.ends_with("-->") {
+        return None;
+    }
+    let body = trimmed[4..trimmed.len() - 3].trim();
 
     if let Some(rest) = body.strip_prefix("mdlint-disable-next-line") {
         Some((DirectiveKind::DisableNextLine, parse_rule_names(rest)))
@@ -312,6 +349,85 @@ mod tests {
         assert!(
             violations.iter().all(|v| v.rule != "MD013"),
             "MD013 should be suppressed to end of file: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_disable_next_line_skips_blank_lines() {
+        // `mdlint format` puts a blank line between an HTML comment and the block
+        // that follows it, so a directive that counted lines literally would
+        // protect the blank and release the content on the next pass.
+        let content = indoc! {"
+            <!-- mdlint-disable-next-line MD018 -->
+
+            #Heading
+        "};
+        let suppressed = parse_inline_config(content);
+        assert_eq!(
+            suppressed.get("MD018").map(|lines| lines.contains(&3)),
+            Some(true),
+            "directive should reach past the blank line to line 3"
+        );
+    }
+
+    #[test]
+    fn test_directives_inside_code_fences_are_examples_not_directives() {
+        // Documentation must not be able to change the document containing it.
+        let content = indoc! {"
+            ```markdown
+            <!-- mdlint-disable MD013 -->
+            ```
+
+            a line that should still be checked
+        "};
+        assert!(
+            parse_inline_config(content).is_empty(),
+            "a directive inside a fence must have no effect"
+        );
+    }
+
+    #[test]
+    fn test_directives_after_a_closed_fence_still_apply() {
+        let content = indoc! {"
+            ```text
+            not a directive
+            ```
+
+            <!-- mdlint-disable MD013 -->
+            suppressed
+        "};
+        let suppressed = parse_inline_config(content);
+        assert_eq!(
+            suppressed.get("MD013").map(|lines| lines.contains(&6)),
+            Some(true),
+            "a real directive after the fence must still work"
+        );
+    }
+
+    #[test]
+    fn test_directive_quoted_in_prose_is_not_a_directive() {
+        // A sentence describing a directive must not apply it.
+        let content = indoc! {"
+            Use `<!-- mdlint-disable MD013 -->` to switch the rule off.
+
+            a line that should still be checked
+        "};
+        assert!(
+            parse_inline_config(content).is_empty(),
+            "a directive quoted mid-line must have no effect"
+        );
+    }
+
+    #[test]
+    fn test_directive_in_a_table_cell_is_not_a_directive() {
+        let content = indoc! {"
+            | Comment | Effect |
+            | --- | --- |
+            | `<!-- mdlint-disable -->` | Disable all rules |
+        "};
+        assert!(
+            parse_inline_config(content).is_empty(),
+            "a directive inside a table cell must have no effect"
         );
     }
 }

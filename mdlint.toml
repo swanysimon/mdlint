@@ -6,3 +6,9 @@ exclude = [
   "FORMAT_SPEC.md",
   "tests/fixtures",
 ]
+
+# The rules table in the READMEs is a reference table whose rows run past 120
+# characters. `mdlint format` deliberately does not reflow tables, so checking
+# their width only produces complaints nothing can act on.
+[rules.MD013]
+tables = false
