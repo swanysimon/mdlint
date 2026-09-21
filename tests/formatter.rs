@@ -614,6 +614,114 @@ fn disabling_md013_in_config_disables_reflow() {
     );
 }
 
+// ── reflow suppression must not leak past a block boundary ──────────────────
+//
+// `block_reflow_suppressed` used to accumulate for the life of whatever block
+// was being built and only got cleared by a few End-tag arms, so a suppressed
+// code fence, HTML block, or table left the flag set for the unrelated
+// paragraph that followed it. Width 40 with a 49-char paragraph makes the two
+// outcomes differ: reflowed, it wraps to two lines; stuck suppressed, it stays
+// on one.
+
+#[test]
+fn suppression_does_not_leak_past_a_code_fence() {
+    assert_formats_at_width(
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+            ```
+            code
+            ```
+
+            alpha bravo charlie delta echo foxtrot golf hotel
+        "},
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+
+            ```
+            code
+            ```
+
+            alpha bravo charlie delta echo foxtrot
+            golf hotel
+        "},
+        40,
+    );
+}
+
+#[test]
+fn suppression_does_not_leak_past_an_html_block() {
+    assert_formats_at_width(
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+            <div>block</div>
+
+            alpha bravo charlie delta echo foxtrot golf hotel
+        "},
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+
+            <div>block</div>
+
+            alpha bravo charlie delta echo foxtrot
+            golf hotel
+        "},
+        40,
+    );
+}
+
+#[test]
+fn suppression_does_not_leak_past_a_table() {
+    assert_formats_at_width(
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+            | A | B |
+            | --- | --- |
+            | 1 | 2 |
+
+            alpha bravo charlie delta echo foxtrot golf hotel
+        "},
+        indoc! {"
+            <!-- mdlint-disable-next-line MD013 -->
+
+            | A | B |
+            | --- | --- |
+            | 1 | 2 |
+
+            alpha bravo charlie delta echo foxtrot
+            golf hotel
+        "},
+        40,
+    );
+}
+
+#[test]
+fn a_directive_shown_in_indented_code_does_not_suppress_real_prose() {
+    // `parse_inline_config` used to track fenced code but not 4-space-indented
+    // code, so a documentation example suppressed reflow for unrelated prose
+    // that followed -- and became non-idempotent once pass 1 turned the
+    // indented block into a fence, which the parser *does* recognise.
+    assert_formats_at_width(
+        indoc! {"
+            Example:
+
+                <!-- mdlint-disable MD013 -->
+
+            alpha bravo charlie delta echo foxtrot golf hotel
+        "},
+        indoc! {"
+            Example:
+
+            ```
+            <!-- mdlint-disable MD013 -->
+            ```
+
+            alpha bravo charlie delta echo foxtrot
+            golf hotel
+        "},
+        40,
+    );
+}
+
 // ── container prefixes on wrapped lines ──────────────────────────────────────
 
 #[test]
@@ -781,6 +889,147 @@ fn format_rewrites_file_in_place() {
 
             - item
         "}
+    );
+}
+
+#[test]
+fn format_reflows_at_the_configured_line_length() {
+    // Drives reflow through the CLI entry point with a non-default
+    // `line_length`, not just `FormatOptions` directly.
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("mdlint.toml"),
+        "[rules.MD013]\nline_length = 20\n",
+    )
+    .unwrap();
+    let file = dir.path().join("doc.md");
+    fs::write(&file, "alpha bravo charlie delta echo foxtrot\n").unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", file.to_str().unwrap()])
+        .current_dir(dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(
+        result, "alpha bravo charlie\ndelta echo foxtrot\n",
+        "the CLI must reflow at the config's line_length, not the default"
+    );
+}
+
+#[test]
+fn format_does_not_reflow_when_md013_is_disabled_in_config() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("mdlint.toml"),
+        "[rules.MD013]\nenabled = false\n",
+    )
+    .unwrap();
+    let file = dir.path().join("doc.md");
+    let original = "alpha bravo\ncharlie delta\n";
+    fs::write(&file, original).unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", file.to_str().unwrap()])
+        .current_dir(dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(
+        result, original,
+        "disabling MD013 in config must disable reflow end-to-end"
+    );
+}
+
+#[test]
+fn format_check_exits_1_when_the_only_change_is_reflow() {
+    // Reflow is the one behavior `format --check` needs its own coverage for:
+    // every other rule this suite already exercises rewrites syntax, not
+    // whitespace, so a file that is otherwise canonical still needs `--check`
+    // to fail before formatting and pass after.
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("doc.md");
+    fs::write(&file, "alpha bravo\ncharlie delta\n").unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", "--check", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "hard-wrapped prose must still need formatting before reflow runs"
+    );
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "alpha bravo\ncharlie delta\n",
+        "--check must not write to disk"
+    );
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", "--check", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(
+        status.success(),
+        "must exit 0 once the reflowed content is already canonical"
+    );
+}
+
+#[test]
+fn format_ignores_directives_end_to_end_with_no_inline_config() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("mdlint.toml"), "no_inline_config = true\n").unwrap();
+    let file = dir.path().join("doc.md");
+    fs::write(
+        &file,
+        indoc! {"
+            <!-- mdlint-disable MD013 -->
+
+            alpha bravo
+            charlie delta
+        "},
+    )
+    .unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", file.to_str().unwrap()])
+        .current_dir(dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    let result = fs::read_to_string(&file).unwrap();
+    assert_eq!(
+        result,
+        indoc! {"
+            <!-- mdlint-disable MD013 -->
+
+            alpha bravo charlie delta
+        "},
+        "no_inline_config must ignore the directive and reflow, end-to-end via the CLI"
     );
 }
 
