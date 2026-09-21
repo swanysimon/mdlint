@@ -391,10 +391,20 @@ impl FormatterState {
     fn on_start(&mut self, tag: Tag<'_>) {
         match tag {
             Tag::Paragraph => {
-                // Inside a list, don't emit a blank before the paragraph—
-                // the item marker was already written.
+                // Inside a list, the item's first block follows the marker on
+                // the same line, so it needs neither a blank separator nor its
+                // own indent. A later block in a loose item has neither: the
+                // marker is long gone, so without them it falls to column 0
+                // and merges into the previous block as a lazy continuation on
+                // the next pass. `Tag::CodeBlock` already writes both; this is
+                // the same pattern for paragraphs.
                 if self.list_depth == 0 {
                     self.emit_blank_if_needed();
+                } else if !self.in_tight_item {
+                    self.emit_blank_if_needed();
+                    self.write_bq_prefix();
+                    let indent = self.list_continuation_prefix();
+                    self.out.push_str(&indent);
                 }
                 self.in_tight_item = false;
             }
@@ -2054,6 +2064,26 @@ mod tests {
         assert_eq!(format("- > alpha bravo\n"), "- > alpha bravo\n");
         let once = format("- > alpha\n  > bravo\n");
         assert_eq!(once, format(&once), "idempotency: blockquote in list item");
+    }
+
+    /// A loose list item's *first* block follows the marker on the same line
+    /// and needs neither a blank line nor its own indent -- but every block
+    /// after that has no marker on its line at all, and without them it fell
+    /// to column 0 and merged into the previous block as a lazy continuation
+    /// on the next pass. Pre-existing (reproduces on the pre-reflow tip too),
+    /// not introduced by reflow.
+    #[test]
+    fn test_second_paragraph_in_a_list_item_keeps_its_blank_and_indent() {
+        let once = format("- first para\n\n  second para\n");
+        assert_eq!(
+            once, "- first para\n\n  second para\n",
+            "second block must stay separate and indented, not merge into the first"
+        );
+        assert_eq!(
+            once,
+            format(&once),
+            "idempotency: second paragraph in a loose list item"
+        );
     }
 
     #[test]
