@@ -991,7 +991,7 @@ impl FormatterState {
                 cont_width
             };
 
-            for line in wrap_segment(segment, &breaks, first_width, cont_width) {
+            for line in wrap_segment(segment, &breaks, first_width, cont_width, !first_line) {
                 if !first_line {
                     self.out.push_str(continuation_prefix);
                 }
@@ -1138,7 +1138,9 @@ fn is_space_significant(prev: Option<char>) -> bool {
 
 /// Greedily break `segment` into lines fitting the given character budgets,
 /// breaking only at the ascending byte offsets in `breaks` (each a space that
-/// the break replaces).
+/// the break replaces). `first_line_is_continuation` tells the budget
+/// reservation below which escaping rule applies to the very first line this
+/// call produces; every line after that is always a continuation.
 ///
 /// A token longer than the budget is never split: the line overflows instead.
 /// Splitting it would corrupt exactly the things that get long -- URLs, paths,
@@ -1148,18 +1150,21 @@ fn wrap_segment<'a>(
     breaks: &[usize],
     first_width: usize,
     cont_width: usize,
+    first_line_is_continuation: bool,
 ) -> Vec<&'a str> {
     let mut lines = Vec::new();
     let mut start = 0usize;
     let mut width = first_width;
+    let mut is_continuation = first_line_is_continuation;
 
     loop {
         let rest = &segment[start..];
-        if rest.chars().count() <= width {
+        let budget = reserve_for_escape(segment, start, is_continuation, width);
+        if rest.chars().count() <= budget {
             lines.push(rest);
             return lines;
         }
-        let Some(chosen) = next_break(segment, breaks, start, width) else {
+        let Some(chosen) = next_break(segment, breaks, start, budget) else {
             lines.push(rest);
             return lines;
         };
@@ -1167,9 +1172,33 @@ fn wrap_segment<'a>(
         lines.push(&segment[start..chosen]);
         start = chosen + 1;
         width = cont_width;
+        is_continuation = true;
         if start >= segment.len() {
             return lines;
         }
+    }
+}
+
+/// `width`, minus one when the line about to be built at `start` will need a
+/// block-hazard escape -- otherwise `escape_line`'s backslash pushes a line
+/// greedily filled right up to `width` one character past it, and MD013
+/// flags a line `format` can never fix.
+///
+/// Escape necessity is decided from the line's first token alone.  `CommonMark`
+/// block-start sniffing is prefix-only (a list marker, ATX `#`, or fence run
+/// stays a block-start regardless of what follows), with one exception: the
+/// setext-underline check requires the *whole* line to be a uniform run of
+/// `=`/`-`, which can only become *less* likely to hold as more words are
+/// appended after the first token. So checking the first token in isolation
+/// never under-reserves; it can only reserve when it turns out not to be
+/// needed, which costs nothing but a possibly-unnecessary word wrap.
+fn reserve_for_escape(segment: &str, start: usize, is_continuation: bool, width: usize) -> usize {
+    let rest = &segment[start..];
+    let first_token_end = rest.find(' ').unwrap_or(rest.len());
+    if needs_line_escape(&rest[..first_token_end], is_continuation) {
+        width.saturating_sub(1).max(1)
+    } else {
+        width
     }
 }
 
@@ -2015,6 +2044,31 @@ mod tests {
             once, twice,
             "idempotency: code fence info string with backslash"
         );
+    }
+
+    /// `wrap_segment` used to choose a line's word boundary by its *unescaped*
+    /// length; a line starting with a block-hazard token that `retreat_past_structure`
+    /// had no earlier break to avoid then grew by one backslash from
+    /// `escape_line` after the width decision was already made, landing the
+    /// emitted line one character past the budget -- an MD013 violation
+    /// `format` could never fix. Found by the `formatted_output_never_flags_md013`
+    /// proptest property.
+    #[test]
+    fn test_escaped_hazard_line_stays_within_the_fill_column() {
+        let input = "a \\\n1.\naaa _ | aaaaaaaa aa [ a a a aa aaaaaaa aaaaa aaaaaa aaaaa aa a a\n";
+        let options = FormatOptions {
+            width: 61,
+            ..FormatOptions::default()
+        };
+        let out = format_with(input, &options);
+        for line in out.lines() {
+            assert!(
+                line.chars().count() <= 61,
+                "line of {} chars exceeds width 61: {line:?}",
+                line.chars().count()
+            );
+        }
+        assert_eq!(out, format_with(&out, &options), "idempotency");
     }
 
     // ── regressions found by the reflow proptest generator ───────────────────

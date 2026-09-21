@@ -164,14 +164,10 @@ proptest! {
     /// output. Heading length is excluded: headings can never be wrapped, so
     /// that half of MD013 is a deliberate, separate exception (see README).
     ///
-    /// A violation over by exactly one character is tolerated: `wrap_segment`
-    /// picks a line's word boundary by its *unescaped* length, but a line
-    /// that starts with a block-hazard token (`1.`, `#`, `---`, ...) with no
-    /// earlier break to retreat to gets one backslash added by `escape_line`
-    /// afterwards -- so a line greedily filled right up to the budget can come
-    /// out one character over once escaped. Known, narrow, and cosmetic (the
-    /// line is still valid, round-tripping Markdown); not fixed here. A wider
-    /// overflow is a real bug and still fails this property.
+    /// This includes lines that need a block-hazard escape (`1.`, `#`, `---`,
+    /// ...): `wrap_segment` reserves a column for the backslash whenever a
+    /// line's first token would need one, so a greedy fill can't land the
+    /// escaped line one character past the budget.
     #[test]
     fn formatted_output_never_flags_md013(
         text in paragraph(hazard_word()),
@@ -197,17 +193,7 @@ proptest! {
             ..Config::default()
         };
 
-        let violations: Vec<_> = LintEngine::new(config)
-            .lint_content(&out)
-            .unwrap()
-            .into_iter()
-            .filter(|v| {
-                let Some(line) = out.lines().nth(v.line - 1) else {
-                    return true;
-                };
-                line.chars().count() > width + 1
-            })
-            .collect();
+        let violations = LintEngine::new(config).lint_content(&out).unwrap();
         prop_assert!(
             violations.iter().all(|v| v.rule != "MD013"),
             "format() at width {width} left an MD013 violation `check` cannot fix: {violations:?}\noutput:\n{out}"
