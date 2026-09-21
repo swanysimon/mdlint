@@ -24,9 +24,10 @@ pub fn format(input: &str) -> String {
 /// own `line_length` default so the two agree out of the box.
 pub const DEFAULT_WIDTH: usize = 120;
 
-/// The formatter's only configuration input: the fill column for paragraph
-/// reflow, measured in characters.  Sourced from `rules.MD013.line_length` so a
-/// formatted file can never fail MD013 for something the formatter could fix.
+/// The formatter's configuration: the fill column for paragraph reflow
+/// (measured in characters, sourced from `rules.MD013.line_length` so a
+/// formatted file can never fail MD013 for something the formatter could
+/// fix), and whether reflow runs at all.
 #[derive(Debug, Clone, Copy)]
 pub struct FormatOptions {
     pub width: usize,
@@ -50,9 +51,10 @@ impl Default for FormatOptions {
 }
 
 impl From<&Config> for FormatOptions {
-    /// Reflow is always on; only the column is configurable.  MD013's
-    /// `enabled = false` is deliberately not honoured here -- the formatter is
-    /// opinionated, and disabling a *lint* should not change canonical style.
+    /// MD013's `enabled = false` (or `default_enabled = false` without
+    /// enabling it) switches reflow off along with the lint -- the inline
+    /// directive and the config key are the same switch spelled two ways, so
+    /// `Config::rule_enabled` is the single source of truth for both.
     fn from(config: &Config) -> Self {
         let width = match config.rules.get("MD013") {
             Some(RuleConfig::Config(params)) => params.get("line_length"),
@@ -151,7 +153,31 @@ fn line_at(line_starts: &[usize], offset: usize) -> usize {
     line_starts.partition_point(|&start| start <= offset).max(1)
 }
 
-fn mk_options() -> Options {
+/// Whether `event` opens a new block-level container.  Used to reset
+/// `block_reflow_suppressed` so suppression state from a prior sibling block
+/// (or from lines that opened it but never flushed it, like a skipped
+/// whitespace-only paragraph) cannot leak into this one.
+fn starts_new_block(event: &Event<'_>) -> bool {
+    matches!(
+        event,
+        Event::Start(
+            Tag::Paragraph
+                | Tag::Heading { .. }
+                | Tag::CodeBlock(_)
+                | Tag::HtmlBlock
+                | Tag::BlockQuote(_)
+                | Tag::List(_)
+                | Tag::Item
+                | Tag::Table(_)
+                | Tag::TableHead
+                | Tag::TableRow
+                | Tag::TableCell
+                | Tag::FootnoteDefinition(_)
+        ) | Event::Rule
+    )
+}
+
+pub(crate) fn mk_options() -> Options {
     Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
@@ -265,6 +291,15 @@ impl FormatterState {
     }
 
     fn process(&mut self, event: Event<'_>) {
+        // `block_reflow_suppressed` accumulates via `|=` for the lifetime of
+        // whatever block is currently being built, so a directive covering any
+        // line of it protects the whole thing.  Without a reset at each new
+        // block's start, that accumulation carries across block boundaries too
+        // -- a suppressed code fence, HTML block, or table left the flag set for
+        // the next paragraph, pinning its width at `usize::MAX`.
+        if starts_new_block(&event) {
+            self.block_reflow_suppressed = false;
+        }
         self.block_reflow_suppressed |= self.reflow_suppressed;
         match event {
             Event::Start(tag) => self.on_start(tag),
@@ -521,7 +556,15 @@ impl FormatterState {
                 // ending — finish() strips it via trim_end(), leaving an empty
                 // line that turns a blockquote into an empty one on re-parse.
                 // Skip the emission entirely; invisible content is no content.
-                if !text.trim().is_empty() {
+                if text.trim().is_empty() {
+                    // No flush_inline_text call means no one consumes the
+                    // offsets/suppression state gathered for this paragraph;
+                    // left in place, they attach to the next paragraph's text
+                    // and wrap_segment treats stale offsets as real breaks,
+                    // dropping whatever character sits at each one.
+                    self.break_offsets.clear();
+                    self.block_reflow_suppressed = false;
+                } else {
                     if self.list_depth == 0 {
                         self.write_bq_prefix();
                     }
@@ -2054,6 +2097,37 @@ mod tests {
             "empty blockquote must survive: {once:?}"
         );
         assert_eq!(once, format(&once), "idempotency: empty blockquote");
+    }
+
+    /// A whitespace-only paragraph (e.g. a lone NEL U+0085) is skipped without
+    /// emitting output, but its break offsets and suppression flag must still be
+    /// cleared -- otherwise they attach to the *next* paragraph's text and
+    /// `wrap_segment` drops whatever character sits at each stale offset.
+    #[test]
+    fn test_whitespace_only_paragraph_does_not_corrupt_the_next_paragraph() {
+        let input = "\u{a0} \u{a0} \u{a0} \u{a0} \u{a0}\n\n".to_string() + &"A".repeat(200);
+        let out = format(&input);
+        assert_eq!(
+            out.chars().filter(|&c| c == 'A').count(),
+            200,
+            "no character may be dropped from the following paragraph: {out:?}"
+        );
+    }
+
+    #[test]
+    fn test_whitespace_only_paragraph_does_not_corrupt_the_next_paragraph_narrow_width() {
+        let input = "\u{a0} \u{a0}\n\nalpha bravo charlie\n";
+        let out = format_with(
+            input,
+            &FormatOptions {
+                width: 3,
+                ..FormatOptions::default()
+            },
+        );
+        assert_eq!(
+            out, "alpha\nbravo\ncharlie\n",
+            "no word may lose a character to a stale break offset: {out:?}"
+        );
     }
 
     /// Known gap: continuation lines carry the full container prefix, but the
