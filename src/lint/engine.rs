@@ -89,49 +89,19 @@ pub(crate) fn parse_inline_config(content: &str) -> HashMap<String, HashSet<usiz
     // document that contains it: this project's own README silently
     // suppressed MD013 from the middle of the file to the end because an
     // example opened a disable it never closed.
-    let mut fence: Option<(char, usize)> = None;
-    // An indented code block cannot interrupt a paragraph, so it only starts
-    // when the previous line was blank; once started, it continues through
-    // blank lines and ends at the first non-blank line indented less than 4.
-    let mut in_indented_code = false;
-    let mut prev_blank = true;
+    //
+    // Code-block lines are decided by the real parser rather than re-derived
+    // from raw indentation: a hand-rolled "non-blank, indented >= 4, previous
+    // line blank" heuristic has no idea a line sits at a nested list item's
+    // own content column, where indentation that size is just that item's
+    // ordinary paragraph text, not an indented code block.
+    let code_block_lines = MarkdownParser::new(content)
+        .get_code_block_line_numbers()
+        .clone();
 
     for (idx, line) in lines.iter().enumerate() {
         let line_num = idx + 1;
-        let trimmed = line.trim_start();
-        let is_blank = trimmed.trim().is_empty();
-
-        if let Some((delimiter, opened_len)) = fence {
-            let run = trimmed.chars().take_while(|&ch| ch == delimiter).count();
-            if run >= opened_len && trimmed[run..].trim().is_empty() {
-                fence = None;
-            }
-            prev_blank = is_blank;
-            continue;
-        }
-
-        let indented =
-            line.starts_with('\t') || line.chars().take_while(|&ch| ch == ' ').count() >= 4;
-        if in_indented_code {
-            if !is_blank && !indented {
-                in_indented_code = false;
-            }
-        } else if !is_blank && indented && prev_blank {
-            in_indented_code = true;
-        }
-        prev_blank = is_blank;
-        if in_indented_code {
-            continue;
-        }
-
-        let backticks = trimmed.chars().take_while(|&ch| ch == '`').count();
-        let tildes = trimmed.chars().take_while(|&ch| ch == '~').count();
-        if backticks >= 3 {
-            fence = Some(('`', backticks));
-            continue;
-        }
-        if tildes >= 3 {
-            fence = Some(('~', tildes));
+        if code_block_lines.contains(&line_num) {
             continue;
         }
 
@@ -494,6 +464,30 @@ mod tests {
             suppressed.get("MD013").map(|lines| lines.contains(&3)),
             Some(true),
             "a directive on a lazy continuation line must still apply"
+        );
+    }
+
+    #[test]
+    fn test_a_directive_at_a_nested_list_items_content_column_still_applies() {
+        // A line-based "non-blank, indented >= 4, previous line blank" heuristic
+        // can't tell a genuinely indented code block from a nested list item's
+        // own content column, which is also 4 spaces two dash-levels deep --
+        // that's ordinary paragraph text for the item, not code. The real
+        // parser (via MarkdownParser::get_code_block_line_numbers) knows the
+        // difference.
+        let content = indoc! {"
+            - outer
+              - inner
+
+                <!-- mdlint-disable MD013 -->
+
+                suppressed
+        "};
+        let suppressed = parse_inline_config(content);
+        assert_eq!(
+            suppressed.get("MD013").map(|lines| lines.contains(&6)),
+            Some(true),
+            "a directive at a nested list item's content column must still apply"
         );
     }
 }
