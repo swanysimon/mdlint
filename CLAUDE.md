@@ -83,8 +83,11 @@ src/
 - Container prefixes are per-line state: `write_bq_prefix` must not write a `>` that the line already has, or a
   blockquote nested in a list item gains a level on every pass. Nested list markers indent to the *parent item's content
   column* (`list_item_widths.last()`), not two spaces per level — three under an ordered `1.` marker
-- Known gap: `Event::Html` writes raw HTML blocks straight to `out` with no container prefix, so an HTML block inside a
-  blockquote or list item loses its container. See the ignored `test_html_block_in_blockquote_keeps_marker`
+- Known gap: block *openers* (item markers, fences, tables, headings, rules) write only `write_bq_prefix` (the
+  blockquote markers), not the full enclosing `container_prefix`, so a blockquote nested inside a list item opens at
+  column 0 instead of the item's content column and the list is lost on re-parse. Continuation lines are unaffected —
+  they already carry the full container stack. See the ignored
+  `test_blockquote_nested_in_list_opens_with_the_full_prefix`
 
 ### Code Quality
 

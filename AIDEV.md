@@ -187,9 +187,9 @@ Two things were needed that the plan did not anticipate:
 - **No break immediately before inline HTML.** Escaping a tag that lands at column 0 would turn it into literal text, so
   the break opportunity in front of it is withdrawn instead.
 
-One decision worth revisiting: `[rules.MD013] enabled = false` does **not** disable reflow. Only `line_length` is read.
-Disabling a lint should not change canonical style, but a user who turned MD013 off may not expect their files to be
-rewrapped.
+One decision flagged here for revisiting: at this point in the plan, `[rules.MD013] enabled = false` did **not** disable
+reflow -- only `line_length` was read. That was revisited in the Follow-up section below ("Disabling MD013 disables
+reflow"), which reverses this: disabling the rule now disables reflow too.
 
 ### Pre-existing bugs surfaced by the new proptest generator
 

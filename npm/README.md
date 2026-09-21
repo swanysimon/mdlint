@@ -288,7 +288,7 @@ This line may be longer than the configured limit.
 | --- | --- |
 | `<!-- mdlint-disable MD001 -->` | Disable rule from this line onward |
 | `<!-- mdlint-enable MD001 -->` | Re-enable rule from this line onward |
-| `<!-- mdlint-disable-next-line MD001 -->` | Disable rule for the next line only |
+| `<!-- mdlint-disable-next-line MD001 -->` | Disable rule for the next line with content |
 | `<!-- mdlint-disable -->` | Disable all rules from this line onward |
 | `<!-- mdlint-enable -->` | Re-enable all rules |
 
