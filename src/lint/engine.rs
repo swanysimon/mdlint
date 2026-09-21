@@ -84,23 +84,46 @@ pub(crate) fn parse_inline_config(content: &str) -> HashMap<String, HashSet<usiz
     // Completed ranges: rule -> [(start, end)]
     let mut ranges: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
 
-    // Fenced code blocks hold *examples* of directives, not directives.  Reading
-    // them lets documentation reach out and change the document that contains it:
-    // this project's own README silently suppressed MD013 from the middle of the
-    // file to the end because an example opened a disable it never closed.
+    // Fenced and indented code blocks hold *examples* of directives, not
+    // directives.  Reading them lets documentation reach out and change the
+    // document that contains it: this project's own README silently
+    // suppressed MD013 from the middle of the file to the end because an
+    // example opened a disable it never closed.
     let mut fence: Option<(char, usize)> = None;
+    // An indented code block cannot interrupt a paragraph, so it only starts
+    // when the previous line was blank; once started, it continues through
+    // blank lines and ends at the first non-blank line indented less than 4.
+    let mut in_indented_code = false;
+    let mut prev_blank = true;
 
     for (idx, line) in lines.iter().enumerate() {
         let line_num = idx + 1;
         let trimmed = line.trim_start();
+        let is_blank = trimmed.trim().is_empty();
 
         if let Some((delimiter, opened_len)) = fence {
             let run = trimmed.chars().take_while(|&ch| ch == delimiter).count();
             if run >= opened_len && trimmed[run..].trim().is_empty() {
                 fence = None;
             }
+            prev_blank = is_blank;
             continue;
         }
+
+        let indented =
+            line.starts_with('\t') || line.chars().take_while(|&ch| ch == ' ').count() >= 4;
+        if in_indented_code {
+            if !is_blank && !indented {
+                in_indented_code = false;
+            }
+        } else if !is_blank && indented && prev_blank {
+            in_indented_code = true;
+        }
+        prev_blank = is_blank;
+        if in_indented_code {
+            continue;
+        }
+
         let backticks = trimmed.chars().take_while(|&ch| ch == '`').count();
         let tildes = trimmed.chars().take_while(|&ch| ch == '~').count();
         if backticks >= 3 {
@@ -415,6 +438,62 @@ mod tests {
         assert!(
             parse_inline_config(content).is_empty(),
             "a directive inside a table cell must have no effect"
+        );
+    }
+
+    #[test]
+    fn test_directives_inside_indented_code_are_examples_not_directives() {
+        // Same hazard as the fenced case, but for 4-space indentation: a
+        // documentation example must not suppress the prose that follows it.
+        let content = indoc! {"
+            Example:
+
+                <!-- mdlint-disable MD013 -->
+
+            a line that should still be checked
+        "};
+        assert!(
+            parse_inline_config(content).is_empty(),
+            "a directive inside indented code must have no effect"
+        );
+    }
+
+    #[test]
+    fn test_indented_directive_after_a_blank_line_inside_the_block_still_examples() {
+        // Blank lines inside an indented code block don't end it, so a
+        // directive-looking line separated from the block's start by a blank
+        // interior line is still just code.
+        let content = indoc! {"
+            Example:
+
+                <!-- mdlint-disable MD001 -->
+
+                <!-- mdlint-disable MD013 -->
+
+            checked
+        "};
+        assert!(
+            parse_inline_config(content).is_empty(),
+            "a directive inside indented code, even after a blank interior line, must have no effect"
+        );
+    }
+
+    #[test]
+    fn test_a_lazy_paragraph_continuation_is_not_indented_code() {
+        // A 4-space-indented line right after a paragraph line (no blank line
+        // between) is a lazy continuation of that paragraph, not the start of
+        // an indented code block -- so a real directive placed there still
+        // applies.
+        let content = indoc! {"
+            para line one
+                <!-- mdlint-disable MD013 -->
+            suppressed
+        "};
+        let suppressed = parse_inline_config(content);
+        assert_eq!(
+            suppressed.get("MD013").map(|lines| lines.contains(&3)),
+            Some(true),
+            "a directive on a lazy continuation line must still apply"
         );
     }
 }
