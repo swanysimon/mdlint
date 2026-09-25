@@ -56,7 +56,7 @@ fn hazard_word() -> impl Strategy<Value = String> {
     prop_oneof![
         6 => "[a-z]{1,8}",
         1 => prop::sample::select(vec![
-            "*", "**", "[", "]", "_", "`", "<", "|", "#", "-", "+",
+            "*", "**", "[", "]", "_", "`", "<", "|", "#", "-", "+", ">",
             "1.", "---", "===", "~~", "!", "\\", "<div>", "](x)",
         ])
         .prop_map(str::to_owned),
@@ -86,14 +86,9 @@ fn variable_length_word() -> impl Strategy<Value = String> {
 /// list, heading, blockquote or HTML block rather than plain prose. That
 /// exercises container handling as well as reflow, which is where this generator
 /// has found most of its bugs. Hazards also land at the start of *output* lines,
-/// because the wrapper is free to break in front of one.
-///
-/// `>` is held out of the corpus. It is the one hazard that can nest a
-/// *different kind* of container inside a list (or a list inside itself), and
-/// block openers still write only the blockquote marker rather than the whole
-/// enclosing prefix -- see the ignored
-/// `test_blockquote_nested_in_list_opens_with_the_full_prefix`. Blockquote
-/// behaviour is covered by the unit tests instead.
+/// because the wrapper is free to break in front of one. `>` is the hazard that
+/// nests a *different kind* of container inside a list and back again, which is
+/// what exercises every block opener's container prefix.
 fn paragraph(word: impl Strategy<Value = String>) -> impl Strategy<Value = String> {
     prop::collection::vec((word, prop::bool::ANY), 20..60).prop_map(|parts| {
         let mut text = String::new();
@@ -161,8 +156,8 @@ proptest! {
     /// `mdlint format` must never leave behind an over-width line that
     /// `mdlint check`'s MD013 then flags -- the documented guarantee that the
     /// format/check cycle can't go permanently red on the formatter's own
-    /// output. Heading length is excluded: headings can never be wrapped, so
-    /// that half of MD013 is a deliberate, separate exception (see README).
+    /// output. Headings and table rows are excluded: the formatter never wraps
+    /// either, so those checks are a deliberate, separate exception (see README).
     ///
     /// This includes lines that need a block-hazard escape (`1.`, `#`, `---`,
     /// ...): `wrap_segment` reserves a column for the backslash whenever a
@@ -185,6 +180,7 @@ proptest! {
             toml::Value::Integer(i64::try_from(width).unwrap()),
         );
         params.insert("heading_line_length".to_owned(), toml::Value::Integer(1_000_000));
+        params.insert("tables".to_owned(), toml::Value::Boolean(false));
         let mut rules = HashMap::new();
         rules.insert("MD013".to_owned(), RuleConfig::Config(params));
         let config = Config {

@@ -261,8 +261,12 @@ Verified, no change needed:
 
 Still open:
 
-- [ ] Block *openers* still write only the blockquote marker, not the enclosing container prefix, so a blockquote nested
-  inside a list item opens at column 0 and the list is lost. Continuation lines are fixed; openers need every site —
-  item markers, fences, tables, headings, rules — to write `container_prefix` instead of calling `write_bq_prefix`. See
-  the ignored `test_blockquote_nested_in_list_opens_with_the_full_prefix`. The proptest corpus holds `>` out for this
-  reason; putting it back is how to find whatever else is in this family.
+- [x] Block *openers* wrote only the blockquote marker, not the enclosing container prefix, so a blockquote nested
+  inside a list item opened at column 0 and the list was lost. Fixed: every opener calls `open_line`, which writes the
+  container-stack entries the current line lacks, and `write_bq_prefix`, `bq_depth`, `list_item_widths`, and
+  `code_block_indent` are gone. `>` is back in the proptest corpus. Fixing it surfaced the same family in tight list
+  items, which emit no Paragraph events: text before a block in the item was glued onto it or dropped (`- a\n  > b` →
+  `- > ab`), text after a code block merged into the next item, a nested item's fence landed at five spaces and became
+  indented code, a heading, rule or table as a later block in an item fell to column 0, a block closing a tight item
+  turned the list loose on the next pass, and a paragraph after a nested list merged into it. A thematic break spanning
+  tokens (`** **`) also defeated the escape reservation, which is now decided on the chosen line.

@@ -115,6 +115,20 @@ Always use sequential numbering starting from `1.`. Items are renumbered regardl
 Nested list items are indented to their parent item's content column: two spaces under a `-` marker, three under a `1.`
 marker. Less than that and the nested list re-parses as a sibling list at the outer level.
 
+Every block inside a list item -- paragraphs, code fences, headings, tables, rules, blockquotes -- is indented to the
+item's content column, and a blockquote inside an item keeps both the indent and its `>` on every line. An item's first
+block starts on the marker line; a nested list or a thematic rule would merge with the marker (`- - x`, `- ---`), so it
+starts on the next line instead.
+
+```markdown
+- ```toml
+  enabled = false
+  ```
+- > Quoted
+  >
+  > - Nested in the quote
+```
+
 ```markdown
 - Top level
   - Nested once
@@ -137,6 +151,7 @@ Always use backticks (`` ` ``). Always use exactly three backticks. Never tildes
 ```language
 code here
 ```
+
 ```
 
 Include the language identifier when known. The formatter preserves whatever language tag was present in the source; it
@@ -197,8 +212,8 @@ Two consequences follow:
 - **A token longer than the fill column is never broken.** A long URL, path, or identifier emits an over-width line
   rather than being corrupted. MD013 exempts prose lines with nowhere the formatter could have broken them: a space
   inside a code span, inline HTML, or a link destination/title doesn't count, since reflow never breaks there either, so
-  the formatter never produces output that the linter then complains about. Headings are the exception: they cannot be
-  wrapped at all, so `heading_line_length` stays a genuinely unfixable check.
+  the formatter never produces output that the linter then complains about. Headings and table rows are the exception:
+  they are never wrapped, so `heading_line_length` and MD013's `tables` check stay genuinely unfixable.
 - **Hard breaks are preserved.** A paragraph containing hard breaks is split into segments at each hard break, and each
   segment is refilled independently.
 

@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 use crate::config::{Config, RuleConfig};
 use crate::lint::parse_inline_config;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
@@ -85,6 +85,7 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
     let events: Vec<(Event<'_>, Range<usize>)> = Parser::new_ext(input, mk_options())
         .into_offset_iter()
         .collect();
+    state.tight_lists = tight_lists(events.iter().map(|(event, _)| event));
 
     // Precompute per-event lookahead: is the *next* event Start(List(None))?
     let lookahead: Vec<bool> = (0..events.len())
@@ -121,6 +122,44 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
     }
 
     state.finish()
+}
+
+/// Whether each list, in document order of its `Start` event, is tight.
+///
+/// pulldown-cmark reports looseness only implicitly: items of a loose list wrap
+/// their text in `Paragraph`, items of a tight one do not.  The formatter needs
+/// the answer before the first item is written, because a blank line anywhere
+/// directly inside a tight item would make the list loose on the next pass.
+fn tight_lists<'a>(events: impl Iterator<Item = &'a Event<'a>>) -> VecDeque<bool> {
+    let mut tight = VecDeque::new();
+    // Index into `tight` of each open list, and whether each open tag is an item.
+    let mut open_lists = Vec::new();
+    let mut open_is_item = Vec::new();
+    for event in events {
+        match event {
+            Event::Start(tag) => {
+                if matches!(tag, Tag::Paragraph)
+                    && open_is_item.last() == Some(&true)
+                    && let Some(&list) = open_lists.last()
+                {
+                    tight[list] = false;
+                }
+                if matches!(tag, Tag::List(_)) {
+                    open_lists.push(tight.len());
+                    tight.push_back(true);
+                }
+                open_is_item.push(matches!(tag, Tag::Item));
+            }
+            Event::End(tag) => {
+                if matches!(tag, TagEnd::List(_)) {
+                    open_lists.pop();
+                }
+                open_is_item.pop();
+            }
+            _ => {}
+        }
+    }
+    tight
 }
 
 /// Lines on which MD013 is suppressed by an inline comment, and where the
@@ -185,6 +224,9 @@ pub(crate) fn mk_options() -> Options {
         | Options::ENABLE_HEADING_ATTRIBUTES
 }
 
+/// What an open blockquote contributes to each line inside it.
+const BQ_PREFIX: &str = "> ";
+
 #[allow(clippy::struct_excessive_bools)] // each bool is a distinct formatting phase flag
 struct FormatterState {
     out: String,
@@ -195,11 +237,18 @@ struct FormatterState {
     list_depth: usize,
     /// Start number for ordered list at each depth; None = unordered.
     list_starts: Vec<Option<u64>>,
-    /// True when a list item was just opened but no Paragraph started yet (tight list).
+    /// True while the current output line holds a list item's marker and
+    /// nothing after it, so the item's first block can continue that line.
     in_tight_item: bool,
-
-    // Blockquote state
-    bq_depth: usize,
+    /// Tightness of every list in the document, in order; consumed as each
+    /// list opens.  See `tight_lists`.
+    tight_lists: VecDeque<bool>,
+    /// Tightness of each open list, innermost last.
+    list_tight: Vec<bool>,
+    /// True when the last block closed was a nested list.  A paragraph right
+    /// after one needs a blank line, or it re-parses as a lazy continuation of
+    /// the nested list's last item.
+    after_nested_list: bool,
 
     // Output length when each open blockquote started, so an empty one can be
     // recognised at its End event and still emitted.
@@ -222,11 +271,6 @@ struct FormatterState {
 
     // Code block state
     in_code_block: bool,
-    code_block_indent: String,
-
-    // Per-depth item marker widths (e.g. 3 for "1. ", 2 for "- "), used to
-    // compute the continuation indent for code blocks inside list items.
-    list_item_widths: Vec<usize>,
 
     // Link/image stack: stores (dest_url, title) from Start until End.
     link_stack: Vec<(String, String)>,
@@ -271,14 +315,14 @@ impl FormatterState {
             list_depth: 0,
             list_starts: Vec::new(),
             in_tight_item: false,
-            bq_depth: 0,
+            after_nested_list: false,
+            tight_lists: VecDeque::new(),
+            list_tight: Vec::new(),
             bq_open_lengths: Vec::new(),
             container_prefix: Vec::new(),
             inline: String::new(),
             break_offsets: Vec::new(),
             in_code_block: false,
-            code_block_indent: String::new(),
-            list_item_widths: Vec::new(),
             link_stack: Vec::new(),
             next_is_unordered_list: false,
             next_text_char: None,
@@ -311,18 +355,9 @@ impl FormatterState {
                 // the markers of whatever contains it.  Writing it raw let an
                 // HTML block inside a blockquote or list item escape its
                 // container entirely.
-                let prefix = self.continuation_prefix();
-                if prefix.is_empty() {
-                    self.out.push_str(&h);
-                } else {
-                    for line in h.split_inclusive('\n') {
-                        // Mid-line means a list marker already opened this line
-                        // and is serving as the prefix.
-                        if self.out.ends_with('\n') || self.out.is_empty() {
-                            self.out.push_str(&prefix);
-                        }
-                        self.out.push_str(line);
-                    }
+                for line in h.split_inclusive('\n') {
+                    self.open_line();
+                    self.out.push_str(line);
                 }
                 self.in_tight_item = false;
             }
@@ -358,18 +393,17 @@ impl FormatterState {
                 self.inline.push_str("\\\n");
             }
             Event::Rule => {
-                if self.in_tight_item {
+                self.flush_pending_inline();
+                if self.on_item_marker_line() {
                     // `- ---` is itself a thematic break and would swallow the
                     // list item on re-parse, so the rule goes on its own line
                     // inside the item rather than beside the marker.
                     self.out.push('\n');
-                    self.in_tight_item = false;
-                } else {
+                } else if !self.in_tight_item {
                     self.emit_blank_if_needed();
                 }
-                let indent = self.list_continuation_prefix();
-                self.write_bq_prefix();
-                self.out.push_str(&indent);
+                self.in_tight_item = false;
+                self.open_line();
                 self.out.push_str("---\n");
                 self.needs_blank = true;
             }
@@ -389,122 +423,87 @@ impl FormatterState {
 
     #[allow(clippy::too_many_lines)] // exhaustive match over pulldown-cmark Tag variants
     fn on_start(&mut self, tag: Tag<'_>) {
+        let after_nested_list = std::mem::take(&mut self.after_nested_list);
         match tag {
             Tag::Paragraph => {
-                // Inside a list, the item's first block follows the marker on
-                // the same line, so it needs neither a blank separator nor its
-                // own indent. A later block in a loose item has neither: the
-                // marker is long gone, so without them it falls to column 0
-                // and merges into the previous block as a lazy continuation on
-                // the next pass. `Tag::CodeBlock` already writes both; this is
-                // the same pattern for paragraphs.
-                if self.list_depth == 0 {
+                // An item's first block continues the marker line, so it gets no
+                // blank separator.  The container prefix is written when the
+                // paragraph is flushed.
+                self.flush_pending_inline();
+                if after_nested_list {
+                    self.needs_blank = true;
+                }
+                if !self.in_tight_item {
                     self.emit_blank_if_needed();
-                } else if !self.in_tight_item {
-                    self.emit_blank_if_needed();
-                    self.write_bq_prefix();
-                    let indent = self.list_continuation_prefix();
-                    self.out.push_str(&indent);
                 }
                 self.in_tight_item = false;
             }
             Tag::Heading { .. } => {
+                self.flush_pending_inline();
                 self.emit_blank_if_needed();
                 // The prefix (hashes) is written at End, when we have the level.
             }
             Tag::CodeBlock(kind) => {
+                self.flush_pending_inline();
                 self.emit_blank_if_needed();
                 let lang = match kind {
                     CodeBlockKind::Fenced(lang) => lang.into_string().replace('\\', "\\\\"),
                     CodeBlockKind::Indented => String::new(),
                 };
-                let fence_indent = self.list_continuation_prefix();
-                // When the fence lands on the same line as the list marker (tight item),
-                // the effective list margin becomes marker_width + fence_indent_width.
-                // Content and closing fence must use this combined width to stay inside the item.
-                let content_indent = if self.in_tight_item {
-                    let marker_width = self.list_item_widths.last().copied().unwrap_or(0);
-                    " ".repeat(marker_width + fence_indent.len())
-                } else {
-                    fence_indent.clone()
-                };
-                let was_tight = self.in_tight_item;
                 self.in_tight_item = false;
-                self.code_block_indent = content_indent;
-                // When the fence is on the same line as the list marker (tight
-                // item), the blockquote prefix was already written by Tag::Item.
-                // Writing it again would insert an extra `>` that the re-parser
-                // interprets as a nested blockquote, breaking idempotency.
-                if !was_tight {
-                    self.write_bq_prefix();
-                }
-                self.out.push_str(&fence_indent);
+                self.open_line();
                 self.out.push_str("```");
                 self.out.push_str(&lang);
                 self.out.push('\n');
                 self.in_code_block = true;
             }
             Tag::List(start) => {
+                // Any tight-item text before a sublist (e.g. `Item 1` in
+                // `- Item 1\n  - Nested`) goes out first.
+                self.flush_pending_inline();
                 if self.list_depth == 0 {
                     self.emit_blank_if_needed();
                 } else {
                     // Nested list: suppress any pending blank line.
                     // A sublist follows its parent item text without a blank line.
                     self.needs_blank = false;
-                    // Flush any tight-item inline content that preceded this sublist
-                    // (e.g. `Text("Item 1")` in `- Item 1\n  - Nested`).
-                    if self.in_tight_item && !self.inline.is_empty() {
-                        let text = std::mem::take(&mut self.inline);
-                        let prefix = self.continuation_prefix();
-                        self.flush_inline_text(&text, &prefix);
-                        self.in_tight_item = false;
-                    } else if self.in_tight_item {
-                        // Outer tight item has no inline content before this nested list.
-                        // Terminate the outer marker with a newline so inner markers are
-                        // on their own lines, preventing markers from merging on re-parse.
+                    // A sublist directly on its parent's marker line gets a line
+                    // of its own, so the two markers cannot merge on re-parse.
+                    if self.on_item_marker_line() {
                         self.out.push('\n');
-                        self.in_tight_item = false;
                     }
+                    self.in_tight_item = false;
                 }
-                self.list_item_widths.push(0);
                 self.list_depth += 1;
+                self.list_tight
+                    .push(self.tight_lists.pop_front().unwrap_or(false));
                 // Ordered lists always start at 1 in canonical form (MD029).
                 self.list_starts.push(start.map(|_| 1u64));
             }
             Tag::Item => {
-                // For loose lists, End(Paragraph) sets needs_blank = true.
-                // Emit that blank before the next item marker.
-                if self.list_depth > 0 {
+                // Items of a loose list are separated by a blank line; items of
+                // a tight one never are, whatever block the previous item ended
+                // with, or the list turns loose on the next pass.
+                if self.list_tight.last() == Some(&true) {
+                    self.needs_blank = false;
+                } else {
                     self.emit_blank_if_needed();
                 }
-                self.in_tight_item = true;
-                // A nested item starts at its parent item's content column --
-                // 3 under `1. `, 2 under `- `.  Anything less and the re-parser
-                // reads it as a sibling list at the outer level instead.
-                let indent = " ".repeat(
-                    self.list_item_widths
-                        .len()
-                        .checked_sub(2)
-                        .and_then(|parent| self.list_item_widths.get(parent).copied())
-                        .unwrap_or(0),
-                );
                 let marker = match self.list_starts.last_mut() {
                     Some(Some(n)) => {
-                        let s = format!("{indent}{n}. ");
+                        let s = format!("{n}. ");
                         *n += 1;
                         s
                     }
-                    _ => format!("{indent}- "),
+                    _ => "- ".to_owned(),
                 };
-                if let Some(w) = self.list_item_widths.last_mut() {
-                    *w = marker.len();
-                }
-                // This item's own contribution: the marker minus the indent its
-                // parent already accounts for.
-                self.container_prefix
-                    .push(" ".repeat(marker.len() - indent.len()));
-                self.write_bq_prefix();
+                // The enclosing containers put a nested item at its parent's
+                // content column -- 3 under `1. `, 2 under `- `.  Anything less
+                // and the re-parser reads it as a sibling list at the outer level.
+                self.open_line();
                 self.out.push_str(&marker);
+                self.container_prefix.push(" ".repeat(marker.len()));
+                self.in_tight_item = true;
             }
             Tag::Emphasis => self.inline.push('*'),
             Tag::Strong => self.inline.push_str("**"),
@@ -524,21 +523,24 @@ impl FormatterState {
                 self.inline.push_str("![");
             }
             Tag::HtmlBlock => {
+                self.flush_pending_inline();
                 self.emit_blank_if_needed();
             }
             Tag::BlockQuote(_) => {
+                self.flush_pending_inline();
                 self.emit_blank_if_needed();
-                self.bq_depth += 1;
                 self.bq_open_lengths.push(self.out.len());
-                self.container_prefix.push("> ".to_owned());
+                self.container_prefix.push(BQ_PREFIX.to_owned());
             }
             Tag::FootnoteDefinition(label) => {
+                self.flush_pending_inline();
                 self.emit_blank_if_needed();
                 // Write the label prefix; body will be flushed inline.
-                self.write_bq_prefix();
+                self.open_line();
                 write!(self.out, "[^{label}]: ").expect("writing to String is infallible");
             }
             Tag::Table(alignments) => {
+                self.flush_pending_inline();
                 self.emit_blank_if_needed();
                 self.table_alignments.clone_from(&alignments);
                 self.table_head_cells = Vec::new();
@@ -575,9 +577,6 @@ impl FormatterState {
                     self.break_offsets.clear();
                     self.block_reflow_suppressed = false;
                 } else {
-                    if self.list_depth == 0 {
-                        self.write_bq_prefix();
-                    }
                     let prefix = self.continuation_prefix();
                     self.flush_inline_text(&text, &prefix);
                     self.needs_blank = true;
@@ -590,7 +589,7 @@ impl FormatterState {
                 self.break_offsets.clear();
                 self.block_reflow_suppressed = false;
                 let hashes = "#".repeat(level as usize);
-                self.write_bq_prefix();
+                self.open_line();
                 // Collapse hard and soft breaks to spaces, then trim.  Trim must
                 // come after: a leading break produces a leading space that trim()
                 // removes; trimming first would strip a hard-break marker's `\`,
@@ -599,6 +598,7 @@ impl FormatterState {
                 let heading_text = escape_trailing_hashes(heading_raw.trim());
                 writeln!(self.out, "{hashes} {heading_text}")
                     .expect("writing to String is infallible");
+                self.in_tight_item = false;
                 self.needs_blank = true;
             }
             TagEnd::CodeBlock => {
@@ -607,43 +607,39 @@ impl FormatterState {
                 if !self.out.ends_with('\n') {
                     self.out.push('\n');
                 }
-                self.write_bq_prefix();
-                self.out.push_str(&self.code_block_indent.clone());
+                self.open_line();
                 self.out.push_str("```\n");
                 self.in_code_block = false;
-                self.code_block_indent = String::new();
                 self.needs_blank = true;
             }
             TagEnd::List(_) => {
                 self.list_depth -= 1;
                 self.list_starts.pop();
-                self.list_item_widths.pop();
+                self.list_tight.pop();
+                self.after_nested_list = self.list_depth > 0;
                 if self.list_depth == 0 {
+                    self.needs_blank = true;
                     if self.next_is_unordered_list {
                         // Two adjacent unordered lists would merge into one on
                         // re-parse (both normalise to `-`). Insert an invisible
                         // HTML comment to keep them separate.
-                        self.needs_blank = false;
-                        self.out.push_str("\n<!---->\n");
-                        self.needs_blank = true;
-                    } else {
+                        self.emit_blank_if_needed();
+                        self.open_line();
+                        self.out.push_str("<!---->\n");
                         self.needs_blank = true;
                     }
                 }
             }
             TagEnd::Item => {
-                // Tight list item: the content was never wrapped in Paragraph.
-                if self.in_tight_item {
-                    let text = std::mem::take(&mut self.inline);
-                    if text.is_empty() {
-                        // Empty tight item: the marker was already written; just terminate the line.
-                        self.out.push('\n');
-                    } else {
-                        let prefix = self.continuation_prefix();
-                        self.flush_inline_text(&text, &prefix);
-                    }
-                    self.in_tight_item = false;
+                // Tight-item text is never wrapped in a Paragraph, so nothing
+                // else flushes it -- including text that follows another block
+                // in the same item.
+                self.flush_pending_inline();
+                // An empty item leaves its marker line open.
+                if !self.out.is_empty() && !self.out.ends_with('\n') {
+                    self.out.push('\n');
                 }
+                self.in_tight_item = false;
                 self.container_prefix.pop();
             }
             TagEnd::Emphasis => self.inline.push('*'),
@@ -670,10 +666,9 @@ impl FormatterState {
                 // deletes a block, and can leave two lists adjacent that the
                 // quote had been separating.
                 if self.bq_open_lengths.pop() == Some(self.out.len()) {
-                    self.write_bq_prefix();
+                    self.open_line();
                     self.out.push('\n');
                 }
-                self.bq_depth -= 1;
                 self.container_prefix.pop();
                 self.needs_blank = true;
             }
@@ -711,14 +706,16 @@ impl FormatterState {
                 let rows = std::mem::take(&mut self.table_data_rows);
                 let aligns = std::mem::take(&mut self.table_alignments);
 
+                self.in_tight_item = false;
+
                 // Header row
-                self.write_bq_prefix();
+                self.open_line();
                 self.out.push_str("| ");
                 self.out.push_str(&head.join(" | "));
                 self.out.push_str(" |\n");
 
                 // Separator row
-                self.write_bq_prefix();
+                self.open_line();
                 self.out.push_str("| ");
                 let seps: Vec<&str> = aligns
                     .iter()
@@ -734,7 +731,7 @@ impl FormatterState {
 
                 // Data rows
                 for row in rows {
-                    self.write_bq_prefix();
+                    self.open_line();
                     self.out.push_str("| ");
                     self.out.push_str(&row.join(" | "));
                     self.out.push_str(" |\n");
@@ -748,21 +745,13 @@ impl FormatterState {
 
     fn on_text(&mut self, text: &str) {
         if self.in_code_block {
-            // Code block content goes directly to output, with list
-            // continuation indent re-added (pulldown-cmark strips it).
-            // When inside a blockquote, each content line also needs the
-            // `> ` prefix so that the re-parser keeps the content inside
-            // the blockquote (fence lines already get the prefix via
-            // write_bq_prefix, but content lines arrive here as Text events).
-            let bq = "> ".repeat(self.bq_depth);
-            if bq.is_empty() && self.code_block_indent.is_empty() {
-                self.out.push_str(text);
-            } else {
-                for line in text.split_inclusive('\n') {
-                    self.out.push_str(&bq);
-                    self.out.push_str(&self.code_block_indent);
-                    self.out.push_str(line);
-                }
+            // Code block content goes directly to output, with every
+            // container's marker or indent re-added (pulldown-cmark strips
+            // them) so the re-parser keeps each line inside its container.
+            let prefix = self.continuation_prefix();
+            for line in text.split_inclusive('\n') {
+                self.out.push_str(&prefix);
+                self.out.push_str(line);
             }
         } else {
             // `\\` and `` ` `` are resolved unconditionally by pulldown-cmark regardless
@@ -869,44 +858,66 @@ impl FormatterState {
         self.inline.push_str(&delim);
     }
 
-    /// Returns the continuation indent for the current innermost list item —
-    /// i.e. the number of spaces needed to keep following content (a wrapped
-    /// paragraph line, a code fence) inside that item.  This is the item's
-    /// content column, so it already includes the indent of any outer levels.
-    /// Empty string when not inside a list.
-    fn list_continuation_prefix(&self) -> String {
-        " ".repeat(self.list_item_widths.last().copied().unwrap_or(0))
-    }
-
     fn emit_blank_if_needed(&mut self) {
-        if self.needs_blank && !self.out.is_empty() {
-            if self.bq_depth > 0 {
-                // Inside a blockquote, the separator line must carry the `>`
-                // marker so the parser keeps both paragraphs in the same block.
-                self.out.push_str(&">".repeat(self.bq_depth));
-            }
+        // Directly inside a tight list item, a blank line would make the list
+        // loose on the next pass.  Inside a blockquote in the item it carries
+        // a `>` and is not blank.
+        let in_tight_item = self.list_tight.last() == Some(&true)
+            && self.container_prefix.last().is_some_and(|p| p != BQ_PREFIX);
+        if self.needs_blank && !self.out.is_empty() && !in_tight_item {
+            // Inside a blockquote, the separator line must carry the `>`
+            // markers so the parser keeps both blocks in the same quote.
+            let prefix = self.continuation_prefix();
+            self.out.push_str(prefix.trim_end());
             self.out.push('\n');
         }
         self.needs_blank = false;
     }
 
-    /// Write the blockquote marker for the current line, unless it is already
-    /// there.
+    /// Write whatever part of the container prefix the current output line is
+    /// still missing.
     ///
-    /// Block openers call this without knowing whether an enclosing construct
-    /// already opened the line -- a list marker inside the quote, for instance.
-    /// Writing unconditionally appended a second `>` that the re-parser read as
-    /// a deeper quote, so `> - # x` gained one nesting level on every pass.
-    fn write_bq_prefix(&mut self) {
-        let bq = "> ".repeat(self.bq_depth);
-        if self.needs_bq_prefix(&bq) {
-            self.out.push_str(&bq);
+    /// Every block opener calls this.  On a fresh line that is the whole
+    /// prefix; on a line an enclosing item marker already opened, it is only
+    /// the containers opened after that marker -- so `- > x` gets its `>`,
+    /// while `> - # x` does not gain a second one.  Each container's entry is
+    /// exactly as wide as the marker that opened it, which is what lets the
+    /// current column say how many are already on the line.
+    fn open_line(&mut self) {
+        let column = self.current_column();
+        let mut start = 0;
+        let mut missing = String::new();
+        for part in &self.container_prefix {
+            if start >= column {
+                missing.push_str(part);
+            }
+            start += part.chars().count();
+        }
+        self.out.push_str(&missing);
+    }
+
+    /// Whether the current output line ends in a list item's marker, with no
+    /// blockquote opened after it.  A blockquote marker in between already
+    /// separates whatever comes next from the item marker.
+    fn on_item_marker_line(&self) -> bool {
+        self.in_tight_item && self.container_prefix.last().is_some_and(|p| p != BQ_PREFIX)
+    }
+
+    /// Flush text a tight list item accumulated outside any Paragraph, before
+    /// the next block opens.  Left in the buffer it would be glued onto that
+    /// block's content, or dropped.
+    fn flush_pending_inline(&mut self) {
+        if !self.inline.is_empty() {
+            let text = std::mem::take(&mut self.inline);
+            let prefix = self.continuation_prefix();
+            self.flush_inline_text(&text, &prefix);
+            self.in_tight_item = false;
         }
     }
 
     /// Flush inline text to output.
-    /// Each line in `text` gets the blockquote prefix prepended (except the first,
-    /// which follows whatever was already written on the current output line).
+    /// Each line after the first gets `continuation_prefix`; the first gets
+    /// whatever part of the container prefix its output line still lacks.
     fn flush_inline_text(&mut self, text: &str, continuation_prefix: &str) {
         let offsets = std::mem::take(&mut self.break_offsets);
         // Strip trailing hard-break markers (`\\\n`) preceded by only whitespace.
@@ -931,7 +942,7 @@ impl FormatterState {
                 text
             }
         };
-        self.write_bq_prefix();
+        self.open_line();
         let cont_indent = continuation_prefix.chars().count();
         // A protected block keeps whatever line lengths the author chose.
         let width = if self.block_reflow_suppressed {
@@ -1006,13 +1017,13 @@ impl FormatterState {
         }
     }
 
-    /// The current (unterminated) output line.
     /// What a continued line of the current block must start with: every open
     /// container's marker or indent, in the order they were opened.
     fn continuation_prefix(&self) -> String {
         self.container_prefix.concat()
     }
 
+    /// The current (unterminated) output line.
     fn current_line(&self) -> &str {
         self.out
             .rfind('\n')
@@ -1022,17 +1033,6 @@ impl FormatterState {
     /// Number of characters already written on the current output line.
     fn current_column(&self) -> usize {
         self.current_line().chars().count()
-    }
-
-    /// Whether the blockquote marker still has to be written on this output line.
-    ///
-    /// It is already there when the block opener wrote it -- a paragraph inside
-    /// the quote, or a list marker nested within it.  It is *not* there when a
-    /// list marker outside the quote opened the line, which is how a blockquote
-    /// inside a list item used to lose its marker entirely and be flattened into
-    /// the item's paragraph.
-    fn needs_bq_prefix(&self, bq: &str) -> bool {
-        !bq.is_empty() && !self.current_line().starts_with(bq)
     }
 
     fn finish(mut self) -> String {
@@ -1158,19 +1158,27 @@ fn wrap_segment<'a>(
     let mut is_continuation = first_line_is_continuation;
 
     loop {
-        let rest = &segment[start..];
-        let budget = reserve_for_escape(segment, start, is_continuation, width);
-        if rest.chars().count() <= budget {
-            lines.push(rest);
+        let mut end = line_end(segment, breaks, start, width, cont_width);
+        // `escape_line`'s backslash would push a line filled right up to
+        // `width` one character past it, and MD013 would flag a line `format`
+        // can never fix.  Whether a line needs the escape depends on the whole
+        // line, not its first token -- `** **` is a thematic break, `**` is
+        // not -- so the check runs on the line actually chosen.
+        let line = &segment[start..end];
+        if line.chars().count() >= width && needs_line_escape(line, is_continuation) {
+            end = line_end(
+                segment,
+                breaks,
+                start,
+                width.saturating_sub(1).max(1),
+                cont_width,
+            );
+        }
+        lines.push(&segment[start..end]);
+        if end >= segment.len() {
             return lines;
         }
-        let Some(chosen) = next_break(segment, breaks, start, budget) else {
-            lines.push(rest);
-            return lines;
-        };
-        let chosen = retreat_past_structure(segment, breaks, start, chosen, cont_width);
-        lines.push(&segment[start..chosen]);
-        start = chosen + 1;
+        start = end + 1;
         width = cont_width;
         is_continuation = true;
         if start >= segment.len() {
@@ -1179,27 +1187,21 @@ fn wrap_segment<'a>(
     }
 }
 
-/// `width`, minus one when the line about to be built at `start` will need a
-/// block-hazard escape -- otherwise `escape_line`'s backslash pushes a line
-/// greedily filled right up to `width` one character past it, and MD013
-/// flags a line `format` can never fix.
-///
-/// Escape necessity is decided from the line's first token alone.  `CommonMark`
-/// block-start sniffing is prefix-only (a list marker, ATX `#`, or fence run
-/// stays a block-start regardless of what follows), with one exception: the
-/// setext-underline check requires the *whole* line to be a uniform run of
-/// `=`/`-`, which can only become *less* likely to hold as more words are
-/// appended after the first token. So checking the first token in isolation
-/// never under-reserves; it can only reserve when it turns out not to be
-/// needed, which costs nothing but a possibly-unnecessary word wrap.
-fn reserve_for_escape(segment: &str, start: usize, is_continuation: bool, width: usize) -> usize {
-    let rest = &segment[start..];
-    let first_token_end = rest.find(' ').unwrap_or(rest.len());
-    if needs_line_escape(&rest[..first_token_end], is_continuation) {
-        width.saturating_sub(1).max(1)
-    } else {
-        width
+/// Where the line starting at `start` ends: the whole rest of the segment if it
+/// fits in `width` or cannot be broken, otherwise the break chosen for it.
+fn line_end(
+    segment: &str,
+    breaks: &[usize],
+    start: usize,
+    width: usize,
+    cont_width: usize,
+) -> usize {
+    if segment[start..].chars().count() <= width {
+        return segment.len();
     }
+    next_break(segment, breaks, start, width).map_or(segment.len(), |chosen| {
+        retreat_past_structure(segment, breaks, start, chosen, cont_width)
+    })
 }
 
 /// The break to use for a line starting at `start` with `width` characters
@@ -1932,15 +1934,111 @@ mod tests {
     #[test]
     fn test_tight_list_item_code_block_only() {
         // A list item whose sole content is a code block (no text paragraph).
-        // The opening fence lands on the same line as the marker ("-   ```"),
-        // making the effective list margin 4. Content and closing fence must
-        // both use 4-space indent so the closing fence stays inside the item.
-        let canonical = indoc! {"
-            -   ```
-                ¡
-                ```
-        "};
+        // The opening fence follows the marker directly; content and closing
+        // fence sit at the item's content column so they stay inside it.
+        assert_formats_to(
+            indoc! {"
+                -   ```
+                    ¡
+                    ```
+            "},
+            indoc! {"
+                - ```
+                  ¡
+                  ```
+            "},
+        );
+    }
+
+    #[test]
+    fn test_tight_code_block_in_nested_item_stays_in_the_item() {
+        // The old fence indent was the item's content column *on top of* the
+        // marker, so a nested item's fence landed five spaces past its marker
+        // and re-parsed as an indented code block.
+        let canonical = "- a\n  - ```\n    x\n    ```\n";
         assert_formats_to(canonical, canonical);
+    }
+
+    /// Text in a tight item is never wrapped in a Paragraph, so only the end of
+    /// the item flushed it.  Any block opening in between was written first and
+    /// the text was glued onto that block's content, or lost.
+    #[test]
+    fn test_tight_item_text_before_a_block_is_flushed_first() {
+        for canonical in [
+            "- a\n  > b\n",
+            "- a\n  # h\n",
+            "- a\n  ```\n  x\n  ```\n",
+            "- a\n  <div>\n  x\n  </div>\n",
+            "- a\n  | b |\n  | --- |\n  | c |\n",
+        ] {
+            assert_formats_to(canonical, canonical);
+        }
+    }
+
+    #[test]
+    fn test_tight_item_text_after_a_block_is_kept() {
+        // The text arrived after the code block had cleared the tight-item
+        // flag, so nothing flushed it and it merged into the next item.
+        let canonical = "- ```\n  x\n  ```\n  c\n- d\n";
+        assert_formats_to(canonical, canonical);
+    }
+
+    /// A heading, fence, or table closing a tight item used to request a blank
+    /// line before the next item, which made the list loose on the next pass.
+    #[test]
+    fn test_tight_list_stays_tight_after_a_block_in_an_item() {
+        for canonical in [
+            "1. a\n2. # b\n3. c\n",
+            "- ```\n  x\n  ```\n- d\n",
+            "- # h\n  c\n",
+        ] {
+            assert_formats_to(canonical, canonical);
+        }
+    }
+
+    /// A nested list's end left no blank line, so a paragraph after it in a
+    /// loose item re-parsed as a lazy continuation of the nested list's last
+    /// item.
+    #[test]
+    fn test_paragraph_after_nested_list_in_loose_item_stays_separate() {
+        assert_formats_to("- a\n\n  - b\n\n  c\n", "- a\n  - b\n\n  c\n");
+        assert_formats_to(
+            "> - a\n>\n>   - b\n>\n>   c\n",
+            "> - a\n>   - b\n>\n>   c\n",
+        );
+    }
+
+    #[test]
+    fn test_later_blocks_in_a_list_item_keep_the_item_indent() {
+        for canonical in [
+            "- a\n\n  # h\n",
+            "- a\n\n  ---\n",
+            "- a\n\n  | b |\n  | --- |\n",
+        ] {
+            assert_formats_to(canonical, canonical);
+        }
+    }
+
+    /// Every opener inside a blockquote inside a list item needs both the
+    /// item indent and the `>`, in that order.
+    #[test]
+    fn test_blocks_in_a_blockquote_in_a_list_item_keep_both_prefixes() {
+        for canonical in [
+            "- > a\n  >\n  > b\n",
+            "- > # h\n",
+            "- > ```\n  > x\n  > ```\n",
+            "- > | a |\n  > | --- |\n  > | b |\n",
+            "- > ---\n",
+            "- > a\n  >\n  > ---\n",
+            "1. > - a\n   >   - b\n",
+        ] {
+            assert_formats_to(canonical, canonical);
+        }
+    }
+
+    #[test]
+    fn test_adjacent_list_separator_stays_in_its_blockquote() {
+        assert_formats_to("> - a\n>\n> * b\n", "> - a\n>\n> <!---->\n>\n> - b\n");
     }
 
     #[test]
@@ -2053,6 +2151,23 @@ mod tests {
     /// emitted line one character past the budget -- an MD013 violation
     /// `format` could never fix. Found by the `formatted_output_never_flags_md013`
     /// proptest property.
+    /// `**` alone needs no escape but `** **` is a thematic break, so deciding
+    /// the reservation from a line's first token let the escaped line run one
+    /// character over.
+    #[test]
+    fn test_multi_token_hazard_line_stays_within_the_fill_column() {
+        let options = FormatOptions {
+            width: 5,
+            ..FormatOptions::default()
+        };
+        let once = format_with("aaaa ** ** a\n", &options);
+        assert_eq!(once, format_with(&once, &options), "idempotency");
+        assert!(
+            once.lines().all(|line| line.chars().count() <= 5),
+            "every line must fit the fill column: {once:?}"
+        );
+    }
+
     #[test]
     fn test_escaped_hazard_line_stays_within_the_fill_column() {
         let input = "a \\\n1.\naaa _ | aaaaaaaa aa [ a a a aa aaaaaaa aaaaa aaaaaa aaaaa aa a a\n";
@@ -2214,24 +2329,15 @@ mod tests {
         );
     }
 
-    /// Known gap: continuation lines carry the full container prefix, but the
-    /// line that *opens* a block still writes only the blockquote marker. A
-    /// blockquote nested inside a list item therefore opens at column 0 instead
-    /// of at the item's content column, and the list is lost on re-parse.
-    ///
-    /// Fixing it means every block opener -- item markers, fences, tables,
-    /// headings, rules -- writing the enclosing `container_prefix` rather than
-    /// calling `write_bq_prefix`, which is a wider change than the container
-    /// bugs fixed so far.
+    /// Block openers used to write only the blockquote marker, not the
+    /// enclosing list indent, so a blockquote nested in a list item opened at
+    /// column 0 and the list was lost on re-parse.
     #[test]
-    #[ignore = "known gap: block openers do not write the enclosing container prefix"]
     fn test_blockquote_nested_in_list_opens_with_the_full_prefix() {
-        let once = format("- > - alpha\n");
-        assert_eq!(once, format(&once), "idempotency: list > quote > list");
-        assert!(
-            once.lines()
-                .all(|line| line.starts_with("- ") || line.starts_with("  ")),
-            "nested content must stay inside the outer item: {once:?}"
+        assert_formats_to("- > - alpha\n", "- > - alpha\n");
+        assert_formats_to(
+            "- > - alpha\n  >   - bravo\n",
+            "- > - alpha\n  >   - bravo\n",
         );
     }
 }

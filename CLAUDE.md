@@ -65,9 +65,10 @@ src/
 - Idempotency is a hard requirement: `format(format(x)) == format(x)`; proptest found real bugs
 - Hard line breaks: trailing-space syntax (two spaces + `\n`) must become backslash continuation (`\\\n`) before
   trailing-whitespace stripping, otherwise the line break is lost
-- Code blocks inside list items must be indented by the marker width (3 spaces for an ordered `1.` marker, 2 for an
-  unordered `-` marker) to remain inside the list; tracked via `list_item_widths` stack in `FormatterState`;
-  pulldown-cmark strips the indent on parse so the formatter must re-add it on emit
+- Everything inside a container carries that container's prefix: `container_prefix` is a stack with one entry per open
+  container, in opening order — `"> "` for a blockquote, the marker's width in spaces for a list item (3 for `1.`, 2 for
+  `-`). pulldown-cmark strips these on parse, so the formatter re-adds them on emit: continuation lines and code block
+  content write the whole stack, block openers call `open_line`
 - `src/formatter/mod.rs` = canonical markdown rewriter; `src/format/` = output formatters (JSON, SARIF, JUnit, default)
   — different concerns, different directories
 - Raw HTML blocks and code block contents are passed through verbatim
@@ -80,14 +81,17 @@ src/
   allowed immediately before inline HTML (escaping a tag at column 0 would turn it into literal text)
 - When a break would put text at column 0 that re-parses as a block element, the wrapper retreats to an earlier
   opportunity; `needs_line_escape`/`escape_line` stay as the fallback, so correctness never rests on the retreat
-- Container prefixes are per-line state: `write_bq_prefix` must not write a `>` that the line already has, or a
-  blockquote nested in a list item gains a level on every pass. Nested list markers indent to the *parent item's content
-  column* (`list_item_widths.last()`), not two spaces per level — three under an ordered `1.` marker
-- Known gap: block *openers* (item markers, fences, tables, headings, rules) write only `write_bq_prefix` (the
-  blockquote markers), not the full enclosing `container_prefix`, so a blockquote nested inside a list item opens at
-  column 0 instead of the item's content column and the list is lost on re-parse. Continuation lines are unaffected —
-  they already carry the full container stack. See the ignored
-  `test_blockquote_nested_in_list_opens_with_the_full_prefix`
+- Container prefixes are per-line state: `open_line` writes only the stack entries the current line lacks, found by
+  column, because an item marker may already have opened the line (`- > x` needs the `>`; `> - # x` must not gain a
+  second one). Every block opener goes through it; writing a partial prefix (the blockquote markers alone) drops a
+  blockquote nested in a list item to column 0 and loses the list
+- Tight list items emit no Paragraph events, so their text sits in `inline` until something flushes it. Every block
+  opener calls `flush_pending_inline` first; otherwise the text is glued onto the next block or lost
+- A bare blank line directly inside a tight list item makes the list loose on the next pass. pulldown-cmark reports
+  looseness only implicitly (loose items wrap text in Paragraph), so `tight_lists` precomputes it per list and
+  `emit_blank_if_needed` skips the blank inside a tight item
+- Escape reservation is decided on the whole chosen line, not its first token: a thematic break can span tokens (`**` is
+  plain text, `** **` is a rule)
 
 ### Code Quality
 
