@@ -23,7 +23,6 @@ impl Rule for MD013 {
 
     #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
     #[allow(clippy::too_many_lines)] // rule logic requires checking multiple interacting config flags
-    #[allow(clippy::similar_names)] // `in_code_block` and `is_code_block` are distinct: one tracks parser state, one is a per-line flag
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let line_length = config
             .and_then(|c| c.get("line_length"))
@@ -59,7 +58,6 @@ impl Rule for MD013 {
         let mut link_only_lines = HashSet::new();
         let mut html_block_lines = HashSet::new();
 
-        let mut in_code_block = false;
         let mut table_start_offset = None;
         let mut html_block_start_offset = None;
 
@@ -70,11 +68,13 @@ impl Rule for MD013 {
                 Event::Start(Tag::Heading { .. }) => {
                     heading_lines.insert(line);
                 }
-                Event::Start(Tag::CodeBlock(_)) => {
-                    in_code_block = true;
-                }
+                // The whole block, fences included: a long info string is as
+                // much a part of the code block as its content, and the
+                // formatter never wraps either.
                 Event::End(TagEnd::CodeBlock) => {
-                    in_code_block = false;
+                    let end_line =
+                        parser.offset_to_line(range.end.saturating_sub(1).max(range.start));
+                    code_block_lines.extend(line..=end_line);
                 }
                 Event::Start(Tag::Table(_)) => {
                     table_start_offset = Some(range.start);
@@ -111,9 +111,6 @@ impl Rule for MD013 {
                             link_only_lines.insert(line);
                         }
                     }
-                }
-                Event::Text(_) if in_code_block => {
-                    code_block_lines.insert(line);
                 }
                 _ => {}
             }
@@ -328,6 +325,20 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_code_block_ignore_covers_the_fences() {
+        let content = indoc! {"
+            ```text with a very long info string that exceeds the maximum allowed character count
+            short
+            ```"};
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 80, "code_blocks": false });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+
+        let config = serde_json::json!({ "line_length": 80, "code_blocks": true });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 1);
     }
 
     #[test]

@@ -84,6 +84,13 @@ hooks, incl. dogfood) pass.
   `tables` check is on by default, so the property was asserting a guarantee nobody makes; README and FORMAT_SPEC now
   say table rows stay reportable.
 
+- [x] **Code fences shortened to three backticks.** Every fence was written as exactly three backticks, so a
+  four-backtick fence whose content contained a three-backtick line closed early and the rest of its content became
+  Markdown -- FORMAT_SPEC.md's own Code Fences example was broken this way. The fence is now one backtick longer than
+  the longest run that could close it (content line, indent at most three spaces), minimum three. A three-backtick word
+  is in the proptest corpus. That surfaced a matching MD013 gap: `code_blocks = false` exempted only code content lines,
+  not the fences, so a long info string was still reported; the whole block is now exempt, as in markdownlint.
+
 ## Still open
 
 - [ ] **Confirm the minor-release rollout before publishing.** Procedural, unchanged: version still `0.3.24`; the

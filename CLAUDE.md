@@ -90,6 +90,9 @@ src/
 - A bare blank line directly inside a tight list item makes the list loose on the next pass. pulldown-cmark reports
   looseness only implicitly (loose items wrap text in Paragraph), so `tight_lists` precomputes it per list and
   `emit_blank_if_needed` skips the blank inside a tight item
+- Fence length comes from the content: three backticks unless a content line indented at most three spaces starts with a
+  run that long, then one longer than the longest such run (`code_fences` precomputes it per block). A fixed
+  three-backtick fence let a Markdown example of a code block close its container early
 - Escape reservation is decided on the whole chosen line, not its first token: a thematic break can span tokens (`**` is
   plain text, `** **` is a rule)
 

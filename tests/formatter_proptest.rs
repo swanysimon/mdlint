@@ -57,7 +57,7 @@ fn hazard_word() -> impl Strategy<Value = String> {
         6 => "[a-z]{1,8}",
         1 => prop::sample::select(vec![
             "*", "**", "[", "]", "_", "`", "<", "|", "#", "-", "+", ">",
-            "1.", "---", "===", "~~", "!", "\\", "<div>", "](x)",
+            "1.", "---", "===", "~~", "!", "\\", "<div>", "](x)", "```",
         ])
         .prop_map(str::to_owned),
     ]
@@ -156,8 +156,9 @@ proptest! {
     /// `mdlint format` must never leave behind an over-width line that
     /// `mdlint check`'s MD013 then flags -- the documented guarantee that the
     /// format/check cycle can't go permanently red on the formatter's own
-    /// output. Headings and table rows are excluded: the formatter never wraps
-    /// either, so those checks are a deliberate, separate exception (see README).
+    /// output. Headings, table rows and code blocks are excluded: the formatter
+    /// never wraps them, so those checks are a deliberate, separate exception
+    /// (see README).
     ///
     /// This includes lines that need a block-hazard escape (`1.`, `#`, `---`,
     /// ...): `wrap_segment` reserves a column for the backslash whenever a
@@ -181,6 +182,7 @@ proptest! {
         );
         params.insert("heading_line_length".to_owned(), toml::Value::Integer(1_000_000));
         params.insert("tables".to_owned(), toml::Value::Boolean(false));
+        params.insert("code_blocks".to_owned(), toml::Value::Boolean(false));
         let mut rules = HashMap::new();
         rules.insert("MD013".to_owned(), RuleConfig::Config(params));
         let config = Config {

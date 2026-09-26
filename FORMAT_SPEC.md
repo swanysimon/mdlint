@@ -123,11 +123,12 @@ starts on the next line instead.
 ```markdown
 - ```toml
   enabled = false
-  ```
-- > Quoted
-  >
-  > - Nested in the quote
 ```
+
+- > Quoted
+  > - Nested in the quote
+
+````
 
 ```markdown
 - Top level
@@ -137,7 +138,7 @@ starts on the next line instead.
 1. Top level
    - Nested once
      - Nested twice
-```
+````
 
 ### Blank Lines Around Lists (MD032)
 
@@ -145,14 +146,15 @@ Lists are preceded and followed by exactly one blank line (same rule as other bl
 
 ### Code Fences (MD048)
 
-Always use backticks (`` ` ``). Always use exactly three backticks. Never tildes (`~~~`).
+Always use backticks (`` ` ``). Never tildes (`~~~`). Use three backticks, unless the content contains a line that would
+close a three-backtick fence (a run of three or more backticks indented at most three spaces); then use one more
+backtick than the longest such run, so the block cannot end early.
 
-```markdown
+````markdown
 ```language
 code here
 ```
-
-```
+````
 
 Include the language identifier when known. The formatter preserves whatever language tag was present in the source; it
 does not infer or remove language tags.
@@ -212,8 +214,9 @@ Two consequences follow:
 - **A token longer than the fill column is never broken.** A long URL, path, or identifier emits an over-width line
   rather than being corrupted. MD013 exempts prose lines with nowhere the formatter could have broken them: a space
   inside a code span, inline HTML, or a link destination/title doesn't count, since reflow never breaks there either, so
-  the formatter never produces output that the linter then complains about. Headings and table rows are the exception:
-  they are never wrapped, so `heading_line_length` and MD013's `tables` check stay genuinely unfixable.
+  the formatter never produces output that the linter then complains about. Headings, table rows, and code blocks are
+  the exception: they are never wrapped, so `heading_line_length` and MD013's `tables` and `code_blocks` checks stay
+  genuinely unfixable.
 - **Hard breaks are preserved.** A paragraph containing hard breaks is split into segments at each hard break, and each
   segment is refilled independently.
 

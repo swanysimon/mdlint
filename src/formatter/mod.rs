@@ -86,6 +86,7 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
         .into_offset_iter()
         .collect();
     state.tight_lists = tight_lists(events.iter().map(|(event, _)| event));
+    state.code_fences = code_fences(events.iter().map(|(event, _)| event));
 
     // Precompute per-event lookahead: is the *next* event Start(List(None))?
     let lookahead: Vec<bool> = (0..events.len())
@@ -130,6 +131,45 @@ pub fn format_with(input: &str, options: &FormatOptions) -> String {
 /// their text in `Paragraph`, items of a tight one do not.  The formatter needs
 /// the answer before the first item is written, because a blank line anywhere
 /// directly inside a tight item would make the list loose on the next pass.
+/// The fence for each code block, in document order.
+///
+/// Three backticks, unless the content has a line that would close a fence
+/// that short: a run of backticks at least as long, indented at most three
+/// spaces.  Then one longer than the longest such run, or the block would end
+/// early and the rest of its content become Markdown.
+fn code_fences<'a>(events: impl Iterator<Item = &'a Event<'a>>) -> VecDeque<String> {
+    let mut fences = VecDeque::new();
+    let mut content: Option<String> = None;
+    for event in events {
+        match event {
+            Event::Start(Tag::CodeBlock(_)) => content = Some(String::new()),
+            Event::Text(text) => {
+                if let Some(content) = content.as_mut() {
+                    content.push_str(text);
+                }
+            }
+            Event::End(TagEnd::CodeBlock) => {
+                let longest = content
+                    .take()
+                    .unwrap_or_default()
+                    .lines()
+                    .filter(|line| line.len() - line.trim_start_matches(' ').len() <= 3)
+                    .map(|line| {
+                        line.trim_start_matches(' ')
+                            .chars()
+                            .take_while(|&c| c == '`')
+                            .count()
+                    })
+                    .max()
+                    .unwrap_or(0);
+                fences.push_back("`".repeat(longest.max(2) + 1));
+            }
+            _ => {}
+        }
+    }
+    fences
+}
+
 fn tight_lists<'a>(events: impl Iterator<Item = &'a Event<'a>>) -> VecDeque<bool> {
     let mut tight = VecDeque::new();
     // Index into `tight` of each open list, and whether each open tag is an item.
@@ -271,6 +311,11 @@ struct FormatterState {
 
     // Code block state
     in_code_block: bool,
+    /// Fence of every code block in the document, in order; consumed as each
+    /// opens.  See `code_fences`.
+    code_fences: VecDeque<String>,
+    /// Fence of the open code block, repeated to close it.
+    code_fence: String,
 
     // Link/image stack: stores (dest_url, title) from Start until End.
     link_stack: Vec<(String, String)>,
@@ -323,6 +368,8 @@ impl FormatterState {
             inline: String::new(),
             break_offsets: Vec::new(),
             in_code_block: false,
+            code_fences: VecDeque::new(),
+            code_fence: String::new(),
             link_stack: Vec::new(),
             next_is_unordered_list: false,
             next_text_char: None,
@@ -452,7 +499,11 @@ impl FormatterState {
                 };
                 self.in_tight_item = false;
                 self.open_line();
-                self.out.push_str("```");
+                self.code_fence = self
+                    .code_fences
+                    .pop_front()
+                    .unwrap_or_else(|| "```".to_owned());
+                self.out.push_str(&self.code_fence);
                 self.out.push_str(&lang);
                 self.out.push('\n');
                 self.in_code_block = true;
@@ -608,7 +659,9 @@ impl FormatterState {
                     self.out.push('\n');
                 }
                 self.open_line();
-                self.out.push_str("```\n");
+                let fence = std::mem::take(&mut self.code_fence);
+                self.out.push_str(&fence);
+                self.out.push('\n');
                 self.in_code_block = false;
                 self.needs_blank = true;
             }
@@ -2128,6 +2181,19 @@ mod tests {
         let once = format("\\\r\u{b}\r¡");
         let twice = format(&once);
         assert_eq!(once, twice, "idempotency: hard-break + VT continuation");
+    }
+
+    /// Every fence was written as exactly three backticks, so a block whose
+    /// content contains a three-backtick line -- a Markdown example of a code
+    /// block -- closed early and the rest of it became Markdown.
+    #[test]
+    fn test_code_fence_outlasts_backtick_runs_in_content() {
+        let canonical = "````markdown\n```toml\nx = 1\n```\n````\n";
+        assert_formats_to(canonical, canonical);
+        assert_formats_to("~~~\n   ````\n~~~\n", "`````\n   ````\n`````\n");
+        // Indented four or more, a run cannot close the fence.
+        assert_formats_to("~~~\n    ```\n~~~\n", "```\n    ```\n```\n");
+        assert_formats_to("- ````\n  ```\n  ````\n", "- ````\n  ```\n  ````\n");
     }
 
     #[test]
