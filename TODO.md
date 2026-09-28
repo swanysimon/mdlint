@@ -93,10 +93,13 @@ hooks, incl. dogfood) pass.
 
 ## Still open
 
-- [ ] **Confirm the minor-release rollout before publishing.** Procedural, unchanged: version still `0.3.24`; the
-  first-run rewrite warning is in all three READMEs (that is the release note; no CHANGELOG in the repo); the release
-  must be **minor** (`0.4.0`) — the README's documented `cargo release patch --execute` default would be wrong for a
-  change that rewrites every consumer's files.
+- [x] **Reflow made opt-in** (2026-09-28): off by default, enabled with `[rules.MD013] reflow = true`. See AIDEV.md
+  "Opt-in".
+- [ ] **Confirm the minor-release rollout before publishing.** Version still `0.3.24`. With reflow opt-in, a default run
+  no longer rewrites every hard-wrapped paragraph, but the release still changes canonical output (a code fence opening
+  a list item now follows the marker directly; fences lengthen to outlast backtick runs) and adds a config key, so it
+  should still be **minor** (`0.4.0`), not the README's `cargo release patch --execute` default. The READMEs describe
+  the opt-in and warn that enabling it rewrites hard-wrapped prose; there is no CHANGELOG.
 
 ## Verification log
 

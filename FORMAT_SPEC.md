@@ -10,10 +10,10 @@ implementation work. Any ambiguity about what the formatter should produce is re
 1. **One canonical form.** Every valid Markdown input has exactly one correct formatted output.
 2. **Idempotency is a hard requirement.** Formatting an already-formatted file produces no changes.
 3. **Semantic equivalence.** The formatter never changes meaning — only surface syntax.
-4. **Almost no configuration.** The formatter is opinionated. Its only tunable value is the fill column used for
-   paragraph reflow, read from `rules.MD013.line_length`. Whether reflow runs at all is also configurable -- switching
-   MD013 off (in config or via an inline directive) switches reflow off with it, since reflowing text the linter has
-   been told not to check would be a contradiction. Every other choice is fixed. If you disagree with one, open an
+4. **Almost no configuration.** The formatter is opinionated. Its only configuration is paragraph reflow: whether it
+   runs (`rules.MD013.reflow`, off by default) and the fill column it uses (`rules.MD013.line_length`). Switching MD013
+   off (in config or via an inline directive) switches reflow off with it, since reflowing text the linter has been
+   told not to check would be a contradiction. Every other choice is fixed. If you disagree with one, open an
    issue.
 
 ---
@@ -179,8 +179,11 @@ This is **critical**.
 
 ### Paragraph Reflow (MD013)
 
-Paragraph text is reflowed. Existing line breaks inside a paragraph carry no meaning in CommonMark — they render as a
-single space — so the formatter discards them and refills the paragraph greedily up to the fill column.
+Paragraph reflow is opt-in: it runs only with `reflow = true` under `[rules.MD013]`. Without it, the line breaks inside
+a paragraph are kept as written and everything below this paragraph does not apply.
+
+When enabled, paragraph text is reflowed. Existing line breaks inside a paragraph carry no meaning in CommonMark — they
+render as a single space — so the formatter discards them and refills the paragraph greedily up to the fill column.
 
 The fill column is `rules.MD013.line_length` (default 120), measured in characters, not bytes. Taking it from MD013
 rather than a separate key means a formatted file can never fail MD013 for a reason the formatter was able to fix.
@@ -352,8 +355,8 @@ rules. There must be no divergence between the two paths.
 Rules that the formatter enforces but the linter cannot report (because they require whole-document context beyond what
 a per-violation fix can express) are formatter-only behaviors documented above.
 
-MD013 is the one deliberate exception to the "no divergence" rule, in the opposite direction: `mdlint format` fixes
-over-long paragraph lines by reflowing them, but `mdlint check --fix` does not. Reflow is a whole-paragraph rewrite, and
+MD013 is the one deliberate exception to the "no divergence" rule, in the opposite direction: with reflow enabled,
+`mdlint format` fixes over-long paragraph lines by reflowing them, but `mdlint check --fix` does not. Reflow is a whole-paragraph rewrite, and
 expressing it as a per-violation `Fix` would mean reimplementing the wrapping logic inside the rule, where only a
 `MarkdownParser` is available rather than formatter state. Duplicating it in two places is worse than the divergence.
 Run `mdlint format` to fix line length.

@@ -10,5 +10,8 @@ exclude = [
 # The rules table in the READMEs is a reference table whose rows run past 120
 # characters. `mdlint format` deliberately does not reflow tables, so checking
 # their width only produces complaints nothing can act on.
+#
+# Reflow is opt-in; this repository dogfoods it.
 [rules.MD013]
 tables = false
+reflow = true

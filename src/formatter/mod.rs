@@ -34,9 +34,10 @@ pub struct FormatOptions {
     /// When true, `<!-- mdlint-disable MD013 -->` comments are ignored and every
     /// paragraph is reflowed.  Mirrors the config key of the same name.
     pub no_inline_config: bool,
-    /// Whether to reflow at all.  False when MD013 is switched off in config:
-    /// disabling the rule inline already stops reflow, and the config key is the
-    /// same switch by another spelling.
+    /// Whether to reflow at all.  Off unless `[rules.MD013] reflow = true`, and
+    /// off whenever MD013 itself is switched off: disabling the rule inline
+    /// already stops reflow, and the config key is the same switch by another
+    /// spelling.
     pub reflow: bool,
 }
 
@@ -45,29 +46,32 @@ impl Default for FormatOptions {
         Self {
             width: DEFAULT_WIDTH,
             no_inline_config: false,
-            reflow: true,
+            reflow: false,
         }
     }
 }
 
 impl From<&Config> for FormatOptions {
-    /// MD013's `enabled = false` (or `default_enabled = false` without
-    /// enabling it) switches reflow off along with the lint -- the inline
-    /// directive and the config key are the same switch spelled two ways, so
+    /// Reflow is opt-in via `[rules.MD013] reflow = true`.  MD013's
+    /// `enabled = false` (or `default_enabled = false` without enabling it)
+    /// switches it off along with the lint -- the inline directive and the
+    /// config key are the same switch spelled two ways, so
     /// `Config::rule_enabled` is the single source of truth for both.
     fn from(config: &Config) -> Self {
-        let width = match config.rules.get("MD013") {
-            Some(RuleConfig::Config(params)) => params.get("line_length"),
+        let param = |key: &str| match config.rules.get("MD013") {
+            Some(RuleConfig::Config(params)) => params.get(key),
             _ => None,
-        }
-        .and_then(toml::Value::as_integer)
-        .and_then(|value| usize::try_from(value).ok())
-        .filter(|&width| width > 0)
-        .unwrap_or(DEFAULT_WIDTH);
+        };
+        let width = param("line_length")
+            .and_then(toml::Value::as_integer)
+            .and_then(|value| usize::try_from(value).ok())
+            .filter(|&width| width > 0)
+            .unwrap_or(DEFAULT_WIDTH);
         Self {
             width,
             no_inline_config: config.no_inline_config,
-            reflow: config.rule_enabled("MD013"),
+            reflow: config.rule_enabled("MD013")
+                && param("reflow").and_then(toml::Value::as_bool) == Some(true),
         }
     }
 }
@@ -1385,6 +1389,19 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
+    /// These tests predate reflow being opt-in and many of them exercise it,
+    /// so they run with it on; the default-off path is covered end to end in
+    /// `tests/formatter.rs`.
+    fn format(input: &str) -> String {
+        format_with(
+            input,
+            &FormatOptions {
+                reflow: true,
+                ..FormatOptions::default()
+            },
+        )
+    }
+
     /// Assert that `input` formats to `expected` AND that `expected` is already
     /// canonical (formatting it again produces no change — the "not-fix" side).
     fn assert_formats_to(input: &str, expected: &str) {
@@ -2224,6 +2241,7 @@ mod tests {
     fn test_multi_token_hazard_line_stays_within_the_fill_column() {
         let options = FormatOptions {
             width: 5,
+            reflow: true,
             ..FormatOptions::default()
         };
         let once = format_with("aaaa ** ** a\n", &options);
@@ -2239,6 +2257,7 @@ mod tests {
         let input = "a \\\n1.\naaa _ | aaaaaaaa aa [ a a a aa aaaaaaa aaaaa aaaaaa aaaaa aa a a\n";
         let options = FormatOptions {
             width: 61,
+            reflow: true,
             ..FormatOptions::default()
         };
         let out = format_with(input, &options);
@@ -2386,6 +2405,7 @@ mod tests {
             input,
             &FormatOptions {
                 width: 3,
+                reflow: true,
                 ..FormatOptions::default()
             },
         );

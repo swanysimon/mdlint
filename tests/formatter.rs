@@ -6,15 +6,25 @@ use tempfile::TempDir;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+/// Formats with reflow on.  Most cases here predate reflow being opt-in and
+/// exercise it; the default-off path has its own CLI tests below.
+fn format(input: &str) -> String {
+    let options = formatter::FormatOptions {
+        reflow: true,
+        ..Default::default()
+    };
+    formatter::format_with(input, &options)
+}
+
 /// Assert that formatting `input` produces `expected`, and that the expected
 /// output is already idempotent (format(expected) == expected).
 fn assert_formats_to(input: &str, expected: &str) {
-    let got = formatter::format(input);
+    let got = format(input);
     assert_eq!(
         got, expected,
         "format(input) did not match expected.\nInput:\n{input}\nExpected:\n{expected}\nGot:\n{got}"
     );
-    let twice = formatter::format(expected);
+    let twice = format(expected);
     assert_eq!(
         twice, expected,
         "format(expected) != expected — expected output is not idempotent.\nExpected:\n{expected}\nTwice:\n{twice}"
@@ -26,6 +36,7 @@ fn assert_formats_to(input: &str, expected: &str) {
 fn assert_formats_at_width(input: &str, expected: &str, width: usize) {
     let options = formatter::FormatOptions {
         width,
+        reflow: true,
         ..Default::default()
     };
     let got = formatter::format_with(input, &options);
@@ -191,7 +202,7 @@ fn multiple_blank_lines_collapsed() {
 fn trailing_whitespace_removed() {
     // Lines with trailing spaces get stripped
     let input = "Text with trailing spaces.   \n\nMore text.  \n";
-    let out = formatter::format(input);
+    let out = format(input);
     for line in out.lines() {
         assert_eq!(
             line,
@@ -203,9 +214,9 @@ fn trailing_whitespace_removed() {
 
 #[test]
 fn trailing_newline_normalised() {
-    assert!(formatter::format("text").ends_with('\n'));
+    assert!(format("text").ends_with('\n'));
     assert!(
-        formatter::format(indoc! {"
+        format(indoc! {"
             text
 
 
@@ -213,7 +224,7 @@ fn trailing_newline_normalised() {
         .ends_with('\n')
     );
     assert_eq!(
-        formatter::format(indoc! {"
+        format(indoc! {"
             text
 
 
@@ -226,8 +237,8 @@ fn trailing_newline_normalised() {
 
 #[test]
 fn empty_input_produces_empty_output() {
-    assert_eq!(formatter::format(""), "");
-    assert_eq!(formatter::format("   \n\n  "), "");
+    assert_eq!(format(""), "");
+    assert_eq!(format("   \n\n  "), "");
 }
 
 // ── structure preservation ────────────────────────────────────────────────────
@@ -370,7 +381,7 @@ fn gfm_table_already_canonical_unchanged() {
 fn list_item_soft_wrap_is_rejoined() {
     // The source break carries no meaning and the joined line fits the fill
     // column, so reflow discards it.
-    assert_formats_to(
+    assert_formats_at_width(
         indoc! {"
             - First line
               continuation here
@@ -378,6 +389,7 @@ fn list_item_soft_wrap_is_rejoined() {
         indoc! {"
             - First line continuation here
         "},
+        120,
     );
 }
 
@@ -580,7 +592,7 @@ fn no_inline_config_reflows_a_protected_paragraph_anyway() {
     let options = formatter::FormatOptions {
         width: 30,
         no_inline_config: true,
-        ..Default::default()
+        reflow: true,
     };
     assert_eq!(
         formatter::format_with(input, &options),
@@ -771,8 +783,8 @@ fn idempotent_on_mixed_document() {
 
         Final paragraph.
     "};
-    let once = formatter::format(input);
-    let twice = formatter::format(&once);
+    let once = format(input);
+    let twice = format(&once);
     assert_eq!(once, twice, "formatter is not idempotent on mixed document");
 }
 
@@ -899,7 +911,7 @@ fn format_reflows_at_the_configured_line_length() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("mdlint.toml"),
-        "[rules.MD013]\nline_length = 20\n",
+        "[rules.MD013]\nline_length = 20\nreflow = true\n",
     )
     .unwrap();
     let file = dir.path().join("doc.md");
@@ -922,11 +934,33 @@ fn format_reflows_at_the_configured_line_length() {
 }
 
 #[test]
+fn format_does_not_reflow_by_default() {
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("doc.md");
+    let original = "alpha bravo\ncharlie delta\n";
+    fs::write(&file, original).unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .args(["format", "--no-config", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        original,
+        "reflow is opt-in: without `reflow = true` line breaks stay put"
+    );
+}
+
+#[test]
 fn format_does_not_reflow_when_md013_is_disabled_in_config() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("mdlint.toml"),
-        "[rules.MD013]\nenabled = false\n",
+        "[rules.MD013]\nenabled = false\nreflow = true\n",
     )
     .unwrap();
     let file = dir.path().join("doc.md");
@@ -956,11 +990,17 @@ fn format_check_exits_1_when_the_only_change_is_reflow() {
     // whitespace, so a file that is otherwise canonical still needs `--check`
     // to fail before formatting and pass after.
     let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("mdlint.toml"),
+        "[rules.MD013]\nreflow = true\n",
+    )
+    .unwrap();
     let file = dir.path().join("doc.md");
     fs::write(&file, "alpha bravo\ncharlie delta\n").unwrap();
 
     let status = Command::new(mdlint_bin())
         .args(["format", "--check", file.to_str().unwrap()])
+        .current_dir(dir.path())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -978,6 +1018,7 @@ fn format_check_exits_1_when_the_only_change_is_reflow() {
 
     let status = Command::new(mdlint_bin())
         .args(["format", file.to_str().unwrap()])
+        .current_dir(dir.path())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -986,6 +1027,7 @@ fn format_check_exits_1_when_the_only_change_is_reflow() {
 
     let status = Command::new(mdlint_bin())
         .args(["format", "--check", file.to_str().unwrap()])
+        .current_dir(dir.path())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -999,7 +1041,11 @@ fn format_check_exits_1_when_the_only_change_is_reflow() {
 #[test]
 fn format_ignores_directives_end_to_end_with_no_inline_config() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("mdlint.toml"), "no_inline_config = true\n").unwrap();
+    fs::write(
+        dir.path().join("mdlint.toml"),
+        "no_inline_config = true\n[rules.MD013]\nreflow = true\n",
+    )
+    .unwrap();
     let file = dir.path().join("doc.md");
     fs::write(
         &file,

@@ -72,6 +72,8 @@ src/
 - `src/formatter/mod.rs` = canonical markdown rewriter; `src/format/` = output formatters (JSON, SARIF, JUnit, default)
   — different concerns, different directories
 - Raw HTML blocks and code block contents are passed through verbatim
+- Reflow is opt-in: `[rules.MD013] reflow = true` (and MD013 enabled) sets `FormatOptions::reflow`; the default is off.
+  With it off, `SoftBreak` keeps the author's newline, exactly as under an inline `mdlint-disable MD013`
 - Paragraph reflow: `inline` is a flat `String` with escapes already applied, so it cannot be wrapped by splitting on
   whitespace — spaces occur inside link destinations, code spans, and inline HTML. A parallel `break_offsets` vec
   records where a break is legal; only `on_text` and `SoftBreak` push to it, which makes everything else atomic by

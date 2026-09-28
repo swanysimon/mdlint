@@ -12,11 +12,12 @@ Goal: `mdlint format` discards the soft line breaks inside a paragraph and refil
 
 Decisions already made:
 
-- Reflow is **on by default** in a minor release. No opt-in flag, no formatter mode.
+- Reflow was planned **on by default** with no opt-in flag. Reversed after delivery (see "Opt-in" below): it ships off,
+  enabled with `[rules.MD013] reflow = true`.
 - The fill column is **read from MD013**, not a new config key, so "formatted but MD013-failing" is unrepresentable by
   construction.
 
-Resolved during implementation: unwrap-then-refill, not pure unwrap. Delivered and on by default.
+Resolved during implementation: unwrap-then-refill, not pure unwrap. Delivered; opt-in.
 
 ---
 
@@ -270,3 +271,19 @@ Still open:
   indented code, a heading, rule or table as a later block in an item fell to column 0, a block closing a tight item
   turned the list loose on the next pass, and a paragraph after a nested list merged into it. A thematic break spanning
   tokens (`** **`) also defeated the escape reservation, which is now decided on the chosen line.
+
+---
+
+## Opt-in
+
+Reflow ships **off by default**. `[rules.MD013] reflow = true` turns it on; `FormatOptions::default()` matches. It lives
+under MD013 because MD013 already supplies the fill column and the off switch: reflow runs only when MD013 is enabled
+*and* `reflow = true`, so an inline `mdlint-disable MD013` or `enabled = false` still stops it. This repository opts in
+(`mdlint.toml`) so the dogfood hooks keep exercising it.
+
+Consequence: with reflow off, over-long paragraph lines are MD013 errors that neither `mdlint format` nor
+`mdlint check --fix` fixes. The unbreakable-line exemption is unchanged.
+
+Tests written against reflow-on keep it: the unit-test `format` helper in `src/formatter/mod.rs` and the one in
+`tests/formatter.rs` enable it, the golden fixture runs with it on, and the proptests set it explicitly. The default-off
+path is covered end to end by `format_does_not_reflow_by_default`.

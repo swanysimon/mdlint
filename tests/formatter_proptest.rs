@@ -114,6 +114,7 @@ proptest! {
     ) {
         let options = FormatOptions {
         width,
+        reflow: true,
         ..Default::default()
     };
         let once = format_with(&text, &options);
@@ -139,6 +140,7 @@ proptest! {
     ) {
         let options = FormatOptions {
         width,
+        reflow: true,
         ..Default::default()
     };
         let out = format_with(&text, &options);
@@ -171,6 +173,7 @@ proptest! {
     ) {
         let options = FormatOptions {
         width,
+        reflow: true,
         ..Default::default()
     };
         let out = format_with(&text, &options);
