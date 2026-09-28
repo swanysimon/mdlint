@@ -11,7 +11,7 @@ implementation work. Any ambiguity about what the formatter should produce is re
 2. **Idempotency is a hard requirement.** Formatting an already-formatted file produces no changes.
 3. **Semantic equivalence.** The formatter never changes meaning — only surface syntax.
 4. **Almost no configuration.** The formatter is opinionated. Its only configuration is paragraph reflow: whether it
-   runs (`rules.MD013.reflow`, off by default) and the fill column it uses (`rules.MD013.line_length`). Switching MD013
+   runs (the `reflow` key or `--reflow` flag, off by default) and the fill column it uses (`rules.MD013.line_length`). Switching MD013
    off (in config or via an inline directive) switches reflow off with it, since reflowing text the linter has been
    told not to check would be a contradiction. Every other choice is fixed. If you disagree with one, open an
    issue.
@@ -179,7 +179,7 @@ This is **critical**.
 
 ### Paragraph Reflow (MD013)
 
-Paragraph reflow is opt-in: it runs only with `reflow = true` under `[rules.MD013]`. Without it, the line breaks inside
+Paragraph reflow is opt-in: it runs only with `reflow = true` in the config or `--reflow` on the command line. Without it, the line breaks inside
 a paragraph are kept as written and everything below this paragraph does not apply.
 
 When enabled, paragraph text is reflowed. Existing line breaks inside a paragraph carry no meaning in CommonMark — they

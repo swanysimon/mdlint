@@ -18,8 +18,8 @@ Run `mdlint format` and stop thinking about it.
 ## Features
 
 - **Formatter first**: `mdlint format` rewrites files to a canonical style — no configuration required
-- **Reflows prose (opt-in)**: with `reflow = true`, paragraphs are unwrapped and refilled to the configured line length,
-  so where you happened to press Enter stops showing up in diffs
+- **Reflows prose (opt-in)**: with `--reflow` or `reflow = true`, paragraphs are unwrapped and refilled to the
+  configured line length, so where you happened to press Enter stops showing up in diffs
 - **Linter second**: `mdlint check` reports violations; fixable rules are auto-corrected by `mdlint format` or
   `mdlint check --fix`
 - **Fast**: written in Rust for performance
@@ -126,15 +126,10 @@ Global options:
 
 Format Markdown files with opinionated style.
 
-Paragraph reflow is opt-in. Set `reflow = true` under `[rules.MD013]` and existing line breaks inside a paragraph are
-discarded and the text is refilled up to `rules.MD013.line_length` (default 120). Headings, tables, code blocks, and
-HTML are left alone. Note that turning it on rewrites every file with hard-wrapped prose the next time you run
-`mdlint format`.
-
-```toml
-[rules.MD013]
-reflow = true
-```
+Paragraph reflow is opt-in: pass `--reflow`, or set `reflow = true` in `mdlint.toml` (`--no-reflow` overrides the config
+for one run). Existing line breaks inside a paragraph are then discarded and the text is refilled up to
+`rules.MD013.line_length` (default 120). Headings, tables, code blocks, and HTML are left alone. Note that turning it on
+rewrites every file with hard-wrapped prose the next time you run `mdlint format`.
 
 ```text
 Usage: mdlint format [OPTIONS] [FILES]...
@@ -145,7 +140,8 @@ Arguments:
 Options:
       --check                      Check formatting only; do not modify files (exits 1 if any file would change)
       --exclude <PATH>             Exclude files or directories
-      --no-respect-ignore          Do not respect .gitignore files
+            --no-respect-ignore          Do not respect .gitignore files
+      --reflow                     Reflow paragraphs to MD013's line_length (--no-reflow to disable)
   -h, --help                       Print help
 ```
 
@@ -250,6 +246,7 @@ arrays are extended. Priority order (highest to lowest):
 | `gitignore` | `true` | Respect `.gitignore` files when discovering Markdown files. |
 | `no_inline_config` | `false` | Ignore all `<!-- mdlint-disable -->` comments. |
 | `fix` | `true` | `mdlint check` automatically applies all fixable violations; equivalent to passing `--fix` on the CLI. |
+| `reflow` | `false` | `mdlint format` refills paragraphs to MD013's `line_length`; equivalent to passing `--reflow` on the CLI. |
 | `front_matter` | auto | Front matter delimiter. Auto-detects `---` (YAML) and `+++` (TOML). Set to `"---"` to accept YAML only. |
 | `exclude` | `[]` | Paths/glob patterns excluded from discovery; merged with any `--exclude` CLI flags. |
 | `custom_rules` | `[]` | Paths to external rule modules (future feature). |
@@ -333,7 +330,7 @@ rule's key parameter(s); **markdownlint** shows the [original
 markdownlint](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) default where it differs from mdlint's.
 `—` means the rule has no configurable parameters.
 
-MD013 is marked `✓*` because it is the one rule the two paths disagree on: with `reflow = true`, `mdlint format` fixes
+MD013 is marked `✓*` because it is the one rule the two paths disagree on: with reflow on, `mdlint format` fixes
 over-long paragraphs by reflowing them, but `mdlint check --fix` never does. Reflow rewrites a whole paragraph, which a
 per-violation fix cannot express. With reflow off (the default), neither path fixes line length.
 
@@ -348,7 +345,7 @@ per-violation fix cannot express. With reflow off (the default), neither path fi
 | [MD010](https://github.com/DavidAnson/markdownlint/blob/main/doc/md010.md) | ✓ | `code_blocks: true` |  | Hard tabs | Tabs render inconsistently across editors; format replaces with spaces. Config: `code_blocks` |
 | [MD011](https://github.com/DavidAnson/markdownlint/blob/main/doc/md011.md) |  | — | — | Reversed link syntax | Catches the common typo of swapped parentheses and brackets; should always be enabled |
 | [MD012](https://github.com/DavidAnson/markdownlint/blob/main/doc/md012.md) | ✓ | `maximum: 1` |  | Multiple consecutive blank lines | Config: `maximum` — max consecutive blank lines allowed |
-| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) | ✓* | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` doubles as the formatter's fill column: with `reflow = true`, `mdlint format` reflows paragraphs to it; `mdlint check --fix` does not (see above). Lines the formatter cannot break -- a bare URL or other single long token -- are exempt, so a reflowing `format` never leaves behind an MD013 error. Headings, table rows, and code blocks are never wrapped, so they are still reported. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings`, `reflow` (default `false`) |
+| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) | ✓* | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` doubles as the formatter's fill column: with reflow on, `mdlint format` reflows paragraphs to it; `mdlint check --fix` does not (see above). Lines the formatter cannot break -- a bare URL or other single long token -- are exempt, so a reflowing `format` never leaves behind an MD013 error. Headings, table rows, and code blocks are never wrapped, so they are still reported. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
 | [MD014](https://github.com/DavidAnson/markdownlint/blob/main/doc/md014.md) | ✓ | — | — | Dollar signs used before commands without showing output | `$`-prefixed shell commands cannot be copy-pasted; omit the `$` prompt |
 | [MD018](https://github.com/DavidAnson/markdownlint/blob/main/doc/md018.md) | ✓ | — | — | No space after hash on atx style heading | `#Title` renders inconsistently; format inserts the required space |
 | [MD019](https://github.com/DavidAnson/markdownlint/blob/main/doc/md019.md) | ✓ | — | — | Multiple spaces after hash on atx style heading | `#  Title` → `# Title`; format normalises to one space |

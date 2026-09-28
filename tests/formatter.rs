@@ -911,7 +911,7 @@ fn format_reflows_at_the_configured_line_length() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("mdlint.toml"),
-        "[rules.MD013]\nline_length = 20\nreflow = true\n",
+        "reflow = true\n[rules.MD013]\nline_length = 20\n",
     )
     .unwrap();
     let file = dir.path().join("doc.md");
@@ -955,12 +955,67 @@ fn format_does_not_reflow_by_default() {
     );
 }
 
+/// Runs `mdlint format` on `original` in a temp dir holding `config`, with
+/// `flags`, and returns the file's contents afterwards.
+fn format_file_with(config: &str, flags: &[&str], original: &str) -> String {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("mdlint.toml"), config).unwrap();
+    let file = dir.path().join("doc.md");
+    fs::write(&file, original).unwrap();
+
+    let status = Command::new(mdlint_bin())
+        .arg("format")
+        .args(flags)
+        .arg(&file)
+        .current_dir(dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+    fs::read_to_string(&file).unwrap()
+}
+
+#[test]
+fn format_reflow_flag_turns_reflow_on() {
+    assert_eq!(
+        format_file_with("", &["--reflow"], "alpha bravo\ncharlie delta\n"),
+        "alpha bravo charlie delta\n"
+    );
+}
+
+#[test]
+fn format_no_reflow_flag_overrides_the_config() {
+    assert_eq!(
+        format_file_with(
+            "reflow = true\n",
+            &["--no-reflow"],
+            "alpha bravo\ncharlie delta\n"
+        ),
+        "alpha bravo\ncharlie delta\n"
+    );
+}
+
+#[test]
+fn format_reflow_flag_does_not_override_disabled_md013() {
+    // Disabling MD013 switches reflow off, like the inline directive; the
+    // flag only replaces the `reflow` key.
+    assert_eq!(
+        format_file_with(
+            "[rules.MD013]\nenabled = false\n",
+            &["--reflow"],
+            "alpha bravo\ncharlie delta\n"
+        ),
+        "alpha bravo\ncharlie delta\n"
+    );
+}
+
 #[test]
 fn format_does_not_reflow_when_md013_is_disabled_in_config() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("mdlint.toml"),
-        "[rules.MD013]\nenabled = false\nreflow = true\n",
+        "reflow = true\n[rules.MD013]\nenabled = false\n",
     )
     .unwrap();
     let file = dir.path().join("doc.md");
@@ -990,11 +1045,7 @@ fn format_check_exits_1_when_the_only_change_is_reflow() {
     // whitespace, so a file that is otherwise canonical still needs `--check`
     // to fail before formatting and pass after.
     let dir = TempDir::new().unwrap();
-    fs::write(
-        dir.path().join("mdlint.toml"),
-        "[rules.MD013]\nreflow = true\n",
-    )
-    .unwrap();
+    fs::write(dir.path().join("mdlint.toml"), "reflow = true\n").unwrap();
     let file = dir.path().join("doc.md");
     fs::write(&file, "alpha bravo\ncharlie delta\n").unwrap();
 
@@ -1043,7 +1094,7 @@ fn format_ignores_directives_end_to_end_with_no_inline_config() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("mdlint.toml"),
-        "no_inline_config = true\n[rules.MD013]\nreflow = true\n",
+        "no_inline_config = true\nreflow = true\n",
     )
     .unwrap();
     let file = dir.path().join("doc.md");

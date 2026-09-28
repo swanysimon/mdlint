@@ -93,8 +93,8 @@ hooks, incl. dogfood) pass.
 
 ## Still open
 
-- [x] **Reflow made opt-in** (2026-09-28): off by default, enabled with `[rules.MD013] reflow = true`. See AIDEV.md
-  "Opt-in".
+- [x] **Reflow made opt-in** (2026-09-28): off by default, enabled with `--reflow` or a top-level `reflow = true`
+  (`--no-reflow` overrides the config). See AIDEV.md "Opt-in".
 - [ ] **Confirm the minor-release rollout before publishing.** Version still `0.3.24`. With reflow opt-in, a default run
   no longer rewrites every hard-wrapped paragraph, but the release still changes canonical output (a code fence opening
   a list item now follows the marker directly; fences lengthen to outlast backtick runs) and adds a config key, so it

@@ -35,6 +35,10 @@ pub struct Config {
     /// Apply auto-fixes automatically when running `mdlint check`
     #[serde(default = "default_fix")]
     pub fix: bool,
+
+    /// Reflow paragraphs to MD013's `line_length` when running `mdlint format`
+    #[serde(default)]
+    pub reflow: bool,
 }
 
 fn default_default_enabled() -> bool {
@@ -60,6 +64,7 @@ impl Default for Config {
             no_inline_config: false,
             exclude: Vec::new(),
             fix: true,
+            reflow: false,
         }
     }
 }

@@ -34,10 +34,10 @@ pub struct FormatOptions {
     /// When true, `<!-- mdlint-disable MD013 -->` comments are ignored and every
     /// paragraph is reflowed.  Mirrors the config key of the same name.
     pub no_inline_config: bool,
-    /// Whether to reflow at all.  Off unless `[rules.MD013] reflow = true`, and
-    /// off whenever MD013 itself is switched off: disabling the rule inline
-    /// already stops reflow, and the config key is the same switch by another
-    /// spelling.
+    /// Whether to reflow at all.  Off unless the `reflow` config key or the
+    /// `--reflow` flag turns it on, and off whenever MD013 itself is switched
+    /// off: disabling the rule inline already stops reflow, and the config key
+    /// is the same switch by another spelling.
     pub reflow: bool,
 }
 
@@ -52,26 +52,24 @@ impl Default for FormatOptions {
 }
 
 impl From<&Config> for FormatOptions {
-    /// Reflow is opt-in via `[rules.MD013] reflow = true`.  MD013's
+    /// Reflow is opt-in via the top-level `reflow` key.  MD013's
     /// `enabled = false` (or `default_enabled = false` without enabling it)
     /// switches it off along with the lint -- the inline directive and the
     /// config key are the same switch spelled two ways, so
     /// `Config::rule_enabled` is the single source of truth for both.
     fn from(config: &Config) -> Self {
-        let param = |key: &str| match config.rules.get("MD013") {
-            Some(RuleConfig::Config(params)) => params.get(key),
+        let width = match config.rules.get("MD013") {
+            Some(RuleConfig::Config(params)) => params.get("line_length"),
             _ => None,
-        };
-        let width = param("line_length")
-            .and_then(toml::Value::as_integer)
-            .and_then(|value| usize::try_from(value).ok())
-            .filter(|&width| width > 0)
-            .unwrap_or(DEFAULT_WIDTH);
+        }
+        .and_then(toml::Value::as_integer)
+        .and_then(|value| usize::try_from(value).ok())
+        .filter(|&width| width > 0)
+        .unwrap_or(DEFAULT_WIDTH);
         Self {
             width,
             no_inline_config: config.no_inline_config,
-            reflow: config.rule_enabled("MD013")
-                && param("reflow").and_then(toml::Value::as_bool) == Some(true),
+            reflow: config.reflow && config.rule_enabled("MD013"),
         }
     }
 }

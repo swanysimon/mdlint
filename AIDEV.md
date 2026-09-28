@@ -13,7 +13,7 @@ Goal: `mdlint format` discards the soft line breaks inside a paragraph and refil
 Decisions already made:
 
 - Reflow was planned **on by default** with no opt-in flag. Reversed after delivery (see "Opt-in" below): it ships off,
-  enabled with `[rules.MD013] reflow = true`.
+  enabled with `--reflow` or a top-level `reflow = true`.
 - The fill column is **read from MD013**, not a new config key, so "formatted but MD013-failing" is unrepresentable by
   construction.
 
@@ -276,10 +276,11 @@ Still open:
 
 ## Opt-in
 
-Reflow ships **off by default**. `[rules.MD013] reflow = true` turns it on; `FormatOptions::default()` matches. It lives
-under MD013 because MD013 already supplies the fill column and the off switch: reflow runs only when MD013 is enabled
-*and* `reflow = true`, so an inline `mdlint-disable MD013` or `enabled = false` still stops it. This repository opts in
-(`mdlint.toml`) so the dogfood hooks keep exercising it.
+Reflow ships **off by default**. `--reflow` on `mdlint format`, or a top-level `reflow = true` in `mdlint.toml`, turns
+it on; `--no-reflow` overrides the config for one run; `FormatOptions::default()` matches. This mirrors `fix` / `--fix`
+/ `--no-fix`. The config key exists because the language server has no command line. Reflow still runs only while MD013
+is enabled, so an inline `mdlint-disable MD013` or `enabled = false` stops it even with `--reflow`. This repository opts
+in (`mdlint.toml`) so the dogfood hooks keep exercising it.
 
 Consequence: with reflow off, over-long paragraph lines are MD013 errors that neither `mdlint format` nor
 `mdlint check --fix` fixes. The unbreakable-line exemption is unchanged.

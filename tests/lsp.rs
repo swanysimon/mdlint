@@ -240,7 +240,7 @@ fn formatting_uses_the_config_nearest_the_document() {
     // width 20 makes a two-word line wrap; the default (120) would not.
     std::fs::write(
         dir.path().join("mdlint.toml"),
-        "[rules.MD013]\nline_length = 20\nreflow = true\n",
+        "reflow = true\n[rules.MD013]\nline_length = 20\n",
     )
     .expect("write nested config");
     let file_path = dir.path().join("test.md");
