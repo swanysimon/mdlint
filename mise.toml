@@ -2,9 +2,9 @@
 actionlint = "1.7.12"
 cargo-release = "v1.1.5"
 hadolint = "2.15.1"
-prek = "0.5.1"
+prek = "0.5.2"
 shellcheck = "0.11.0"
-tombi = "1.5.0"
+tombi = "1.5.3"
 
 [tasks.proptest]
 description = "Run formatter property tests with a large case count"
