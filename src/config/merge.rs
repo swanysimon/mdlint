@@ -15,6 +15,7 @@ pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
 
     base.default_enabled = override_cfg.default_enabled;
     base.fix = override_cfg.fix;
+    base.reflow = override_cfg.reflow;
 
     // Override front_matter if set
     if override_cfg.front_matter.is_some() {

@@ -33,3 +33,15 @@ cc 775584889b13b66caab14312b94fea04ac0f051eb08126ab508996b8c316b5dc # shrinks to
 cc 93cbd871c4cfed4c6c8cba29fc7835990a95b10bee92b3e7d1d4fc73fb71a610 # shrinks to s = "Ⓐ~A"
 cc 78ddeb00afa61895bcabf2d9ed03e4d2f51b0d50ce6611597f773aeaa092bc3a # shrinks to s = "<#\\@a>"
 cc b2d4fabb9c4ff31f5285e40382825f48b74de9858fb3ff0e9ea472fd0571061e # shrinks to s = "¡\\\t\r\u{b}"
+cc 110dd189a0d79bd26e9bd3b04f5482a11adc7407624364c87b3302788711363b # shrinks to text = "a #\n---\na a a a a a a a a a a a a a a a a\n", width = 8
+cc f3c82d167354c0a483a4b22ce338bbffedde8a23e66997a144c574d2314124a3 # shrinks to text = "a a a a a a a a a\n1. - a a a a a a a a a\n", width = 8
+cc 0fa1ee24ced554144e25012683fca05ffd565aba79ebc622d9566c1dc61654cb # shrinks to text = "- > a a a a a aaaa a aaaaaaaa aaaaaaa aaa a aaaaaa aaa aaaa aaaa a aa aaaaaaaa\n", width = 8
+cc 808a4ff793fd7e48db34be14c45bca20abb11dfa13f89162805403a72591f17b # shrinks to text = "+ ---\na a a a a a a a a a a a a a a a a a\n", width = 8
+cc c8cebc8ecc5c207fd6bdf9ac41a04bee603ab586769d0450294a22acbf7b6c6e # shrinks to text = "aaaaa a aa aaaa <div> a a a a a a a a a a a a a a a\n", width = 8
+cc 94f66b18f0247fd99cac4983154d8be0c8f27084b29c44ab99b880340ac3f2fe # shrinks to text = "> a a a a a a a a a a a a a a a a\n> <div> a\n", width = 8
+cc 329756d91c95785d93320aa5d1957cc47711f8cbffa624dc061cfd18bb7735f6 # shrinks to text = "1. a\n>\n- a a a a a a a a a a a a a a a a\n", width = 8
+cc 1a2d73bed7eb59e2dc49467f09427d6b7c1990e1d6f5098f1de240d65ed0eb9b # shrinks to text = "> - # a a a a a a a a a a a a a a a a a\n", width = 8
+cc 351a0d6a7a79f3dd27beef49c3f7a4adecdf2f38bca2a2e248d78584b22f95a4 # shrinks to text = "a a a a a a a a a a a a a\n- > - a a a a\n", width = 8
+cc f7306c5a45724b201068d54ed81577e5bf841101ce4450b4bcea2085e584cbcc # shrinks to text = "| a\n--- |\na aaaaaaaa aaaaaa aaa a aaa a a a a a a a a a a\n", width = 8
+cc d75d4356bb164cb251da062d403f8185154752c7d525f45a33ca9a51311a2761 # shrinks to text = "1. a a a a a a a a a a a\n1. # a a\n1. a a a\n", width = 8
+cc bd74d401a96be194f535873d1b06f06c62e7a2a0537d1577755c7cb77132d63f # shrinks to text = "- - aaa ** ** a a a a a a a a a a a a a a a\n", width = 9

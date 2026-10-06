@@ -1,5 +1,6 @@
 use crate::config::loader::find_all_configs;
 use crate::config::{Config, merge_many_configs};
+use crate::error::Result;
 use crate::formatter;
 use crate::lint::LintEngine;
 use crate::server::convert;
@@ -40,7 +41,10 @@ fn did_open(conn: &Connection, notif: &Notification, docs: &mut DocumentStore) {
     let uri = params.text_document.uri;
     let content = params.text_document.text;
     docs.open(uri.clone(), content.clone());
-    let config = load_config(&uri);
+    let config = load_config(&uri).unwrap_or_else(|err| {
+        eprintln!("[mdlint-server] {err}; using default configuration for diagnostics");
+        Config::default()
+    });
     publish_diagnostics(conn, &uri, &content, config);
 }
 
@@ -57,7 +61,10 @@ fn did_change(conn: &Connection, notif: &Notification, docs: &mut DocumentStore)
     };
     let content = change.text;
     docs.update(&uri, content.clone());
-    let config = load_config(&uri);
+    let config = load_config(&uri).unwrap_or_else(|err| {
+        eprintln!("[mdlint-server] {err}; using default configuration for diagnostics");
+        Config::default()
+    });
     publish_diagnostics(conn, &uri, &content, config);
 }
 
@@ -92,12 +99,28 @@ fn formatting(conn: &Connection, req: &Request, docs: &DocumentStore) {
         return;
     };
     let content = content.to_owned();
-    let formatted = formatter::format(&content);
-    let edits: Vec<TextEdit> = if formatted == content {
-        vec![]
-    } else {
-        vec![convert::whole_doc_edit(&content, &formatted)]
+    // Discovered the same way the CLI discovers config (walk up from a
+    // directory, closer files win) but from *this document's* directory
+    // rather than the CLI's cwd -- without this the server would reflow at
+    // the default width while `mdlint format` used the configured one. The
+    // two can still disagree for a nested config: `mdlint format` run from
+    // the repo root uses the root config for every file, while format-on-save
+    // uses whatever config is nearest each document. This is deliberate --
+    // each is the natural default for its context -- not a bug to fix here.
+    // A config
+    // that fails to load must fail the request rather than silently fall back
+    // to defaults -- that would rewrite the document at the wrong width with
+    // no indication anything was wrong.
+    let config = match load_config(uri) {
+        Ok(config) => config,
+        Err(err) => {
+            send_error(conn, req.id.clone(), -32603, &format!("{err}"));
+            return;
+        }
     };
+    let options = formatter::FormatOptions::from(&config);
+    let formatted = formatter::format_with(&content, &options);
+    let edits: Vec<TextEdit> = convert::minimal_edits(&content, &formatted);
     let resp = Response::new_ok(req.id.clone(), edits);
     let _ = conn.sender.send(Message::Response(resp));
 }
@@ -114,7 +137,10 @@ fn code_action(conn: &Connection, req: &Request, docs: &DocumentStore) {
         return;
     };
     let content = content.to_owned();
-    let config = load_config(uri);
+    let config = load_config(uri).unwrap_or_else(|err| {
+        eprintln!("[mdlint-server] {err}; using default configuration for code actions");
+        Config::default()
+    });
     let violations = LintEngine::new(config)
         .lint_content(&content)
         .unwrap_or_default();
@@ -177,12 +203,14 @@ pub fn publish_diagnostics(conn: &Connection, uri: &Uri, content: &str, config: 
     )));
 }
 
-fn load_config(uri: &Uri) -> Config {
+fn load_config(uri: &Uri) -> Result<Config> {
     let dir = convert::uri_to_path(uri)
         .and_then(|p| p.parent().map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."));
-    let configs = find_all_configs(&dir).unwrap_or_default();
-    merge_many_configs(configs.into_iter().map(|(_, c)| c).collect())
+    let configs = find_all_configs(&dir)?;
+    Ok(merge_many_configs(
+        configs.into_iter().map(|(_, c)| c).collect(),
+    ))
 }
 
 fn send_error(conn: &Connection, id: lsp_server::RequestId, code: i32, message: &str) {

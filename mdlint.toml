@@ -1,8 +1,17 @@
 # mdlint configuration for the mdlint repository itself.
 
+# Reflow is opt-in; this repository dogfoods it.
+reflow = true
+
 # Files containing intentionally non-canonical Markdown (test inputs, syntax
 # documentation) are excluded from both check and format.
 exclude = [
   "FORMAT_SPEC.md",
   "tests/fixtures",
 ]
+
+# The rules table in the READMEs is a reference table whose rows run past 120
+# characters. `mdlint format` deliberately does not reflow tables, so checking
+# their width only produces complaints nothing can act on.
+[rules.MD013]
+tables = false

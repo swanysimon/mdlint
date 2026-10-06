@@ -24,6 +24,11 @@ no_inline_config = false
 # When true (default), `mdlint check` automatically applies all auto-fixable
 # violations, equivalent to passing --fix on the command line.
 fix = true
+# When true, `mdlint format` unwraps each paragraph and refills it to
+# rules.MD013.line_length, equivalent to passing --reflow on the command line
+# (--no-reflow overrides it).  Off by default; turning it on rewrites every
+# hard-wrapped paragraph in the project.
+reflow = false
 
 # front_matter = "---"   # Uncomment to fix the front-matter delimiter to YAML
 #                        # only. By default mdlint auto-detects both "---"
@@ -88,7 +93,9 @@ code_blocks = true
 maximum = 1
 
 # MD013 — Line length
-# line_length:         maximum line length (characters).
+# line_length:         maximum line length (characters).  Also the fill column
+#                      `mdlint format` reflows paragraphs to when `reflow` is on.
+#                      Setting `enabled = false` stops reflow regardless.
 # heading_line_length: maximum length for heading lines; kept shorter than prose
 #                      so headings scan well in raw files. Defaults to line_length.
 # code_blocks:         when true, lines inside code blocks are also checked.

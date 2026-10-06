@@ -1,7 +1,8 @@
+use crate::formatter::mk_options;
 use crate::lint::rule::Rule;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
-use pulldown_cmark::{Event, Tag, TagEnd};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -22,7 +23,6 @@ impl Rule for MD013 {
 
     #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; values are small config counts
     #[allow(clippy::too_many_lines)] // rule logic requires checking multiple interacting config flags
-    #[allow(clippy::similar_names)] // `in_code_block` and `is_code_block` are distinct: one tracks parser state, one is a per-line flag
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let line_length = config
             .and_then(|c| c.get("line_length"))
@@ -56,9 +56,10 @@ impl Rule for MD013 {
         let mut code_block_lines = HashSet::new();
         let mut table_lines = HashSet::new();
         let mut link_only_lines = HashSet::new();
+        let mut html_block_lines = HashSet::new();
 
-        let mut in_code_block = false;
         let mut table_start_offset = None;
+        let mut html_block_start_offset = None;
 
         for (event, range) in parser.parse_with_offsets() {
             let line = parser.offset_to_line(range.start);
@@ -67,11 +68,13 @@ impl Rule for MD013 {
                 Event::Start(Tag::Heading { .. }) => {
                     heading_lines.insert(line);
                 }
-                Event::Start(Tag::CodeBlock(_)) => {
-                    in_code_block = true;
-                }
+                // The whole block, fences included: a long info string is as
+                // much a part of the code block as its content, and the
+                // formatter never wraps either.
                 Event::End(TagEnd::CodeBlock) => {
-                    in_code_block = false;
+                    let end_line =
+                        parser.offset_to_line(range.end.saturating_sub(1).max(range.start));
+                    code_block_lines.extend(line..=end_line);
                 }
                 Event::Start(Tag::Table(_)) => {
                     table_start_offset = Some(range.start);
@@ -86,6 +89,19 @@ impl Rule for MD013 {
                     }
                     table_start_offset = None;
                 }
+                Event::Start(Tag::HtmlBlock) => {
+                    html_block_start_offset = Some(range.start);
+                }
+                Event::End(TagEnd::HtmlBlock) => {
+                    if let Some(start_off) = html_block_start_offset {
+                        let start_line = parser.offset_to_line(start_off);
+                        let end_line = parser.offset_to_line(range.end);
+                        for l in start_line..=end_line {
+                            html_block_lines.insert(l);
+                        }
+                    }
+                    html_block_start_offset = None;
+                }
                 Event::Start(Tag::Link { .. } | Tag::Image { .. }) => {
                     // Check if this link/image is the only content on the line
                     if let Some(line_text) = parser.lines().get(line - 1) {
@@ -95,9 +111,6 @@ impl Rule for MD013 {
                             link_only_lines.insert(line);
                         }
                     }
-                }
-                Event::Text(_) if in_code_block => {
-                    code_block_lines.insert(line);
                 }
                 _ => {}
             }
@@ -112,9 +125,16 @@ impl Rule for MD013 {
             let is_code_block = code_block_lines.contains(&line_number);
             let is_table = table_lines.contains(&line_number);
             let is_link_only = link_only_lines.contains(&line_number);
+            let is_html_block = html_block_lines.contains(&line_number);
 
-            // Skip lines that only contain links or images (can't be shortened)
-            if is_link_only {
+            // Skip lines that only contain links or images (can't be shortened),
+            // raw HTML block content (the formatter passes it through verbatim,
+            // with no config flag to opt back in since there is nothing for one
+            // to enable), and prose lines the formatter has no way to break.
+            // Headings, tables, and code blocks are governed by their own config
+            // flags, so an explicit `tables = true` still means "check them".
+            let governed_by_own_flag = is_heading || is_code_block || is_table;
+            if is_link_only || is_html_block || (!governed_by_own_flag && is_unbreakable(line)) {
                 continue;
             }
 
@@ -153,6 +173,68 @@ impl Rule for MD013 {
     fn fixable(&self) -> bool {
         false
     }
+}
+
+/// Whether the formatter has anywhere to break `line`.
+///
+/// `mdlint format` only ever breaks at a space in plain prose text, so a line
+/// whose only spaces sit inside a code span, inline HTML, or a link
+/// destination/title -- or whose only space is the one immediately before an
+/// inline HTML tag, which the formatter withdraws to keep the tag off column 0
+/// -- cannot be shortened by any means the tool has. Reflow produces such
+/// lines deliberately rather than corrupt an atomic construct, so reporting
+/// them is noise the reader cannot act on.
+///
+/// This generalises the older "starts with `[`" check, which missed bare URLs
+/// and autolinks. Both are kept: the older one also exempts link-only lines that
+/// *do* contain spaces.
+///
+/// Applies to prose only. Headings, tables, and code blocks have their own
+/// config flags and are left to those.
+fn is_unbreakable(line: &str) -> bool {
+    !has_breakable_space(content_after_block_markers(line).trim_end())
+}
+
+/// Whether `content` contains a space the formatter would treat as a real
+/// break opportunity, mirroring `formatter::on_text`'s rules exactly: a space
+/// counts only when it comes from plain prose text, never from inside a code
+/// span (`Event::Code`) or inline HTML (`Event::InlineHtml`), and never as the
+/// last character of a text run immediately followed by inline HTML.
+fn has_breakable_space(content: &str) -> bool {
+    let events: Vec<Event<'_>> = Parser::new_ext(content, mk_options()).collect();
+    events.iter().enumerate().any(|(i, event)| {
+        let Event::Text(text) = event else {
+            return false;
+        };
+        let next_is_inline_html = matches!(events.get(i + 1), Some(Event::InlineHtml(_)));
+        let len = text.chars().count();
+        text.chars()
+            .enumerate()
+            .any(|(pos, ch)| ch == ' ' && !(next_is_inline_html && pos + 1 == len))
+    })
+}
+
+/// `line` with its indent, blockquote markers, and one list marker removed, so
+/// that only the content the formatter could rewrap is considered.
+fn content_after_block_markers(line: &str) -> &str {
+    let mut rest = line.trim_start();
+    while let Some(after) = rest.strip_prefix('>') {
+        rest = after.trim_start();
+    }
+
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    if digits > 0 {
+        if let Some(after) = rest[digits..].strip_prefix(['.', ')'])
+            && after.starts_with(' ')
+        {
+            return after.trim_start();
+        }
+    } else if let Some(after) = rest.strip_prefix(['-', '*', '+'])
+        && after.starts_with(' ')
+    {
+        return after.trim_start();
+    }
+    rest
 }
 
 #[cfg(test)]
@@ -243,6 +325,20 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_code_block_ignore_covers_the_fences() {
+        let content = indoc! {"
+            ```text with a very long info string that exceeds the maximum allowed character count
+            short
+            ```"};
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 80, "code_blocks": false });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+
+        let config = serde_json::json!({ "line_length": 80, "code_blocks": true });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 1);
     }
 
     #[test]
@@ -341,5 +437,94 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_html_block_line_is_not_flagged() {
+        // `mdlint format` passes raw HTML block content through verbatim and
+        // never reflows it (same guarantee as code blocks), so a long line
+        // inside one is unfixable noise, not a real violation. Found via the
+        // `formatted_output_never_flags_md013` proptest property.
+        let content =
+            "<div>\na very long line of raw html content that exceeds the limit\n</div>\n";
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 20 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_bare_long_url_is_not_flagged() {
+        // `mdlint format` puts an overlong URL on its own line rather than break
+        // it, so flagging that line would be an unfixable complaint about the
+        // formatter's own output.
+        let content = format!("https://example.com/{}", "segment/".repeat(20));
+        let parser = MarkdownParser::new(&content);
+        let config = serde_json::json!({ "line_length": 80 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_single_long_token_in_a_list_item_is_not_flagged() {
+        let content = format!("- https://example.com/{}", "segment/".repeat(20));
+        let parser = MarkdownParser::new(&content);
+        let config = serde_json::json!({ "line_length": 80 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_long_line_with_a_space_is_still_flagged() {
+        // The exemption must not swallow lines the formatter could have wrapped.
+        let content = format!("word {}", "x".repeat(200));
+        let parser = MarkdownParser::new(&content);
+        let config = serde_json::json!({ "line_length": 80 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 1);
+    }
+
+    #[test]
+    fn test_code_span_with_internal_spaces_is_not_flagged() {
+        // The formatter never breaks inside a code span, so a line that is
+        // nothing but one -- spaces and all -- has nowhere for `format` to put
+        // a break. The old text-scan heuristic saw the internal spaces and
+        // called it breakable, so `format` then `check` disagreed forever.
+        let content = "`a code span with a great many spaces inside it`";
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 40 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_inline_html_with_internal_spaces_is_not_flagged() {
+        // Same as the code-span case, but for an HTML attribute value: the
+        // spaces live inside the tag, which the formatter also never breaks.
+        let content = r#"<span data-attr="a b c d e f g h i j k">t</span>"#;
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 40 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
+    }
+
+    #[test]
+    fn test_space_immediately_before_inline_html_is_not_a_break() {
+        // `format` withdraws the break right before an inline HTML tag (it
+        // would otherwise put the tag at column 0, where it reparses as a
+        // block). A line whose only space sits there is therefore unbreakable
+        // even though the text scan would see a space.
+        let content = r#"alpha <span data-attr="a b c d e f g h i j k">t</span>"#;
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 20 });
+        assert_eq!(
+            MD013.check(&parser, Some(&config)).len(),
+            0,
+            "the only space is before the inline HTML and must not count as a break"
+        );
+    }
+
+    #[test]
+    fn test_link_title_with_internal_spaces_is_not_flagged() {
+        // The link destination and title are never emitted as text the
+        // formatter can rewrap -- they are written verbatim at TagEnd::Link.
+        let content = r#"[t](https://example.com "a title with a great many words inside")"#;
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 40 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
     }
 }
