@@ -543,6 +543,26 @@ fn check_reports_invalid_rule_parameter_and_exits_2() {
 }
 
 #[test]
+fn check_fix_matches_format_when_fixes_share_a_line() {
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("doc.md");
+    let content = "# Title\n\nIntro\n## Heading\nBody\n";
+    fs::write(&file, content).unwrap();
+
+    Command::new(mdlint_bin())
+        .args(["check", "--fix", file.to_str().unwrap()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        formatter::format(content)
+    );
+}
+
+#[test]
 fn check_without_fix_does_not_modify_file() {
     // `check` with `fix = false` must never write to disk.
     // We supply an explicit config because the default has `fix = true`.

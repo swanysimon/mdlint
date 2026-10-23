@@ -73,6 +73,21 @@ impl Fixer {
         Ok(result)
     }
 
+    /// Applies, in document order, every fix that does not overlap one already
+    /// chosen, and reports whether any were left over for another round.
+    pub fn apply_compatible_fixes(&self, content: &str, fixes: &[Fix]) -> Result<(String, bool)> {
+        let mut ordered = fixes.to_vec();
+        ordered.sort_by_key(|fix| (fix.line_start, fix.column_start));
+        let mut chosen: Vec<Fix> = Vec::new();
+        for fix in ordered {
+            if !chosen.iter().any(|kept| fixes_overlap(kept, &fix)) {
+                chosen.push(fix);
+            }
+        }
+        let deferred = chosen.len() < fixes.len();
+        Ok((self.apply_fixes_to_content(content, &chosen)?, deferred))
+    }
+
     /// Apply fixes from a `FileResult` and write to disk
     pub fn apply_file_fixes(&self, file_result: &FileResult) -> Result<()> {
         let fixes: Vec<Fix> = file_result
@@ -336,5 +351,28 @@ mod tests {
         let fixer = Fixer::new();
         let result = fixer.apply_fixes_to_content(content, &[fix]).unwrap();
         assert_eq!(result, "line 1\r\nFIXED\r\nline 3");
+    }
+
+    #[test]
+    fn test_apply_compatible_fixes_defers_overlaps() {
+        let whole_line = |line: usize, replacement: &str| Fix {
+            line_start: line,
+            line_end: line,
+            column_start: None,
+            column_end: None,
+            replacement: replacement.to_owned(),
+            description: String::new(),
+        };
+        let candidates = [
+            whole_line(1, "\na"),
+            whole_line(1, "a\n"),
+            whole_line(2, "B"),
+        ];
+        let (content, deferred) = Fixer::new()
+            .apply_compatible_fixes("a\nb\n", &candidates)
+            .unwrap();
+
+        assert_eq!(content, "\na\nB\n");
+        assert!(deferred);
     }
 }

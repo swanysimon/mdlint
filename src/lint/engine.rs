@@ -1,5 +1,6 @@
 use crate::config::{Config, RuleConfig};
 use crate::error::{MarkdownlintError, Result};
+use crate::fix::Fixer;
 use crate::lint::aliases::aliases_for;
 use crate::lint::{Rule, RuleRegistry};
 use crate::markdown::MarkdownParser;
@@ -107,6 +108,30 @@ impl LintEngine {
             // If default_enabled is true and no specific config exists, enable the rule
             None => enabled_if(self.config.default_enabled),
         }
+    }
+
+    /// Applies every fix `check` can make, linting again between rounds: two
+    /// fixes for one line (a heading missing both blank lines) cannot be
+    /// applied together, and a fix can expose a violation the next round
+    /// fixes. Stops once a round changes nothing.
+    pub fn fix_content(&self, content: &str) -> Result<String> {
+        // Rounds needed grow with fixes per line, which stays small; the cap
+        // only guards against two rules whose fixes undo each other.
+        const MAX_ROUNDS: usize = 10;
+        let mut current = content.to_owned();
+        for _ in 0..MAX_ROUNDS {
+            let round: Vec<_> = self
+                .lint_content(&current)?
+                .into_iter()
+                .filter_map(|v| v.fix)
+                .collect();
+            let (next, _) = Fixer::new().apply_compatible_fixes(&current, &round)?;
+            if next == current {
+                break;
+            }
+            current = next;
+        }
+        Ok(current)
     }
 
     pub fn lint_file(&self, path: &Path) -> Result<Vec<Violation>> {
@@ -658,6 +683,16 @@ mod tests {
     fn test_try_new_skips_disabled_rules() {
         let config = config_with_md025("enabled = false\nfront_matter_title = \"(\"");
         assert!(LintEngine::try_new(config).is_ok());
+    }
+
+    #[test]
+    fn test_fix_content_applies_fixes_for_the_same_line() {
+        // MD022 wants a blank line both above and below the heading: two fixes
+        // for one line, which a single Fixer pass refuses as overlapping.
+        let fixed = engine_all_rules()
+            .fix_content("Intro\n# Heading\nBody")
+            .unwrap();
+        assert_eq!(fixed, "Intro\n\n# Heading\n\nBody\n");
     }
 
     /// Acceptance test for GitHub issue #51: front matter and HTML comments
