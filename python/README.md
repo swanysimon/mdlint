@@ -275,7 +275,8 @@ YAML/TOML front matter is excluded from every rule and is not parsed as Markdown
 treated as the document's primary top-level heading, so MD025 (multiple top-level headings) and MD041 (first line
 should be a top-level heading) are satisfied by it instead of requiring a `#` heading in the body. As in markdownlint,
 the field is found by each rule's `front_matter_title` pattern, a case-insensitive regular expression matched against
-every front matter line (default `^\s*"?title"?\s*[:=]`); set it to `""` to turn this off.
+every front matter line (default `^\s*"?title"?\s*[:=]`); set it to `""` to turn this off. An invalid pattern is
+a configuration error.
 
 HTML comments (`<!-- ... -->`, including multi-line comments) are excluded from every rule except MD013 (line
 length), since line length is a property of the raw line rather than of Markdown semantics. A `<!--` inside a code

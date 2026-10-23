@@ -514,6 +514,35 @@ fn format_rewrites_file_in_place() {
 // ── `mdlint check` CLI ───────────────────────────────────────────────────────
 
 #[test]
+fn check_reports_invalid_rule_parameter_and_exits_2() {
+    let dir = TempDir::new().unwrap();
+    let config = dir.path().join("mdlint.toml");
+    fs::write(&config, "[rules.MD041]\nfront_matter_title = \"(\"\n").unwrap();
+    let file = dir.path().join("doc.md");
+    fs::write(&file, "# Heading\n").unwrap();
+
+    let output = Command::new(mdlint_bin())
+        .args([
+            "check",
+            "--config",
+            config.to_str().unwrap(),
+            file.to_str().unwrap(),
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with(
+            "error: Configuration error: rules.MD041: front_matter_title is not a valid regular expression"
+        ),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn check_without_fix_does_not_modify_file() {
     // `check` with `fix = false` must never write to disk.
     // We supply an explicit config because the default has `fix = true`.

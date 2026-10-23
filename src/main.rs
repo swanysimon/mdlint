@@ -17,7 +17,13 @@ use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    process::exit(run().map_or(2i32, i32::from));
+    match run() {
+        Ok(found_problems) => process::exit(i32::from(found_problems)),
+        Err(e) => {
+            eprintln!("error: {e}");
+            process::exit(2);
+        }
+    }
 }
 
 fn run() -> Result<bool> {
@@ -163,7 +169,7 @@ type FileOutcome = Result<(PathBuf, Vec<Violation>, Vec<String>)>;
 fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
     use rayon::prelude::*;
 
-    let engine = LintEngine::new(config);
+    let engine = LintEngine::try_new(config)?;
     let outcomes: Vec<FileOutcome> = files
         .par_iter()
         .map(|file_path| {
@@ -190,7 +196,7 @@ fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Resu
 }
 
 fn lint_files(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
-    let engine = LintEngine::new(config);
+    let engine = LintEngine::try_new(config)?;
     let mut lint_result = LintResult::new();
 
     for file_path in files {

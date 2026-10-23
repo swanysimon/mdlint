@@ -112,7 +112,7 @@ siblings_only = false
 # MD025 — Multiple top-level headings in the same document
 # front_matter_title: case-insensitive regular expression matched against each
 #   front matter line; a match counts as the document's first top-level heading.
-#   "" disables this.
+#   "" disables this; an invalid pattern stops `mdlint check` with an error.
 [rules.MD025]
 front_matter_title = '^\s*"?title"?\s*[:=]'
 

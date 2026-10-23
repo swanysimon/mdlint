@@ -15,6 +15,12 @@ pub trait Rule: Send + Sync {
     fn fixable(&self) -> bool {
         false
     }
+
+    /// Rejects parameters `check` cannot use, so a mistake in the config file
+    /// fails loudly instead of silently changing what the rule reports.
+    fn validate_config(&self, _config: &Value) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 #[derive(Default)]

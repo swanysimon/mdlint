@@ -1,5 +1,5 @@
 use crate::lint::rule::Rule;
-use crate::lint::rules::front_matter_title_line;
+use crate::lint::rules::{front_matter_title_line, validate_front_matter_title};
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
 use pulldown_cmark::{Event, HeadingLevel, Tag};
@@ -93,6 +93,10 @@ impl Rule for MD041 {
 
     fn fixable(&self) -> bool {
         false
+    }
+
+    fn validate_config(&self, config: &Value) -> Result<(), String> {
+        validate_front_matter_title(config)
     }
 }
 
@@ -204,5 +208,15 @@ mod tests {
         let violations = MD041.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 1);
+    }
+
+    #[test]
+    fn test_validate_config_rejects_invalid_front_matter_title() {
+        let invalid = serde_json::json!({ "level": 1, "front_matter_title": "[" });
+        assert!(MD041.validate_config(&invalid).is_err());
+        assert_eq!(
+            MD041.validate_config(&serde_json::json!({ "level": 1 })),
+            Ok(())
+        );
     }
 }

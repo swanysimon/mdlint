@@ -1,5 +1,5 @@
 use crate::lint::rule::Rule;
-use crate::lint::rules::front_matter_title_line;
+use crate::lint::rules::{front_matter_title_line, validate_front_matter_title};
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
 use pulldown_cmark::{Event, HeadingLevel, Tag};
@@ -53,6 +53,10 @@ impl Rule for MD025 {
 
     fn fixable(&self) -> bool {
         false
+    }
+
+    fn validate_config(&self, config: &Value) -> Result<(), String> {
+        validate_front_matter_title(config)
     }
 }
 
@@ -175,5 +179,29 @@ mod tests {
         let violations = MD025.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_config_rejects_invalid_front_matter_title() {
+        let invalid = serde_json::json!({ "front_matter_title": "^(title" });
+        let error = MD025.validate_config(&invalid).unwrap_err();
+        assert!(
+            error.starts_with("front_matter_title is not a valid regular expression"),
+            "{error}"
+        );
+
+        let not_a_string = serde_json::json!({ "front_matter_title": 5 });
+        assert_eq!(
+            MD025.validate_config(&not_a_string).unwrap_err(),
+            "front_matter_title must be a string, got 5"
+        );
+
+        for valid in [
+            serde_json::json!({}),
+            serde_json::json!({ "front_matter_title": "" }),
+            serde_json::json!({ "front_matter_title": "^headline:" }),
+        ] {
+            assert_eq!(MD025.validate_config(&valid), Ok(()));
+        }
     }
 }

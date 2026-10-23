@@ -1,5 +1,5 @@
 use crate::config::{Config, RuleConfig};
-use crate::error::Result;
+use crate::error::{MarkdownlintError, Result};
 use crate::lint::aliases::aliases_for;
 use crate::lint::{Rule, RuleRegistry};
 use crate::markdown::MarkdownParser;
@@ -24,6 +24,25 @@ impl LintEngine {
             registry,
             directives,
         }
+    }
+
+    /// Like `new`, but first rejects rule parameters the rules cannot use.
+    pub fn try_new(config: Config) -> Result<Self> {
+        let engine = Self::new(config);
+        engine.validate()?;
+        Ok(engine)
+    }
+
+    /// Checks every enabled rule's parameters with `Rule::validate_config`.
+    pub fn validate(&self) -> Result<()> {
+        for rule in self.registry.all_rules() {
+            if let RuleSetting::Enabled(Some(config)) = self.rule_config(rule) {
+                rule.validate_config(&config).map_err(|message| {
+                    MarkdownlintError::Config(format!("rules.{}: {message}", rule.name()))
+                })?;
+            }
+        }
+        Ok(())
     }
 
     pub fn lint_content(&self, content: &str) -> Result<Vec<Violation>> {
@@ -58,39 +77,48 @@ impl LintEngine {
     }
 
     fn violations(&self, parser: &MarkdownParser, rule: &dyn Rule) -> Vec<Violation> {
-        let rule_config = self.config.config().get(rule.name());
-        let config_value = match rule_config {
-            Some(RuleConfig::Enabled(false)) => return Vec::new(),
-            Some(RuleConfig::Enabled(true)) => None,
+        match self.rule_config(rule) {
+            RuleSetting::Enabled(config) => rule.check(parser, config.as_ref()),
+            RuleSetting::Disabled => Vec::new(),
+        }
+    }
+
+    fn rule_config(&self, rule: &dyn Rule) -> RuleSetting {
+        let enabled_if = |enabled: bool| {
+            if enabled {
+                RuleSetting::Enabled(None)
+            } else {
+                RuleSetting::Disabled
+            }
+        };
+        match self.config.config().get(rule.name()) {
+            Some(RuleConfig::Enabled(enabled)) => enabled_if(*enabled),
             Some(RuleConfig::Config(cfg)) => {
                 // Convert TOML config to JSON for rule consumption
                 let mut table = toml::map::Map::new();
                 table.extend(cfg.clone());
-                let toml_value = toml::Value::Table(table);
-                let json_value: Value = toml_to_json(toml_value);
-
-                if let Some(Value::Bool(false)) = json_value.get("enabled") {
-                    return Vec::new();
-                }
-                Some(json_value)
-            }
-            None => {
-                // If default_enabled is true and no specific config exists, enable the rule
-                if self.config.default_enabled {
-                    None
+                let json_value = toml_to_json(toml::Value::Table(table));
+                if matches!(json_value.get("enabled"), Some(Value::Bool(false))) {
+                    RuleSetting::Disabled
                 } else {
-                    return Vec::new();
+                    RuleSetting::Enabled(Some(json_value))
                 }
             }
-        };
-
-        rule.check(parser, config_value.as_ref())
+            // If default_enabled is true and no specific config exists, enable the rule
+            None => enabled_if(self.config.default_enabled),
+        }
     }
 
     pub fn lint_file(&self, path: &Path) -> Result<Vec<Violation>> {
         let content = std::fs::read_to_string(path)?;
         self.lint_content(&content)
     }
+}
+
+/// Whether a rule runs, and with which parameters (as JSON).
+enum RuleSetting {
+    Disabled,
+    Enabled(Option<Value>),
 }
 
 /// Resolves the rule names a directive lists — rule codes, markdownlint
@@ -604,6 +632,32 @@ mod tests {
             violations.iter().all(|v| v.rule != "MD018"),
             "{violations:?}"
         );
+    }
+
+    fn config_with_md025(params: &str) -> Config {
+        toml::from_str(&format!(
+            "default_enabled = true\n[rules.MD025]\n{params}\n"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_try_new_rejects_invalid_rule_parameter() {
+        let Err(error) = LintEngine::try_new(config_with_md025(r#"front_matter_title = "(""#))
+        else {
+            panic!("an invalid front_matter_title should be rejected");
+        };
+        let message = error.to_string();
+        assert!(
+            message.starts_with("Configuration error: rules.MD025: front_matter_title"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn test_try_new_skips_disabled_rules() {
+        let config = config_with_md025("enabled = false\nfront_matter_title = \"(\"");
+        assert!(LintEngine::try_new(config).is_ok());
     }
 
     /// Acceptance test for GitHub issue #51: front matter and HTML comments
