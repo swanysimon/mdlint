@@ -69,7 +69,8 @@ characters. Heading text is not modified (content is preserved as-is).
 Every heading is preceded by exactly one blank line and followed by exactly one blank line, except:
 
 - A heading at the very start of the file has no preceding blank line.
-- A heading immediately following front matter has no preceding blank line.
+- A heading directly above or below an HTML comment keeps the author's spacing (see
+  [HTML Comments](#html-comments)).
 
 ```markdown
 # Document Title
@@ -234,7 +235,21 @@ Not: a heading preceded by spaces (e.g., two spaces then `# heading`)
 ### Front Matter
 
 Front matter (YAML `---` blocks or TOML `+++` blocks) at the start of a file is passed through
-verbatim. The formatter does not modify front matter content.
+verbatim, trailing whitespace included: YAML block scalars and TOML multi-line strings treat it as
+content. It is never parsed as Markdown. Exactly one blank line separates it from the body, as
+between any two blocks. Front matter is detected exactly as `mdlint check` detects it.
+
+Formatting never creates front matter. When canonical output would open like a front matter block
+although the input did not (`***` becomes `---`, for instance), the output keeps one leading blank
+line, which `CommonMark` ignores.
+
+### HTML Comments
+
+An HTML comment block keeps the author's spacing to its neighbours: when no blank line separates it
+from the block above or below, the formatter adds none; otherwise exactly one. `mdlint check`
+likewise treats a comment line as blank for MD022, MD031, and MD032, so both spacings are accepted.
+This matters for correctness, not just style: `<!-- mdlint-disable-next-line MD025 -->` applies to
+the line directly below it, and a blank line inserted there would silently disable the directive.
 
 ---
 
@@ -262,7 +277,7 @@ Given any CommonMark-compliant input:
 1. `format(input)` produces output that is semantically equivalent to `input`.
 2. `format(format(input)) == format(input)` (idempotency).
 3. `format(input)` ends with exactly one `\n`.
-4. `format(input)` contains no trailing whitespace on any line.
+4. `format(input)` contains no trailing whitespace on any line outside front matter.
 5. `format(input)` parses as valid CommonMark.
 
 ---
