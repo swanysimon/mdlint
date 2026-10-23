@@ -1245,3 +1245,73 @@ fn check_with_fix_corrects_violations_and_exits_1() {
         "trailing spaces should be removed by --fix"
     );
 }
+
+// ── scaling ──────────────────────────────────────────────────────────────────
+//
+// Reflow records a break opportunity for every space and then picks lines out of
+// that list, so a careless lookup is quadratic in the size of one paragraph. The
+// shapes below are the ones that exposed it: all of a document's prose in a
+// single paragraph, either hard-wrapped over many source lines, on one enormous
+// line, or split into many hard-break segments. Each runs with reflow on and off
+// because the offsets are recorded either way. The bound is far above linear
+// cost and far below quadratic, so it holds on a slow CI machine without being
+// a timing flake.
+
+fn words(count: usize) -> impl Iterator<Item = &'static str> {
+    const WORDS: [&str; 8] = [
+        "lorem",
+        "ipsum",
+        "dolor",
+        "sit",
+        "amet",
+        "consectetur",
+        "adipiscing",
+        "elit",
+    ];
+    (0..count).map(|index| WORDS[index % WORDS.len()])
+}
+
+fn assert_formats_in_linear_time(name: &str, input: &str) {
+    for reflow in [true, false] {
+        let options = formatter::FormatOptions {
+            reflow,
+            ..Default::default()
+        };
+        let start = std::time::Instant::now();
+        let out = formatter::format_with(input, &options);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(5),
+            "{name} (reflow = {reflow}) took {elapsed:?}: formatting is not linear in paragraph size"
+        );
+        assert_eq!(
+            out.split_whitespace().filter(|w| *w != "\\").count(),
+            input.split_whitespace().filter(|w| *w != "\\").count(),
+            "{name} (reflow = {reflow}) lost or gained words"
+        );
+    }
+}
+
+#[test]
+fn one_paragraph_of_many_source_lines_formats_in_linear_time() {
+    let lines: Vec<String> = (0..40_000)
+        .map(|line| words(10 + line % 3).collect::<Vec<_>>().join(" "))
+        .collect();
+    assert_formats_in_linear_time("many source lines", &lines.join("\n"));
+}
+
+#[test]
+fn one_enormous_line_formats_in_linear_time() {
+    let line: Vec<&str> = words(300_000).collect();
+    assert_formats_in_linear_time("one enormous line", &line.join(" "));
+}
+
+#[test]
+fn many_hard_breaks_in_one_paragraph_format_in_linear_time() {
+    let lines: Vec<String> = (0..30_000)
+        .map(|_| format!("{} \\", words(8).collect::<Vec<_>>().join(" ")))
+        .collect();
+    // A backslash ending the paragraph is literal text, not a break.
+    let input = format!("{}\nend", lines.join("\n"));
+    assert_formats_in_linear_time("many hard breaks", &input);
+}

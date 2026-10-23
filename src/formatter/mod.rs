@@ -1125,11 +1125,7 @@ impl FormatterState {
             // Break opportunities recorded against `inline`, rebased onto this
             // segment.  An offset at `start` would be a leading space, and one at
             // the segment end is the hard-break newline itself: neither is usable.
-            let breaks: Vec<usize> = offsets
-                .iter()
-                .filter(|&&offset| offset > start && offset < start + segment.len())
-                .map(|&offset| offset - start)
-                .collect();
+            let breaks = breaks_within(&offsets, start, segment.len());
 
             // The opening line continues whatever is already on the output line
             // (a list marker, a footnote label), so its budget is what remains.
@@ -1273,6 +1269,22 @@ fn is_space_significant(prev: Option<char>) -> bool {
     !matches!(prev, None | Some(' ' | '\n'))
 }
 
+/// The ascending break offsets that fall strictly inside the segment of `len`
+/// bytes starting at `start`, rebased to the segment.
+///
+/// `offsets` is sorted, so the range is found by bisection: filtering the whole
+/// list for every segment is quadratic when one paragraph has many segments.
+fn breaks_within(offsets: &[usize], start: usize, len: usize) -> Vec<usize> {
+    let first = offsets.partition_point(|&offset| offset <= start);
+    let end = offsets.partition_point(|&offset| offset < start + len);
+    offsets
+        .get(first..end)
+        .unwrap_or_default()
+        .iter()
+        .map(|&offset| offset - start)
+        .collect()
+}
+
 /// Greedily break `segment` into lines fitting the given character budgets,
 /// breaking only at the ascending byte offsets in `breaks` (each a space that
 /// the break replaces). `first_line_is_continuation` tells the budget
@@ -1333,7 +1345,14 @@ fn line_end(
     width: usize,
     cont_width: usize,
 ) -> usize {
-    if segment[start..].chars().count() <= width {
+    // Counting stops one past the budget: the rest of the segment can be far
+    // longer, and recounting it for every line is quadratic.
+    if segment[start..]
+        .chars()
+        .take(width.saturating_add(1))
+        .count()
+        <= width
+    {
         return segment.len();
     }
     next_break(segment, breaks, start, width).map_or(segment.len(), |chosen| {
@@ -1345,13 +1364,21 @@ fn line_end(
 /// available: the furthest one that still fits, or -- when even the first word
 /// overflows -- the first one past the budget.
 fn next_break(segment: &str, breaks: &[usize], start: usize, width: usize) -> Option<usize> {
-    breaks
-        .iter()
-        .copied()
-        .filter(|&offset| offset > start)
-        .take_while(|&offset| segment[start..offset].chars().count() <= width)
-        .last()
-        .or_else(|| breaks.iter().copied().find(|&offset| offset > start))
+    // `breaks` is ascending, so bisection finds the first candidate and the scan
+    // that follows stops at the budget instead of walking the whole list.
+    let first = breaks.partition_point(|&offset| offset <= start);
+    let mut chosen = None;
+    let mut column = 0;
+    let mut previous = start;
+    for &offset in breaks.get(first..).unwrap_or_default() {
+        column += segment[previous..offset].chars().count();
+        if column > width {
+            break;
+        }
+        chosen = Some(offset);
+        previous = offset;
+    }
+    chosen.or_else(|| breaks.get(first).copied())
 }
 
 /// Pull `chosen` back to an earlier break when the line it would open re-parses
@@ -1375,13 +1402,13 @@ fn retreat_past_structure(
             return candidate;
         }
         // Strictly decreasing, so this terminates.
-        match breaks
-            .iter()
-            .copied()
-            .rev()
-            .find(|&offset| offset > start && offset < candidate)
+        let before = breaks.partition_point(|&offset| offset < candidate);
+        match before
+            .checked_sub(1)
+            .and_then(|index| breaks.get(index))
+            .filter(|&&offset| offset > start)
         {
-            Some(earlier) => candidate = earlier,
+            Some(&earlier) => candidate = earlier,
             None => return chosen,
         }
     }
