@@ -1,66 +1,64 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[allow(clippy::struct_excessive_bools)] // config struct mirrors TOML fields 1:1; bools are the right representation
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Config {
     /// Rule configuration: rule name -> config
     #[serde(default)]
     pub rules: HashMap<String, RuleConfig>,
 
-    /// Enable all rules by default
-    #[serde(default = "default_default_enabled")]
-    pub default_enabled: bool,
+    /// Enable all rules by default. `None` means "not set by this config", which is what lets
+    /// merging tell an omitted value apart from one the user explicitly set to the default;
+    /// read it through [`Config::default_enabled`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_enabled: Option<bool>,
 
     /// Custom rule paths (for future extension)
     #[serde(default)]
     pub custom_rules: Vec<String>,
 
-    /// Respect .gitignore files when discovering files
-    #[serde(default = "default_gitignore")]
-    pub gitignore: bool,
+    /// Respect .gitignore files when discovering files; read it through [`Config::gitignore`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gitignore: Option<bool>,
 
     /// Front matter pattern (YAML --- or TOML +++)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub front_matter: Option<String>,
 
-    /// Disable inline configuration comments
-    #[serde(default)]
-    pub no_inline_config: bool,
+    /// Disable inline configuration comments; read it through [`Config::no_inline_config`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub no_inline_config: Option<bool>,
 
     /// Paths and glob patterns to exclude from file discovery
     #[serde(default)]
     pub exclude: Vec<String>,
 
-    /// Apply auto-fixes automatically when running `mdlint check`
-    #[serde(default = "default_fix")]
-    pub fix: bool,
+    /// Apply auto-fixes automatically when running `mdlint check`; read it through
+    /// [`Config::fix`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fix: Option<bool>,
 }
 
-fn default_default_enabled() -> bool {
-    true
-}
+/// Built-in defaults, used for every option no config in the chain sets.
+impl Config {
+    #[must_use]
+    pub fn default_enabled(&self) -> bool {
+        self.default_enabled.unwrap_or(true)
+    }
 
-fn default_gitignore() -> bool {
-    true
-}
+    #[must_use]
+    pub fn gitignore(&self) -> bool {
+        self.gitignore.unwrap_or(true)
+    }
 
-fn default_fix() -> bool {
-    true
-}
+    #[must_use]
+    pub fn no_inline_config(&self) -> bool {
+        self.no_inline_config.unwrap_or_default()
+    }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            rules: HashMap::new(),
-            default_enabled: true,
-            custom_rules: Vec::new(),
-            gitignore: default_gitignore(),
-            front_matter: None,
-            no_inline_config: false,
-            exclude: Vec::new(),
-            fix: true,
-        }
+    #[must_use]
+    pub fn fix(&self) -> bool {
+        self.fix.unwrap_or(true)
     }
 }
 
@@ -94,7 +92,7 @@ impl Config {
     pub fn apply_rule_filters(mut self, select: &[String], ignore: &[String]) -> Self {
         let select_all = select.iter().any(|code| code.eq_ignore_ascii_case("all"));
         if !select.is_empty() && !select_all {
-            self.default_enabled = false;
+            self.default_enabled = Some(false);
             for code in select {
                 self.rules
                     .entry(code.to_uppercase())
@@ -118,14 +116,14 @@ mod tests {
     #[test]
     fn select_empty_is_noop() {
         let config = Config::default().apply_rule_filters(&[], &[]);
-        assert!(config.default_enabled);
+        assert!(config.default_enabled());
         assert!(config.rules.is_empty());
     }
 
     #[test]
     fn select_restricts_to_listed_rules() {
         let config = Config::default().apply_rule_filters(&["md001".to_owned()], &[]);
-        assert!(!config.default_enabled);
+        assert!(!config.default_enabled());
         assert!(matches!(
             config.rules.get("MD001"),
             Some(RuleConfig::Enabled(true))
@@ -136,7 +134,7 @@ mod tests {
     #[test]
     fn select_all_is_noop() {
         let config = Config::default().apply_rule_filters(&["ALL".to_owned()], &[]);
-        assert!(config.default_enabled);
+        assert!(config.default_enabled());
         assert!(config.rules.is_empty());
     }
 

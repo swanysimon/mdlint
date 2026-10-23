@@ -1715,7 +1715,7 @@ mod tests {
         use crate::lint::LintEngine;
 
         let engine = LintEngine::new(Config {
-            default_enabled: true,
+            default_enabled: Some(true),
             ..Config::default()
         });
         let inputs = [

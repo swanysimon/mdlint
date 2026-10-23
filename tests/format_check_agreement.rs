@@ -23,7 +23,7 @@ fn formatter_owned_rules() -> HashSet<String> {
 
 fn engine() -> LintEngine {
     LintEngine::new(Config {
-        default_enabled: true,
+        default_enabled: Some(true),
         ..Config::default()
     })
 }

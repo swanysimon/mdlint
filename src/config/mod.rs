@@ -1,3 +1,4 @@
+mod embedded;
 pub mod loader;
 mod merge;
 mod types;
