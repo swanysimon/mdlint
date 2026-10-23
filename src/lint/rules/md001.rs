@@ -147,4 +147,15 @@ mod tests {
 
         assert_eq!(violations.len(), 0);
     }
+
+    #[test]
+    fn test_front_matter_is_not_a_heading() {
+        // `title: T` above the closing `---` would otherwise be a setext h2,
+        // making the first real heading look like a skip from h2 to h4.
+        let content = "---\ntitle: T\n---\n\n#### Deep\n";
+        let parser = MarkdownParser::new(content);
+        let violations = MD001.check(&parser, None);
+
+        assert_eq!(violations.len(), 0, "{violations:?}");
+    }
 }

@@ -109,6 +109,38 @@ pub use md059::MD059;
 pub use md060::MD060;
 
 use crate::lint::rule::RuleRegistry;
+use crate::markdown::MarkdownParser;
+use regex::RegexBuilder;
+use serde_json::Value;
+
+/// markdownlint's default `front_matter_title` pattern.
+const DEFAULT_FRONT_MATTER_TITLE: &str = r#"^\s*"?title"?\s*[:=]"#;
+
+/// Returns the line of the front matter field that stands in for the
+/// document's top-level heading (MD025, MD041), as markdownlint does. The
+/// field is found by the rule's `front_matter_title` pattern, matched
+/// case-insensitively against each front matter line; an empty pattern turns
+/// the behaviour off, and so does an invalid one.
+pub(crate) fn front_matter_title_line(
+    parser: &MarkdownParser,
+    config: Option<&Value>,
+) -> Option<usize> {
+    if !parser.is_front_matter_line(1) {
+        return None;
+    }
+    let pattern = config
+        .and_then(|c| c.get("front_matter_title"))
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_FRONT_MATTER_TITLE);
+    if pattern.is_empty() {
+        return None;
+    }
+    let pattern = RegexBuilder::new(pattern)
+        .case_insensitive(true)
+        .build()
+        .ok()?;
+    parser.front_matter_line_matching(&pattern)
+}
 
 /// Create a registry with all built-in rules
 #[must_use]

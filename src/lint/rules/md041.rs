@@ -1,4 +1,5 @@
 use crate::lint::rule::Rule;
+use crate::lint::rules::front_matter_title_line;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
 use pulldown_cmark::{Event, HeadingLevel, Tag};
@@ -21,9 +22,7 @@ impl Rule for MD041 {
 
     #[allow(clippy::cast_possible_truncation)] // serde_json gives u64; heading level is always ≤ 6
     fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
-        // A front matter `title` field stands in for the top-level heading,
-        // matching markdownlint's `front_matter_title` convention (see MD025).
-        if parser.front_matter_title().is_some() {
+        if front_matter_title_line(parser, config).is_some() {
             return Vec::new();
         }
 
@@ -193,6 +192,16 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD041;
         let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 1);
+    }
+
+    #[test]
+    fn test_front_matter_title_empty_pattern_disables() {
+        let content = "---\ntitle: My Title\n---\n\nContent with no heading";
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "front_matter_title": "" });
+        let violations = MD041.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 1);
     }

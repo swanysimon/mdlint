@@ -1,4 +1,5 @@
 use crate::lint::rule::Rule;
+use crate::lint::rules::front_matter_title_line;
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
 use pulldown_cmark::{Event, HeadingLevel, Tag};
@@ -19,11 +20,9 @@ impl Rule for MD025 {
         &["headings", "headers"]
     }
 
-    fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
+    fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
         let mut violations = Vec::new();
-        // A front matter `title` field stands in for the document's first
-        // top-level heading, per markdownlint's `front_matter_title` convention.
-        let mut first_h1_line: Option<usize> = parser.front_matter_title_line();
+        let mut first_h1_line = front_matter_title_line(parser, config);
 
         for (event, range) in parser.parse_with_offsets() {
             if let Event::Start(Tag::Heading {
@@ -32,9 +31,6 @@ impl Rule for MD025 {
             }) = event
             {
                 let line = parser.offset_to_line(range.start);
-                if parser.front_matter_lines().contains(&line) {
-                    continue;
-                }
 
                 if let Some(first_line) = first_h1_line {
                     violations.push(Violation {
@@ -142,6 +138,41 @@ mod tests {
         let parser = MarkdownParser::new(content);
         let rule = MD025;
         let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_front_matter_title_matches_case_insensitively() {
+        let content = "---\nTitle: My Title\n---\n\n# Body Heading\n";
+        let parser = MarkdownParser::new(content);
+        let violations = MD025.check(&parser, None);
+
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:5:1: MD025 Multiple top-level headings (first h1 at line 2)"]
+        );
+    }
+
+    #[test]
+    fn test_front_matter_title_custom_pattern() {
+        let content = "---\ntitle: x\nheadline: My Title\n---\n\n# Body Heading\n";
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "front_matter_title": "^headline:" });
+        let violations = MD025.check(&parser, Some(&config));
+
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:6:1: MD025 Multiple top-level headings (first h1 at line 3)"]
+        );
+    }
+
+    #[test]
+    fn test_front_matter_title_empty_pattern_disables() {
+        let content = "---\ntitle: My Title\n---\n\n# Body Heading\n";
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "front_matter_title": "" });
+        let violations = MD025.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
     }

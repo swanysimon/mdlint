@@ -1,22 +1,29 @@
 use crate::config::{Config, RuleConfig};
 use crate::error::Result;
+use crate::lint::aliases::aliases_for;
 use crate::lint::{Rule, RuleRegistry};
 use crate::markdown::MarkdownParser;
 use crate::types::Violation;
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 pub struct LintEngine {
     config: Config,
     registry: RuleRegistry,
+    directives: DirectiveNames,
 }
 
 impl LintEngine {
     #[must_use]
     pub fn new(config: Config) -> Self {
         let registry = crate::lint::rules::create_default_registry();
-        Self { config, registry }
+        let directives = DirectiveNames::new(&registry);
+        Self {
+            config,
+            registry,
+            directives,
+        }
     }
 
     pub fn lint_content(&self, content: &str) -> Result<Vec<Violation>> {
@@ -32,25 +39,17 @@ impl LintEngine {
         // Comments are excluded from every rule except MD013, since line length
         // is a mechanical property of the raw line, not a markdown-semantics one.
         violations.retain(|v| {
-            !parser.front_matter_lines().contains(&v.line)
+            !parser.is_front_matter_line(v.line)
                 && (v.rule == "MD013" || !parser.comment_lines().contains(&v.line))
         });
 
         if !self.config.no_inline_config {
-            let all_rule_names: Vec<String> = self
-                .registry
-                .all_rules()
-                .map(|rule| rule.name().to_owned())
-                .collect();
-            let suppressed = parse_inline_config(content, &all_rule_names);
+            let suppressed = parse_inline_config(&parser, &self.directives);
             if !suppressed.is_empty() {
                 violations.retain(|v| {
-                    let line = v.line;
-                    let all = suppressed.get("*").is_some_and(|s| s.contains(&line));
-                    let specific = suppressed
+                    suppressed
                         .get(v.rule.as_str())
-                        .is_some_and(|s| s.contains(&line));
-                    !all && !specific
+                        .is_none_or(|lines| !lines.contains(&v.line))
                 });
             }
         }
@@ -94,7 +93,52 @@ impl LintEngine {
     }
 }
 
-/// Parse inline configuration comments from document content.
+/// Resolves the rule names a directive lists — rule codes, markdownlint
+/// aliases, and tags, all case-insensitive as in markdownlint — to rule codes.
+struct DirectiveNames {
+    all: Vec<String>,
+    by_name: HashMap<String, Vec<String>>,
+}
+
+impl DirectiveNames {
+    fn new(registry: &RuleRegistry) -> Self {
+        let mut by_name: HashMap<String, Vec<String>> = HashMap::new();
+        for rule in registry.all_rules() {
+            let code = rule.name();
+            let mut add = |name: &str| {
+                by_name
+                    .entry(name.to_ascii_uppercase())
+                    .or_default()
+                    .push(code.to_owned());
+            };
+            add(code);
+            aliases_for(code).for_each(&mut add);
+            rule.tags().iter().copied().for_each(add);
+        }
+        let all = registry
+            .all_rules()
+            .map(|rule| rule.name().to_owned())
+            .collect();
+        Self { all, by_name }
+    }
+
+    /// The rules a directive targets: every rule when it names none, otherwise
+    /// the ones its names resolve to. Unknown names resolve to nothing rather
+    /// than widening the directive to every rule.
+    fn resolve(&self, names: &[String]) -> Vec<String> {
+        if names.is_empty() {
+            return self.all.clone();
+        }
+        names
+            .iter()
+            .filter_map(|name| self.by_name.get(&name.to_ascii_uppercase()))
+            .flatten()
+            .cloned()
+            .collect()
+    }
+}
+
+/// Parse inline configuration comments.
 ///
 /// Both `mdlint-` and `markdownlint-` prefixes are accepted as equivalent aliases.
 /// Supports:
@@ -105,55 +149,71 @@ impl LintEngine {
 /// - `<!-- mdlint-capture -->` / `<!-- mdlint-restore -->` — push/pop the current
 ///   disable/enable state, so a block of directives can be undone as a unit.
 ///
+/// Only comments Markdown recognises count, so a directive shown in a code
+/// block or code span is an example, not an instruction.
+///
 /// Returns a map from rule name to the set of suppressed line numbers.
 fn parse_inline_config(
-    content: &str,
-    all_rule_names: &[String],
+    parser: &MarkdownParser,
+    names: &DirectiveNames,
 ) -> HashMap<String, HashSet<usize>> {
+    let mut suppressed: HashMap<String, HashSet<usize>> = HashMap::new();
+    let mut suppress = |rules: Vec<String>, line: usize| {
+        for rule in rules {
+            suppressed.entry(rule).or_default().insert(line);
+        }
+    };
+
+    // Directives that change the running state, keyed by the line they start on.
+    let mut stateful: BTreeMap<usize, Vec<(DirectiveKind, Vec<String>)>> = BTreeMap::new();
+    for comment in parser.comments() {
+        let Some((kind, rule_names)) = parser
+            .content()
+            .get(comment.clone())
+            .and_then(parse_directive)
+        else {
+            continue;
+        };
+        let start_line = parser.offset_to_line(comment.start);
+        match kind {
+            DirectiveKind::DisableLine => suppress(names.resolve(&rule_names), start_line),
+            DirectiveKind::DisableNextLine => {
+                let end_line = parser.offset_to_line(comment.end.saturating_sub(1));
+                suppress(names.resolve(&rule_names), end_line + 1);
+            }
+            _ => stateful
+                .entry(start_line)
+                .or_default()
+                .push((kind, rule_names)),
+        }
+    }
+
     // `default_disabled` is the state set by a bare disable/enable (applies to
     // every rule); `overrides` holds rule-specific exceptions layered on top of
     // it, so `disable` followed by `enable MD013` means "all rules except MD013".
     let mut default_disabled = false;
     let mut overrides: HashMap<String, bool> = HashMap::new();
     let mut capture_stack: Vec<(bool, HashMap<String, bool>)> = Vec::new();
-    let mut pending_next_line: Option<Vec<String>> = None;
 
-    let mut suppressed: HashMap<String, HashSet<usize>> = HashMap::new();
-
-    for (idx, line) in content.lines().enumerate() {
-        let line_num = idx + 1;
-        let mut disable_line_rules: Vec<String> = Vec::new();
-
-        // A disable-next-line directive on the *previous* line applies here.
-        if let Some(rules) = pending_next_line.take() {
-            for rule in rules {
-                suppressed.entry(rule).or_default().insert(line_num);
-            }
-        }
-
-        for (kind, rule_names) in extract_directives(line) {
+    for line_num in 1..=parser.line_count() {
+        for (kind, rule_names) in stateful.remove(&line_num).unwrap_or_default() {
             match kind {
-                DirectiveKind::Disable => {
-                    if rule_names.is_empty() {
-                        default_disabled = true;
-                        overrides.clear();
-                    } else {
-                        overrides.extend(rule_names.into_iter().map(|r| (r, true)));
-                    }
+                DirectiveKind::Disable if rule_names.is_empty() => {
+                    default_disabled = true;
+                    overrides.clear();
                 }
-                DirectiveKind::Enable => {
-                    if rule_names.is_empty() {
-                        default_disabled = false;
-                        overrides.clear();
-                    } else {
-                        overrides.extend(rule_names.into_iter().map(|r| (r, false)));
-                    }
+                DirectiveKind::Enable if rule_names.is_empty() => {
+                    default_disabled = false;
+                    overrides.clear();
                 }
-                DirectiveKind::DisableLine => {
-                    disable_line_rules.extend(rules_or_all(rule_names, all_rule_names));
-                }
-                DirectiveKind::DisableNextLine => {
-                    pending_next_line = Some(rules_or_all(rule_names, all_rule_names));
+                DirectiveKind::Disable | DirectiveKind::Enable => {
+                    let disabled = matches!(kind, DirectiveKind::Disable);
+                    overrides.extend(
+                        names
+                            .resolve(&rule_names)
+                            .into_iter()
+                            .map(|r| (r, disabled)),
+                    );
                 }
                 DirectiveKind::Capture => {
                     capture_stack.push((default_disabled, overrides.clone()));
@@ -164,24 +224,24 @@ fn parse_inline_config(
                         overrides = o;
                     }
                 }
-            }
-        }
-
-        // Block-level suppression: the state as of *this* line (i.e. including any
-        // disable/enable directive on this line) applies to this line, matching
-        // markdownlint semantics where a disable comment suppresses its own line
-        // and a matching enable comment does not.
-        if default_disabled || !overrides.is_empty() {
-            for rule in all_rule_names {
-                let disabled = *overrides.get(rule).unwrap_or(&default_disabled);
-                if disabled {
-                    suppressed.entry(rule.clone()).or_default().insert(line_num);
+                DirectiveKind::DisableLine | DirectiveKind::DisableNextLine => {
+                    unreachable!("applied when collected")
                 }
             }
         }
 
-        for rule in disable_line_rules {
-            suppressed.entry(rule).or_default().insert(line_num);
+        // The state as of *this* line (i.e. including any disable/enable
+        // directive on this line) applies to this line, matching markdownlint
+        // semantics where a disable comment suppresses its own line and a
+        // matching enable comment does not.
+        if default_disabled || !overrides.is_empty() {
+            let disabled = names
+                .all
+                .iter()
+                .filter(|rule| *overrides.get(*rule).unwrap_or(&default_disabled))
+                .cloned()
+                .collect();
+            suppress(disabled, line_num);
         }
     }
 
@@ -197,28 +257,12 @@ enum DirectiveKind {
     Restore,
 }
 
-/// Extract every mdlint/markdownlint directive from a line. Usually a line has at
-/// most one, but each `<!-- ... -->` comment on the line is scanned independently.
-fn extract_directives(line: &str) -> Vec<(DirectiveKind, Vec<String>)> {
-    let mut directives = Vec::new();
-    let mut rest = line;
-    while let Some(start) = rest.find("<!--") {
-        let Some(end) = rest[start..].find("-->") else {
-            break;
-        };
-        let body = rest[start + 4..start + end].trim();
-        if let Some(directive) = parse_directive_body(body) {
-            directives.push(directive);
-        }
-        rest = &rest[start + end + 3..];
-    }
-    directives
-}
-
-/// Parse a single comment body (already stripped of `<!--`/`-->`) into a directive
-/// kind and its rule-name arguments (empty = apply to all rules). Returns `None`
-/// if the body isn't a recognized directive.
-fn parse_directive_body(body: &str) -> Option<(DirectiveKind, Vec<String>)> {
+/// Parse one comment (`<!-- ... -->`, the closer optional when unterminated)
+/// into a directive kind and its rule-name arguments (empty = apply to all
+/// rules). Returns `None` if the comment isn't a recognized directive.
+fn parse_directive(comment: &str) -> Option<(DirectiveKind, Vec<String>)> {
+    let body = comment.strip_prefix("<!--")?;
+    let body = body.strip_suffix("-->").unwrap_or(body).trim();
     let rest = body
         .strip_prefix("markdownlint-")
         .or_else(|| body.strip_prefix("mdlint-"))?;
@@ -245,14 +289,6 @@ fn parse_directive_body(body: &str) -> Option<(DirectiveKind, Vec<String>)> {
 
 fn parse_rule_names(s: &str) -> Vec<String> {
     s.split_whitespace().map(str::to_owned).collect()
-}
-
-fn rules_or_all(rules: Vec<String>, all_rule_names: &[String]) -> Vec<String> {
-    if rules.is_empty() {
-        all_rule_names.to_vec()
-    } else {
-        rules
-    }
 }
 
 /// Convert a TOML value to a JSON value
@@ -477,6 +513,97 @@ mod tests {
         // Should not panic and should behave as if no directive was present.
         let violations = engine.lint_content(content).unwrap();
         assert!(violations.iter().any(|v| v.rule == "MD018"));
+    }
+
+    const LONG_LINE: &str = "A very long line that goes on and on and on and on and on and on and on and on and on and on and on and on and on and on and on";
+
+    #[test]
+    fn test_directive_names_resolve_aliases_tags_and_case() {
+        for name in ["line-length", "md013", "Line_Length"] {
+            let content = format!("# T\n\n<!-- markdownlint-disable {name} -->\n{LONG_LINE}\n");
+            let violations = engine_all_rules().lint_content(&content).unwrap();
+            assert!(
+                violations.iter().all(|v| v.rule != "MD013"),
+                "`{name}` should name MD013: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_tag_directive_covers_every_rule_with_the_tag() {
+        // MD018 and MD019 are both tagged `atx`.
+        let content = "<!-- mdlint-disable atx -->\n#No space\n\n##  Two spaces\n";
+        let violations = engine_all_rules().lint_content(content).unwrap();
+        assert!(
+            violations
+                .iter()
+                .all(|v| v.rule != "MD018" && v.rule != "MD019"),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_unknown_rule_names_disable_nothing() {
+        let content = "# T\n\n<!-- mdlint-disable MD0XX -->\n#No space\n";
+        let violations = engine_all_rules().lint_content(content).unwrap();
+        assert!(
+            violations.iter().any(|v| v.rule == "MD018"),
+            "an unknown name must not widen to every rule: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_directive_in_fenced_code_block_is_ignored() {
+        let content = "# T\n\n```markdown\n<!-- mdlint-disable -->\n```\n\n#No space\n";
+        let violations = engine_all_rules().lint_content(content).unwrap();
+        assert!(
+            violations.iter().any(|v| v.rule == "MD018" && v.line == 7),
+            "a directive shown as an example must not apply: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_directive_in_code_span_is_ignored() {
+        let content = "# T\n\nWrite `<!-- mdlint-disable -->` to disable.\n\n#No space\n";
+        let violations = engine_all_rules().lint_content(content).unwrap();
+        assert!(
+            violations.iter().any(|v| v.rule == "MD018" && v.line == 5),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_code_span_comment_opener_does_not_hide_later_lines() {
+        let content = "# T\n\nUse `<!--` to open a comment.\n\n#No space\n";
+        let violations = engine_all_rules().lint_content(content).unwrap();
+        assert!(
+            violations.iter().any(|v| v.rule == "MD018" && v.line == 5),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_two_disable_next_line_directives_on_one_line() {
+        let content = format!(
+            "# T\n\n<!-- mdlint-disable-next-line MD018 --> <!-- mdlint-disable-next-line MD013 -->\n#No space {LONG_LINE}\n"
+        );
+        let violations = engine_all_rules().lint_content(&content).unwrap();
+        assert!(
+            violations
+                .iter()
+                .all(|v| v.line != 4 || (v.rule != "MD018" && v.rule != "MD013")),
+            "both directives should apply: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn test_multi_line_disable_next_line_targets_line_after_comment() {
+        let content = "# T\n\n<!-- mdlint-disable-next-line\n     MD018 -->\n#No space\n";
+        let violations = engine_all_rules().lint_content(content).unwrap();
+        assert!(
+            violations.iter().all(|v| v.rule != "MD018"),
+            "{violations:?}"
+        );
     }
 
     /// Acceptance test for GitHub issue #51: front matter and HTML comments

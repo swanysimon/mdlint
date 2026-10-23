@@ -1,10 +1,17 @@
-use crate::markdown::front_matter::{detect_front_matter, extract_title};
+use crate::markdown::front_matter::detect_front_matter;
 use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
+use regex::Regex;
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 pub struct MarkdownParser<'a> {
     content: &'a str,
+    /// What pulldown-cmark parses: `content` with the front matter blanked to
+    /// spaces. Front matter is not Markdown — left in, `title: x` above the
+    /// closing `---` parses as a setext heading. Blanking byte-for-byte keeps
+    /// every offset aligned with `content`.
+    source: Cow<'a, str>,
     lines: Vec<&'a str>,
     /// Byte offset of the start of each line (0-indexed).
     /// Enables O(log n) offset → (line, column) lookup via binary search.
@@ -19,11 +26,12 @@ pub struct MarkdownParser<'a> {
     ref_def_lines: HashSet<usize>,
     /// Map from normalised (lowercase) label to its 1-indexed line number.
     ref_defs: HashMap<String, usize>,
-    /// Lines (1-indexed) that are part of the YAML/TOML front matter block.
-    front_matter_lines: HashSet<usize>,
-    /// The front matter `title` field's value and 1-indexed line, if present.
-    front_matter_title: Option<(String, usize)>,
-    /// Lines (1-indexed) that fall entirely inside an HTML comment (`<!-- ... -->`).
+    /// Last line (1-indexed) of the YAML/TOML front matter block, including its
+    /// closing delimiter; 0 when there is none.
+    front_matter_end: usize,
+    /// Byte ranges of HTML comments, in document order.
+    comments: Vec<Range<usize>>,
+    /// Lines (1-indexed) that fall entirely inside HTML comments.
     comment_lines: HashSet<usize>,
 }
 
@@ -32,17 +40,15 @@ impl<'a> MarkdownParser<'a> {
     pub fn new(content: &'a str) -> Self {
         let lines: Vec<&'a str> = content.lines().collect();
         let line_offsets = build_line_offsets(content);
-        let (code_block_lines, code_lines, code_ranges) = build_code_info(content, &line_offsets);
-        let (ref_def_lines, ref_defs) = build_ref_def_info(content, &line_offsets);
-        let front_matter = detect_front_matter(content);
-        let front_matter_lines = front_matter
-            .as_ref()
-            .map(|fm| (1..=fm.end_line).collect())
-            .unwrap_or_default();
-        let front_matter_title = front_matter.as_ref().and_then(extract_title);
-        let comment_lines = build_comment_lines(content, &code_block_lines);
+        let front_matter_end = detect_front_matter(content).map_or(0, |fm| fm.end_line);
+        let source = blank_front_matter(content, front_matter_end, &line_offsets);
+        let (code_block_lines, code_lines, code_ranges) = build_code_info(&source, &line_offsets);
+        let (ref_def_lines, ref_defs) = build_ref_def_info(&source, &line_offsets);
+        let comments = build_comment_ranges(&source);
+        let comment_lines = build_comment_lines(&source, &lines, &line_offsets, &comments);
         Self {
             content,
+            source,
             lines,
             line_offsets,
             code_block_lines,
@@ -50,8 +56,8 @@ impl<'a> MarkdownParser<'a> {
             code_ranges,
             ref_def_lines,
             ref_defs,
-            front_matter_lines,
-            front_matter_title,
+            front_matter_end,
+            comments,
             comment_lines,
         }
     }
@@ -80,21 +86,21 @@ impl<'a> MarkdownParser<'a> {
         }
     }
 
-    pub fn parse(&self) -> impl Iterator<Item = Event<'a>> + 'a {
-        Parser::new_ext(self.content, mk_options())
+    pub fn parse(&self) -> impl Iterator<Item = Event<'_>> {
+        Parser::new_ext(&self.source, mk_options())
     }
 
-    pub fn parse_with_offsets(&self) -> impl Iterator<Item = (Event<'a>, Range<usize>)> {
-        Parser::new_ext(self.content, mk_options()).into_offset_iter()
+    pub fn parse_with_offsets(&self) -> impl Iterator<Item = (Event<'_>, Range<usize>)> {
+        Parser::new_ext(&self.source, mk_options()).into_offset_iter()
     }
 
     /// Like `parse_with_offsets`, but resolves otherwise-broken reference links
     /// (undefined labels) by flagging their `LinkType` as the corresponding
     /// `*Unknown` variant instead of silently dropping the event as plain text.
     /// Used by rules that need to detect undefined reference links/images.
-    pub fn parse_with_broken_links(&self) -> impl Iterator<Item = (Event<'a>, Range<usize>)> + 'a {
+    pub fn parse_with_broken_links(&self) -> impl Iterator<Item = (Event<'_>, Range<usize>)> {
         Parser::new_with_broken_link_callback(
-            self.content,
+            &self.source,
             mk_options(),
             Some(|_broken: BrokenLink| Some((CowStr::from(""), CowStr::from("")))),
         )
@@ -159,33 +165,33 @@ impl<'a> MarkdownParser<'a> {
         &self.ref_defs
     }
 
-    /// Returns the 1-indexed line numbers that form the YAML/TOML front matter
-    /// block (including its `---`/`+++` delimiters). Result is precomputed in
-    /// `new()` — O(1) to access.
+    /// Returns `true` if the 1-indexed `line_num` is part of the YAML/TOML front
+    /// matter block, delimiters included.
     #[must_use]
-    pub fn front_matter_lines(&self) -> &HashSet<usize> {
-        &self.front_matter_lines
+    pub fn is_front_matter_line(&self, line_num: usize) -> bool {
+        (1..=self.front_matter_end).contains(&line_num)
     }
 
-    /// Returns the front matter `title` field's value, if present.
+    /// Returns the first front matter line (1-indexed, delimiters excluded)
+    /// matching `pattern`. Used to find the `title` field that stands in for the
+    /// document's top-level heading.
     #[must_use]
-    pub fn front_matter_title(&self) -> Option<&str> {
-        self.front_matter_title
-            .as_ref()
-            .map(|(title, _)| title.as_str())
+    pub fn front_matter_line_matching(&self, pattern: &Regex) -> Option<usize> {
+        (2..self.front_matter_end)
+            .find(|&line| self.get_line(line).is_some_and(|l| pattern.is_match(l)))
     }
 
-    /// Returns the 1-indexed line number the front matter `title` field appears
-    /// on, if present.
+    /// Returns the byte ranges of the HTML comments (`<!-- ... -->`) Markdown
+    /// actually recognises, in document order: `<!--` inside code is not one.
     #[must_use]
-    pub fn front_matter_title_line(&self) -> Option<usize> {
-        self.front_matter_title.as_ref().map(|(_, line)| *line)
+    pub fn comments(&self) -> &[Range<usize>] {
+        &self.comments
     }
 
-    /// Returns the 1-indexed line numbers that fall entirely inside an HTML
-    /// comment (`<!-- ... -->`). A line that has real content before the opening
-    /// `<!--` or after the closing `-->` is not included. Result is precomputed
-    /// in `new()` — O(1) to access.
+    /// Returns the 1-indexed line numbers that fall entirely inside HTML
+    /// comments. A line with real content before an opening `<!--` or after a
+    /// closing `-->` is not included. Result is precomputed in `new()` — O(1) to
+    /// access.
     #[must_use]
     pub fn comment_lines(&self) -> &HashSet<usize> {
         &self.comment_lines
@@ -199,7 +205,7 @@ impl<'a> MarkdownParser<'a> {
     pub fn is_blank_line(&self, line_num: usize) -> bool {
         self.get_line(line_num).is_none_or(|l| l.trim().is_empty())
             || self.comment_lines.contains(&line_num)
-            || self.front_matter_lines.contains(&line_num)
+            || self.is_front_matter_line(line_num)
     }
 
     /// Converts a (1-indexed) line number and 0-indexed byte offset within that
@@ -320,54 +326,98 @@ fn build_code_info(
     (code_block_lines, code_lines, code_ranges)
 }
 
-/// Scans raw lines for HTML comments (`<!-- ... -->`, possibly spanning multiple
-/// lines) and returns the 1-indexed line numbers that fall *entirely* inside one —
-/// a line with real content before the opening `<!--` or after the closing `-->`
-/// is not included, so mixed lines like `text <!-- note -->` keep normal linting.
-/// Lines already inside a code block are skipped, since `<!--` inside a fence is
-/// literal text, not a comment.
-///
-/// AIDEV: raw-line scan, not tokenizer-accurate — a `<!--` inside an inline code
-/// span on a prose line is (incorrectly) treated as opening a comment. Upgrade to
-/// a code-range-aware scan if this proves to bite in practice.
-fn build_comment_lines(content: &str, code_block_lines: &HashSet<usize>) -> HashSet<usize> {
-    let mut comment_lines = HashSet::new();
-    let mut in_comment = false;
+/// Returns `content` with every byte of its first `front_matter_end` lines
+/// blanked to a space, newlines kept, so the parser sees blank lines there and
+/// offsets still line up. Borrows `content` unchanged when there is no front
+/// matter.
+fn blank_front_matter<'a>(
+    content: &'a str,
+    front_matter_end: usize,
+    line_offsets: &[usize],
+) -> Cow<'a, str> {
+    if front_matter_end == 0 {
+        return Cow::Borrowed(content);
+    }
+    let end = line_offsets
+        .get(front_matter_end)
+        .copied()
+        .unwrap_or(content.len());
+    let blanked: Vec<u8> = content
+        .bytes()
+        .take(end)
+        .map(|b| if b == b'\n' || b == b'\r' { b } else { b' ' })
+        .collect();
+    let mut source = String::from_utf8(blanked).expect("only ASCII bytes remain");
+    source.push_str(content.get(end..).expect("end is a line start"));
+    Cow::Owned(source)
+}
 
-    for (idx, line) in content.lines().enumerate() {
-        let line_num = idx + 1;
-        if code_block_lines.contains(&line_num) {
-            continue;
-        }
-
-        if in_comment {
-            if let Some(end) = line.find("-->") {
-                if line[end + 3..].trim().is_empty() {
-                    comment_lines.insert(line_num);
+/// Collects the byte ranges of HTML comments from parser events, so a `<!--`
+/// in a code span or code block is never mistaken for one. Inline comments
+/// arrive as one `InlineHtml` event each. An HTML block holds no Markdown, so
+/// its comments are found by scanning its text; an unclosed one runs to the end
+/// of the block, as `CommonMark` specifies.
+fn build_comment_ranges(source: &str) -> Vec<Range<usize>> {
+    let mut comments = Vec::new();
+    for (event, range) in Parser::new_ext(source, mk_options()).into_offset_iter() {
+        match event {
+            Event::InlineHtml(html) if html.starts_with("<!--") => comments.push(range),
+            Event::Start(Tag::HtmlBlock) => {
+                let mut pos = range.start;
+                while let Some(open) = source.get(pos..range.end).and_then(|b| b.find("<!--")) {
+                    let start = pos + open;
+                    let end = source
+                        .get(start + 4..range.end)
+                        .and_then(|rest| rest.find("-->"))
+                        .map_or(range.end, |close| start + 4 + close + 3);
+                    comments.push(start..end);
+                    pos = end;
                 }
-                in_comment = false;
-            } else {
-                comment_lines.insert(line_num);
             }
-            continue;
-        }
-
-        if let Some(start) = line.find("<!--") {
-            let before = line[..start].trim().is_empty();
-            if let Some(end) = line[start..].find("-->") {
-                if before && line[start + end + 3..].trim().is_empty() {
-                    comment_lines.insert(line_num);
-                }
-            } else {
-                if before {
-                    comment_lines.insert(line_num);
-                }
-                in_comment = true;
-            }
+            _ => {}
         }
     }
+    comments
+}
 
-    comment_lines
+/// Returns the 1-indexed lines whose every non-whitespace byte lies inside a
+/// comment. A blank line counts when a comment spans it. `comments` must be
+/// sorted and non-overlapping, which document order guarantees.
+fn build_comment_lines(
+    source: &str,
+    lines: &[&str],
+    line_offsets: &[usize],
+    comments: &[Range<usize>],
+) -> HashSet<usize> {
+    // The first comment ending after `pos` covers it iff it also starts at or
+    // before it.
+    let covering = |pos: usize| {
+        comments
+            .get(comments.partition_point(|c| c.end <= pos))
+            .filter(|c| c.start <= pos)
+    };
+    let is_comment_line = |(idx, line): (usize, &&str)| {
+        let line_start = *line_offsets.get(idx).expect("one offset per line");
+        let line_end = line_start + line.trim_end().len();
+        let mut pos = line_start + (line.len() - line.trim_start().len());
+        if pos >= line_end {
+            return covering(line_start).is_some_and(|c| c.start < line_start);
+        }
+        while pos < line_end {
+            let Some(comment) = covering(pos) else {
+                return false;
+            };
+            let rest = source.get(comment.end..line_end).unwrap_or_default();
+            pos = line_end - rest.trim_start().len();
+        }
+        true
+    };
+    lines
+        .iter()
+        .enumerate()
+        .filter(|&entry| is_comment_line(entry))
+        .map(|(idx, _)| idx + 1)
+        .collect()
 }
 
 /// Collects link reference definition metadata in one pass over the parser's
@@ -643,30 +693,59 @@ mod tests {
         let content = "---\ntitle: Test\n---\n# Heading\nContent";
         let parser = MarkdownParser::new(content);
 
+        for line in 1..=3 {
+            assert!(parser.is_front_matter_line(line), "line {line}");
+        }
+        assert!(!parser.is_front_matter_line(0));
+        assert!(!parser.is_front_matter_line(4));
+    }
+
+    #[test]
+    fn test_front_matter_is_not_parsed_as_markdown() {
+        // Left in, `title: T` above the closing `---` is a setext heading.
+        let content = "---\ntitle: T\n---\n\n#### Deep\n";
+        let parser = MarkdownParser::new(content);
+
+        let headings: Vec<usize> = parser
+            .parse_with_offsets()
+            .filter(|(event, _)| parser.is_heading(event))
+            .map(|(_, range)| parser.offset_to_line(range.start))
+            .collect();
+        assert_eq!(headings, [5]);
+        assert_eq!(parser.content(), content, "content() stays the raw text");
+    }
+
+    #[test]
+    fn test_front_matter_blanking_keeps_offsets_with_multibyte_text() {
+        let content = "---\ntitle: Ünïcödé\n---\n# Heading\n";
+        let parser = MarkdownParser::new(content);
+
+        let (_, range) = parser
+            .parse_with_offsets()
+            .find(|(event, _)| parser.is_heading(event))
+            .unwrap();
+        assert_eq!(&content[range], "# Heading\n");
+    }
+
+    #[test]
+    fn test_front_matter_line_matching() {
+        let content = "---\nauthor: A\ntitle: My Title\n---\ntitle: body\n";
+        let parser = MarkdownParser::new(content);
+
+        let title = Regex::new("^title:").unwrap();
+        assert_eq!(parser.front_matter_line_matching(&title), Some(3));
+        let delimiter = Regex::new("^---").unwrap();
+        assert_eq!(parser.front_matter_line_matching(&delimiter), None);
+    }
+
+    #[test]
+    fn test_front_matter_line_matching_without_front_matter() {
+        let parser = MarkdownParser::new("title: x\n");
+
         assert_eq!(
-            parser.front_matter_lines(),
-            &HashSet::from([1, 2, 3]),
-            "front matter block (delimiters + content) should be marked"
+            parser.front_matter_line_matching(&Regex::new("title").unwrap()),
+            None
         );
-        assert!(!parser.front_matter_lines().contains(&4));
-    }
-
-    #[test]
-    fn test_front_matter_title() {
-        let content = "---\ntitle: My Title\n---\n# Heading";
-        let parser = MarkdownParser::new(content);
-
-        assert_eq!(parser.front_matter_title(), Some("My Title"));
-        assert_eq!(parser.front_matter_title_line(), Some(2));
-    }
-
-    #[test]
-    fn test_front_matter_title_absent() {
-        let content = "# Heading\nContent";
-        let parser = MarkdownParser::new(content);
-
-        assert_eq!(parser.front_matter_title(), None);
-        assert_eq!(parser.front_matter_title_line(), None);
     }
 
     #[test]
@@ -714,6 +793,51 @@ mod tests {
             parser.comment_lines().is_empty(),
             "<!-- inside a fenced code block should not be treated as a comment"
         );
+    }
+
+    #[test]
+    fn test_comment_opener_in_code_span_is_not_a_comment() {
+        let content = "Use `<!--` to open a comment.\n\n#NoSpace\n";
+        let parser = MarkdownParser::new(content);
+
+        assert!(parser.comments().is_empty());
+        assert!(parser.comment_lines().is_empty());
+    }
+
+    #[test]
+    fn test_comment_lines_blank_line_inside_comment() {
+        let content = "<!--\n\nstill inside\n-->\n\nAfter";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.comment_lines(), &HashSet::from([1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn test_comment_lines_two_comments_on_one_line() {
+        let content = "<!-- a --> <!-- b -->\n<!-- a --> text\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.comment_lines(), &HashSet::from([1]));
+    }
+
+    #[test]
+    fn test_comment_inside_html_block() {
+        let content = "<div>\n<!-- note -->\n</div>\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.comment_lines(), &HashSet::from([2]));
+    }
+
+    #[test]
+    fn test_inline_comment_spanning_lines() {
+        // The Rust book's `[link][ref]<!--\nignore -->` idiom: neither line is
+        // comment-only, but both belong to one comment.
+        let content = "See [a][b]<!--\nignore --> more\n\n[b]: https://example.com\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.comments().len(), 1);
+        assert_eq!(&content[parser.comments()[0].clone()], "<!--\nignore -->");
+        assert!(parser.comment_lines().is_empty());
     }
 
     #[test]
