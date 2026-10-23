@@ -109,6 +109,52 @@ pub use md059::MD059;
 pub use md060::MD060;
 
 use crate::lint::rule::RuleRegistry;
+use crate::markdown::MarkdownParser;
+use regex::{Regex, RegexBuilder};
+use serde_json::Value;
+
+/// markdownlint's default `front_matter_title` pattern.
+const DEFAULT_FRONT_MATTER_TITLE: &str = r#"^\s*"?title"?\s*[:=]"#;
+
+/// Returns the line of the front matter field that stands in for the
+/// document's top-level heading (MD025, MD041), as markdownlint does. The
+/// field is found by the rule's `front_matter_title` pattern, matched
+/// case-insensitively against each front matter line; an empty pattern turns
+/// the behaviour off.
+pub(crate) fn front_matter_title_line(
+    parser: &MarkdownParser,
+    config: Option<&Value>,
+) -> Option<usize> {
+    if !parser.is_front_matter_line(1) {
+        return None;
+    }
+    // `LintEngine::try_new` rejects an invalid pattern before any file is
+    // linted; reaching here with one means the caller skipped validation.
+    let pattern = front_matter_title_pattern(config).ok()??;
+    parser.front_matter_line_matching(&pattern)
+}
+
+/// Validates a rule's `front_matter_title` parameter, for `Rule::validate_config`.
+pub(crate) fn validate_front_matter_title(config: &Value) -> Result<(), String> {
+    front_matter_title_pattern(Some(config)).map(|_| ())
+}
+
+/// The compiled `front_matter_title` pattern, `None` when set to `""`.
+fn front_matter_title_pattern(config: Option<&Value>) -> Result<Option<Regex>, String> {
+    let pattern = match config.and_then(|c| c.get("front_matter_title")) {
+        None => DEFAULT_FRONT_MATTER_TITLE,
+        Some(Value::String(pattern)) => pattern,
+        Some(other) => return Err(format!("front_matter_title must be a string, got {other}")),
+    };
+    if pattern.is_empty() {
+        return Ok(None);
+    }
+    RegexBuilder::new(pattern)
+        .case_insensitive(true)
+        .build()
+        .map(Some)
+        .map_err(|e| format!("front_matter_title is not a valid regular expression: {e}"))
+}
 
 /// Create a registry with all built-in rules
 #[must_use]

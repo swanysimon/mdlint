@@ -1,3 +1,4 @@
+pub mod aliases;
 mod engine;
 mod result;
 mod rule;

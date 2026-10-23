@@ -29,7 +29,7 @@ pub struct Cli {
     #[arg(
         long,
         global = true,
-        help = "Path to TOML configuration file (`mdlint.toml`)",
+        help = "Path to a configuration file (mdlint.toml, pyproject.toml or package.json)",
         help_heading = "Configuration",
         overrides_with = "no_config"
     )]

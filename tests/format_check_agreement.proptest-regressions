@@ -1,0 +1,18 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2b6b53c178cdb3fcfa3f1367de9fb0ac1c8d19bffc472030eb4f784e4ca09767 # shrinks to input = "-->"
+cc 5bbd3872d6c1b97d14212b23684414cd989d6c017ed5490f31ccde92b1943e00 # shrinks to input = "-->\n<!-- c -->"
+cc 7943db4cb32803404e591eb10559862422ed200ac9713f6f667806ab66ec9c13 # shrinks to input = "<!-- c -->\n* star"
+cc 5226dfe070fc5e6a850066df9af0e146dca59ebf18863351e0172a87ac586c4d # shrinks to input = "<div>\n- item"
+cc 54c1a341359d1997dc410bdf2aab938f753696fa532f92e7c4d05d959df9ef10 # shrinks to input = "<div>\n* star\n"
+cc 43a7798ccf5a663007eba0eda2f3135d063921b5cdd6f807f243acfea1d0d087 # shrinks to input = "-->\n# H\ntext <!--\nnote\n-->\n"
+cc 7df0fba95f94527b47c5a352b617186bf4c8d7fce924d80aca94a49e27169f0c # shrinks to input = "<!-- c -->\n\n"
+cc e685688d312fc2e5617077184a207f8def024a1f502170cb9ee9736dfd362e27 # shrinks to input = "text <!--\nnote\n-->\n***\n"
+cc 3afd13c517c89ab0a3a85e4af359d38bb0a10c138524dadd5ca32ef8a593bae1 # shrinks to input = "* star\n- item\n"
+cc 54ece18c61c8346fe24c0f93806a20923510d7fdb373c90f7af82795d5a228bd # shrinks to input = "```\n\n"
+cc 865ddf833879f1e144fc297b5781ab62a95246293466702126c6066e39ec4c22 # shrinks to input = "***\n***\n"
+cc e84b437804509645f039ab188ee2cb9e38bd9fdde7f35bb2ac50563b6fa6fa54 # shrinks to input = "<!--\n```\n<!-- c -->\n```\n\n"

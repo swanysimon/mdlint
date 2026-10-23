@@ -57,6 +57,12 @@ src/
 - pulldown-cmark: return `impl Iterator<Item = Event<'a>>` to avoid lifetime complexity
 - Position tracking: cumulative byte offsets with `line.len() + 1` (accounting for newlines)
 - Extensions enabled: tables, footnotes, strikethrough, tasklists, heading attributes
+- Front matter is blanked to spaces (newlines kept) before pulldown-cmark sees it, so `title: x` over the closing `---`
+  is not a setext heading and byte offsets still match the raw text. pulldown-cmark's own metadata-block options are
+  no substitute: they recognise a `---` block anywhere in the document, not just at the top
+- HTML comments come from parser events (`InlineHtml`, and a scan inside each `HtmlBlock`), never from raw lines: a
+  `<!--` in a code span opened a phantom comment that silenced every rule to the end of the file. Inline directives
+  are read from the same comment ranges, so examples in code are inert
 
 ### Rule System
 

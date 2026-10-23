@@ -159,9 +159,13 @@ fn violations_to_actions(
 }
 
 pub fn publish_diagnostics(conn: &Connection, uri: &Uri, content: &str, config: Config) {
-    let violations = LintEngine::new(config)
-        .lint_content(content)
-        .unwrap_or_default();
+    let engine = LintEngine::new(config);
+    // Still lint: an editor is better served by diagnostics from the valid
+    // parts of the config than by none.
+    if let Err(e) = engine.validate() {
+        eprintln!("[mdlint-server] {e}");
+    }
+    let violations = engine.lint_content(content).unwrap_or_default();
     let diagnostics = violations
         .iter()
         .map(|v| convert::violation_to_diagnostic(v, content))

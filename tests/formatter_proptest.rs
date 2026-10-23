@@ -42,4 +42,30 @@ proptest! {
             );
         }
     }
+
+    /// Idempotency over documents built from block-level lines, with HTML
+    /// comments and front matter mixed in. `.*` never produces a newline, so the
+    /// tests above cannot reach block spacing or front matter.
+    #[test]
+    fn formatter_is_idempotent_on_block_lines(
+        front_matter in proptest::bool::ANY,
+        lines in proptest::collection::vec(
+            // Tilde fences, blockquotes, tables, setext underlines, link reference
+            // definitions, indented code, and indented continuations are left out:
+            // they reach pre-existing idempotency bugs unrelated to comments and
+            // front matter.
+            proptest::sample::select(vec![
+                "<!-- c -->", "<!-- mdlint-disable-next-line MD025 -->", "<!--", "-->", "",
+                "text", "# H", "## Sub", "- item", "* star", "1. one", "```", "---",
+                "***", "+++", "<div>", "</div>",
+            ]),
+            0..14,
+        ),
+    ) {
+        let body = lines.join("\n");
+        let input = if front_matter { format!("---\ntitle: T\n---\n{body}") } else { body };
+        let once = formatter::format(&input);
+        let twice = formatter::format(&once);
+        prop_assert_eq!(once, twice, "formatter not idempotent on input: {:?}", input);
+    }
 }

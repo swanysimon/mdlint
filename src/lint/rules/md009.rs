@@ -34,7 +34,10 @@ impl Rule for MD009 {
 
         for (line_num, line) in parser.lines().iter().enumerate() {
             let trimmed = line.trim_end();
-            let trailing_spaces = line.len() - trimmed.len();
+            // Counted in characters, as the Fixer counts columns: either side
+            // of the split may hold multibyte text (`’`, an ideographic space).
+            let content_chars = trimmed.chars().count();
+            let trailing_spaces = line.chars().count() - content_chars;
 
             if trailing_spaces > 0 {
                 // Allow br_spaces for line breaks unless strict mode
@@ -44,14 +47,14 @@ impl Rule for MD009 {
 
                 violations.push(Violation {
                     line: line_num + 1,
-                    column: Some(trimmed.len() + 1),
+                    column: Some(content_chars + 1),
                     rule: self.name().to_owned(),
                     message: format!("Trailing spaces ({trailing_spaces} spaces)"),
                     fix: Some(Fix {
                         line_start: line_num + 1,
                         line_end: line_num + 1,
-                        column_start: Some(trimmed.len() + 1),
-                        column_end: Some(line.len()),
+                        column_start: Some(content_chars + 1),
+                        column_end: Some(content_chars + trailing_spaces),
                         replacement: String::new(),
                         description: "Remove trailing spaces".to_owned(),
                     }),
@@ -145,6 +148,18 @@ mod tests {
                 Line 1
                 Line 2
             "}
+        );
+    }
+
+    #[test]
+    fn test_fix_on_line_with_multibyte_characters() {
+        let content = "We’ve got trailing spaces.   \n";
+        let parser = MarkdownParser::new(content);
+        let violations = MD009.check(&parser, None);
+
+        assert_eq!(
+            apply_fixes(content, &violations),
+            "We’ve got trailing spaces.\n"
         );
     }
 }

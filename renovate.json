@@ -11,12 +11,19 @@
   "separateMajorMinor": false,
   "separateMultipleMajor": false,
   "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": [
-      "at any time"
+    "enabled": false
+  },
+  "postUpgradeTasks": {
+    "commands": [
+      "cargo update"
     ],
-    "groupName": "all dependencies",
-    "groupSlug": "all-dependencies"
+    "fileFilters": [
+      "Cargo.lock"
+    ],
+    "executionMode": "branch",
+    "installTools": {
+      "rust": {}
+    }
   },
   "customManagers": [
     {
