@@ -46,3 +46,5 @@ cc 351a0d6a7a79f3dd27beef49c3f7a4adecdf2f38bca2a2e248d78584b22f95a4 # shrinks to
 cc f7306c5a45724b201068d54ed81577e5bf841101ce4450b4bcea2085e584cbcc # shrinks to text = "| a\n--- |\na aaaaaaaa aaaaaa aaa a aaa a a a a a a a a a a\n", width = 8
 cc d75d4356bb164cb251da062d403f8185154752c7d525f45a33ca9a51311a2761 # shrinks to text = "1. a a a a a a a a a a a\n1. # a a\n1. a a a\n", width = 8
 cc bd74d401a96be194f535873d1b06f06c62e7a2a0537d1577755c7cb77132d63f # shrinks to text = "- - aaa ** ** a a a a a a a a a a a a a a a\n", width = 9
+cc 2e5c27f291672882fc47623543984f6f7c4cf42ec6576b61f83cd4e8662f1519 # shrinks to text = "[^a]: > aaa aaaaaaa a aaaaaaaa a a aaaaaaaa aaa aaaaa aaaaaa aaaaaa aaaaaa a a a a a a\n", width = 8
+cc 75eca0be2066a9600beecd41b341921413d37aa44e76b1713a35e816f722e612 # shrinks to text = "a a a a a a a\n[^a]: [ a a a a a [^a]: aa aa a a a\n", width = 8

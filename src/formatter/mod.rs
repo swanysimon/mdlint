@@ -343,6 +343,9 @@ pub(crate) fn mk_options() -> Options {
 /// What an open blockquote contributes to each line inside it.
 const BQ_PREFIX: &str = "> ";
 
+/// What an open footnote definition contributes to each line after its label.
+const FOOTNOTE_INDENT: &str = "    ";
+
 #[allow(clippy::struct_excessive_bools)] // each bool is a distinct formatting phase flag
 struct FormatterState {
     out: String,
@@ -365,6 +368,13 @@ struct FormatterState {
     /// after one needs a blank line, or it re-parses as a lazy continuation of
     /// the nested list's last item.
     after_nested_list: bool,
+
+    // True from a footnote definition's label until its first block begins.  A
+    // paragraph continues the label's line; any other block starts a line of its
+    // own, because the label is wider than the indent its continuation lines
+    // use, which would throw off the column the container prefixes are
+    // measured by.
+    footnote_label_open: bool,
 
     // Output length when each open blockquote started, so an empty one can be
     // recognised at its End event and still emitted.
@@ -443,6 +453,7 @@ impl FormatterState {
             after_nested_list: false,
             tight_lists: VecDeque::new(),
             list_tight: Vec::new(),
+            footnote_label_open: false,
             bq_open_lengths: Vec::new(),
             container_prefix: Vec::new(),
             inline: String::new(),
@@ -473,6 +484,7 @@ impl FormatterState {
             self.block_reflow_suppressed = false;
         }
         self.block_reflow_suppressed |= self.reflow_suppressed;
+        self.settle_footnote_label(&event);
         match event {
             Event::Start(tag) => self.on_start(tag),
             Event::End(tag) => self.on_end(tag),
@@ -544,6 +556,24 @@ impl FormatterState {
                 } else {
                     self.inline.push_str("[ ] ");
                 }
+            }
+            _ => {}
+        }
+    }
+
+    /// Moves a footnote's first block off the label's line unless it is a
+    /// paragraph, which reads naturally after the label.
+    fn settle_footnote_label(&mut self, event: &Event<'_>) {
+        if !self.footnote_label_open {
+            return;
+        }
+        match event {
+            Event::Start(Tag::Paragraph) | Event::End(TagEnd::FootnoteDefinition) => {
+                self.footnote_label_open = false;
+            }
+            Event::Start(_) | Event::Rule => {
+                self.footnote_label_open = false;
+                self.out.push('\n');
             }
             _ => {}
         }
@@ -673,6 +703,10 @@ impl FormatterState {
                 // Write the label prefix; body will be flushed inline.
                 self.open_line();
                 write!(self.out, "[^{label}]: ").expect("writing to String is infallible");
+                // Later blocks and wrapped lines belong to the definition only
+                // while indented, or they fall out of it into the document.
+                self.container_prefix.push(FOOTNOTE_INDENT.to_owned());
+                self.footnote_label_open = true;
             }
             Tag::Table(alignments) => {
                 self.flush_pending_inline();
@@ -813,6 +847,7 @@ impl FormatterState {
                 let text = std::mem::take(&mut self.inline);
                 let prefix = self.continuation_prefix();
                 self.flush_inline_text(&text, &prefix);
+                self.container_prefix.pop();
                 self.needs_blank = true;
             }
             TagEnd::TableCell => {
@@ -2649,5 +2684,139 @@ mod tests {
             "- > - alpha\n  >   - bravo\n",
             "- > - alpha\n  >   - bravo\n",
         );
+    }
+
+    /// Block types a footnote definition holds, as the parser sees them: a
+    /// block that falls out of the definition would show up here as a sibling
+    /// of it, which output text alone cannot distinguish from a style change.
+    fn footnote_body_blocks(markdown: &str) -> Vec<String> {
+        let mut depth = 0;
+        let mut blocks = Vec::new();
+        for event in Parser::new_ext(markdown, mk_options()) {
+            match event {
+                Event::Start(Tag::FootnoteDefinition(_)) => depth += 1,
+                Event::End(TagEnd::FootnoteDefinition) => depth -= 1,
+                Event::Start(tag) if depth > 0 => blocks.push(format!("{tag:?}")),
+                _ => {}
+            }
+        }
+        blocks
+    }
+
+    /// A footnote's second block was written at column 0, so it left the
+    /// definition and became ordinary document text.
+    #[test]
+    fn test_footnote_keeps_its_second_paragraph() {
+        assert_formats_to(
+            "[^1]: First.\n\n    Second.\n\nOutside.\n",
+            "[^1]: First.\n\n    Second.\n\nOutside.\n",
+        );
+        // Not just the text: the parser must still see both inside the footnote.
+        let out = format("[^1]: First.\n\n    Second.\n\nOutside.\n");
+        assert_eq!(footnote_body_blocks(&out), ["Paragraph", "Paragraph"]);
+    }
+
+    #[test]
+    fn test_footnote_keeps_every_kind_of_block() {
+        let input = "[^1]: Lead.\n\n    ```text\n    code\n    ```\n\n    - one\n    - two\n\n    > quoted\n\nOutside.\n";
+        assert_formats_to(input, input);
+        let out = format(input);
+        assert_eq!(
+            footnote_body_blocks(&out),
+            footnote_body_blocks(input),
+            "blocks inside the footnote changed:\n{out}"
+        );
+        assert_eq!(
+            footnote_body_blocks(&out)
+                .iter()
+                .map(|tag| tag.split('(').next().unwrap_or_default())
+                .collect::<Vec<_>>(),
+            [
+                "Paragraph",
+                "CodeBlock",
+                "List",
+                "Item",
+                "Item",
+                "BlockQuote",
+                "Paragraph"
+            ]
+        );
+    }
+
+    /// Reflowed lines of a footnote paragraph are indented, as the definition's
+    /// other blocks are, and stay in it.
+    #[test]
+    fn test_footnote_wrapped_lines_are_indented() {
+        let options = FormatOptions {
+            width: 30,
+            reflow: true,
+            ..FormatOptions::default()
+        };
+        let input = "[^1]: alpha bravo charlie delta echo foxtrot golf hotel\n\n    india juliet kilo lima mike november oscar\n\nOutside.\n";
+        let expected = "[^1]: alpha bravo charlie\n    delta echo foxtrot golf\n    hotel\n\n    india juliet kilo lima\n    mike november oscar\n\nOutside.\n";
+        let got = format_with(input, &options);
+        assert_eq!(got, expected);
+        assert_eq!(format_with(expected, &options), expected);
+        assert_eq!(footnote_body_blocks(&got), ["Paragraph", "Paragraph"]);
+    }
+
+    #[test]
+    fn test_footnote_nested_in_containers() {
+        // Inside a list item the definition sits at the item's content column,
+        // and inside a quote behind the marker; later blocks follow suit.
+        let in_list = "- item\n\n  [^1]: First.\n\n      Second.\n";
+        assert_formats_to(in_list, in_list);
+        assert_eq!(footnote_body_blocks(&format(in_list)).len(), 2);
+
+        let in_quote = "> [^1]: First.\n>\n>     Second.\n";
+        let out = format(in_quote);
+        assert_eq!(footnote_body_blocks(&out).len(), 2, "{out}");
+        assert_eq!(format(&out), out, "not idempotent");
+    }
+
+    /// Footnotes after the first must not inherit the previous one's indent.
+    #[test]
+    fn test_consecutive_footnotes_do_not_leak_their_indent() {
+        assert_formats_to(
+            "[^1]: One.\n\n    More.\n\n[^2]: Two.\n\nPlain.\n",
+            "[^1]: One.\n\n    More.\n\n[^2]: Two.\n\nPlain.\n",
+        );
+    }
+
+    /// A footnote that opens with a non-paragraph block put it after the label,
+    /// where the indent used for its later lines no longer matched the label's
+    /// width: the quote marker was dropped on the first pass (the block lost its
+    /// quote) or, once the footnote kept its indent, never settled.
+    #[test]
+    fn test_footnote_opening_with_another_block_keeps_it() {
+        for (input, expected, blocks) in [
+            (
+                "[^1]: > quoted\n",
+                "[^1]:\n    > quoted\n",
+                vec!["BlockQuote", "Paragraph"],
+            ),
+            (
+                "[^1]: - one\n      - two\n",
+                "[^1]:\n    - one\n      - two\n",
+                vec!["List", "Item", "List", "Item"],
+            ),
+            (
+                "[^1]: ```text\n    code\n    ```\n",
+                "[^1]:\n    ```text\n    code\n    ```\n",
+                vec!["CodeBlock"],
+            ),
+        ] {
+            assert_formats_to(input, expected);
+            let tags: Vec<String> = footnote_body_blocks(&format(input))
+                .iter()
+                .map(|tag| tag.split('(').next().unwrap_or_default().to_owned())
+                .collect();
+            assert_eq!(tags, blocks, "blocks changed for {input:?}");
+        }
+    }
+
+    #[test]
+    fn test_empty_footnote_keeps_its_label() {
+        assert_formats_to("[^1]:\n\nText.\n", "[^1]:\n\nText.\n");
     }
 }

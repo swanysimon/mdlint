@@ -323,6 +323,24 @@ Formatting never creates front matter. When canonical output would open like a f
 although the input did not (`***` becomes `---`, for instance), the output keeps one leading blank
 line, which `CommonMark` ignores.
 
+### Footnote Definitions
+
+A footnote definition is written as `[^label]: ` followed by its first paragraph. Every later block of the definition,
+and every wrapped line of a paragraph in it, is indented four spaces, which is what keeps it inside the definition:
+written at column 0 it would be ordinary document text. A footnote whose first block is not a paragraph (a quote, list,
+code block, heading or table) puts that block on the line after the label, indented the same way.
+
+```markdown
+[^1]: First paragraph.
+
+    ```text
+    second block
+    ```
+
+[^2]:
+    > A quote opens this footnote.
+```
+
 ### HTML Comments
 
 An HTML comment block keeps the author's spacing to its neighbours: when no blank line separates it
