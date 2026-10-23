@@ -31,8 +31,13 @@ pub struct MarkdownParser<'a> {
     front_matter_end: usize,
     /// Byte ranges of HTML comments, in document order.
     comments: Vec<Range<usize>>,
+    /// Lines (1-indexed) inside HTML blocks, comment blocks included.
+    html_block_lines: HashSet<usize>,
     /// Lines (1-indexed) that fall entirely inside HTML comments.
     comment_lines: HashSet<usize>,
+    /// The subset of `comment_lines` belonging to comment blocks: HTML blocks
+    /// opened by `<!--`, as opposed to comments inside a paragraph.
+    comment_block_lines: HashSet<usize>,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -44,8 +49,11 @@ impl<'a> MarkdownParser<'a> {
         let source = blank_front_matter(content, front_matter_end, &line_offsets);
         let (code_block_lines, code_lines, code_ranges) = build_code_info(&source, &line_offsets);
         let (ref_def_lines, ref_defs) = build_ref_def_info(&source, &line_offsets);
-        let comments = build_comment_ranges(&source);
+        let html_block_lines = build_html_block_lines(&source, &line_offsets);
+        let (comments, block_comments) = build_comment_ranges(&source);
         let comment_lines = build_comment_lines(&source, &lines, &line_offsets, &comments);
+        let comment_block_lines =
+            build_comment_lines(&source, &lines, &line_offsets, &block_comments);
         Self {
             content,
             source,
@@ -58,7 +66,9 @@ impl<'a> MarkdownParser<'a> {
             ref_defs,
             front_matter_end,
             comments,
+            html_block_lines,
             comment_lines,
+            comment_block_lines,
         }
     }
 
@@ -181,6 +191,13 @@ impl<'a> MarkdownParser<'a> {
             .find(|&line| self.get_line(line).is_some_and(|l| pattern.is_match(l)))
     }
 
+    /// Returns the 1-indexed line numbers inside HTML blocks. Their text is raw
+    /// HTML, so a line there that looks like Markdown (`- item`) is not.
+    #[must_use]
+    pub fn html_block_lines(&self) -> &HashSet<usize> {
+        &self.html_block_lines
+    }
+
     /// Returns the byte ranges of the HTML comments (`<!-- ... -->`) Markdown
     /// actually recognises, in document order: `<!--` inside code is not one.
     #[must_use]
@@ -197,14 +214,16 @@ impl<'a> MarkdownParser<'a> {
         &self.comment_lines
     }
 
-    /// Returns `true` if `line_num` is blank, or is entirely inside an HTML
-    /// comment or the front matter block — content that carries no linting
-    /// significance of its own but should not be treated as "missing" content
-    /// by rules that require blank-line separation (e.g. MD022, MD031, MD032).
+    /// Returns `true` if `line_num` is blank, belongs to an HTML comment
+    /// block, or is part of the front matter — lines rules that require
+    /// blank-line separation (MD022, MD031, MD032) treat as a separator. The
+    /// formatter keeps a comment block's spacing as written, so both spacings
+    /// must pass. A comment inside a paragraph does not count: its lines are
+    /// paragraph content, and the formatter spaces the paragraph as usual.
     #[must_use]
     pub fn is_blank_line(&self, line_num: usize) -> bool {
         self.get_line(line_num).is_none_or(|l| l.trim().is_empty())
-            || self.comment_lines.contains(&line_num)
+            || self.comment_block_lines.contains(&line_num)
             || self.is_front_matter_line(line_num)
     }
 
@@ -352,17 +371,33 @@ fn blank_front_matter<'a>(
     Cow::Owned(source)
 }
 
+fn build_html_block_lines(source: &str, line_offsets: &[usize]) -> HashSet<usize> {
+    Parser::new_ext(source, mk_options())
+        .into_offset_iter()
+        .filter(|(event, _)| matches!(event, Event::Start(Tag::HtmlBlock)))
+        .flat_map(|(_, range)| {
+            line_from_offset(range.start, line_offsets)
+                ..=line_from_offset(range.end.saturating_sub(1), line_offsets)
+        })
+        .collect()
+}
+
 /// Collects the byte ranges of HTML comments from parser events, so a `<!--`
 /// in a code span or code block is never mistaken for one. Inline comments
 /// arrive as one `InlineHtml` event each. An HTML block holds no Markdown, so
 /// its comments are found by scanning its text; an unclosed one runs to the end
 /// of the block, as `CommonMark` specifies.
-fn build_comment_ranges(source: &str) -> Vec<Range<usize>> {
+///
+/// Returns every comment, and separately those in comment blocks (HTML blocks
+/// opened by `<!--`), both in document order.
+fn build_comment_ranges(source: &str) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
     let mut comments = Vec::new();
+    let mut block_comments = Vec::new();
     for (event, range) in Parser::new_ext(source, mk_options()).into_offset_iter() {
         match event {
             Event::InlineHtml(html) if html.starts_with("<!--") => comments.push(range),
             Event::Start(Tag::HtmlBlock) => {
+                let first_block_comment = comments.len();
                 let mut pos = range.start;
                 while let Some(open) = source.get(pos..range.end).and_then(|b| b.find("<!--")) {
                     let start = pos + open;
@@ -373,11 +408,23 @@ fn build_comment_ranges(source: &str) -> Vec<Range<usize>> {
                     comments.push(start..end);
                     pos = end;
                 }
+                let is_comment_block = source
+                    .get(range.clone())
+                    .is_some_and(|block| block.trim_start().starts_with("<!--"));
+                if is_comment_block {
+                    block_comments.extend(
+                        comments
+                            .get(first_block_comment..)
+                            .unwrap_or_default()
+                            .iter()
+                            .cloned(),
+                    );
+                }
             }
             _ => {}
         }
     }
-    comments
+    (comments, block_comments)
 }
 
 /// Returns the 1-indexed lines whose every non-whitespace byte lies inside a
@@ -821,6 +868,14 @@ mod tests {
     }
 
     #[test]
+    fn test_html_block_lines() {
+        let content = "text\n\n<div>\n- item\n</div>\n\n- real\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.html_block_lines(), &HashSet::from([3, 4, 5]));
+    }
+
+    #[test]
     fn test_comment_inside_html_block() {
         let content = "<div>\n<!-- note -->\n</div>\n";
         let parser = MarkdownParser::new(content);
@@ -838,6 +893,16 @@ mod tests {
         assert_eq!(parser.comments().len(), 1);
         assert_eq!(&content[parser.comments()[0].clone()], "<!--\nignore -->");
         assert!(parser.comment_lines().is_empty());
+    }
+
+    #[test]
+    fn test_comment_inside_paragraph_is_not_a_separator() {
+        // Lines 4-5 are inside a comment, but the comment is paragraph content.
+        let content = "# T\n\ntext <!--\nnote\n-->\n## H\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(parser.comment_lines(), &HashSet::from([4, 5]));
+        assert!(!parser.is_blank_line(5));
     }
 
     #[test]

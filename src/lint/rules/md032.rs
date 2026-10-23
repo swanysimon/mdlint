@@ -33,13 +33,20 @@ impl Rule for MD032 {
         let mut current_marker: Option<ListMarker> = None;
         let mut last_list_line: usize = 0;
         let code_block_lines = parser.get_code_block_line_numbers();
+        let html_block_lines = parser.html_block_lines();
 
         for (line_num, line) in lines.iter().enumerate() {
             if code_block_lines.contains(&(line_num + 1)) {
                 continue;
             }
             let trimmed = line.trim_start();
-            let list_marker = get_list_marker(trimmed);
+            // Raw HTML never starts a list, but it does end one: the formatter
+            // separates a list from a following HTML block like any block.
+            let list_marker = if html_block_lines.contains(&(line_num + 1)) {
+                None
+            } else {
+                get_list_marker(trimmed)
+            };
             let is_indented = !line.is_empty()
                 && line
                     .chars()
@@ -438,5 +445,24 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_marker_inside_html_block_is_not_a_list() {
+        let content = "<div>\n- item\n</div>\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(MD032.check(&parser, None).len(), 0);
+    }
+
+    #[test]
+    fn test_html_block_right_after_list() {
+        let content = "- item\n<div>\nx\n</div>\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(
+            rendered(&MD032.check(&parser, None)),
+            ["test.md:2:1: MD032 List should be surrounded by blank lines (missing after)"]
+        );
     }
 }
