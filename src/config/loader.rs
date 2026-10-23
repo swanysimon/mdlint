@@ -136,4 +136,50 @@ style = "atx"
         let config = discover_config(&sub_dir).unwrap();
         assert!(config.gitignore);
     }
+
+    /// `find_all_configs(start_dir)` only ever walks *up* from `start_dir`; it
+    /// never descends into subdirectories. The CLI calls this with the
+    /// process's cwd, so a config that lives in a subdirectory below cwd is
+    /// invisible to it -- only the LSP, which calls this with each document's
+    /// own directory, sees a config nested next to the file it's formatting.
+    /// This is the documented CLI/LSP discovery divergence, pinned here at the
+    /// shared discovery function both entry points call.
+    #[test]
+    fn test_find_all_configs_does_not_see_a_config_in_a_subdirectory() {
+        let temp_dir = TempDir::new().unwrap();
+        let sub_dir = temp_dir.path().join("docs");
+        fs::create_dir(&sub_dir).unwrap();
+        fs::write(sub_dir.join("mdlint.toml"), "gitignore = false\n").unwrap();
+
+        // Starting from the parent (as the CLI does with its cwd), the nested
+        // config is never found.
+        let configs = find_all_configs(temp_dir.path()).unwrap();
+        assert!(
+            configs.is_empty(),
+            "a config below start_dir must not be discovered: {configs:?}"
+        );
+
+        // Starting from the subdirectory itself (as the LSP does with a
+        // document's parent) finds it.
+        let configs = find_all_configs(&sub_dir).unwrap();
+        assert_eq!(configs.len(), 1);
+        assert!(!configs[0].1.gitignore);
+    }
+
+    /// Farther-away configs are returned first so a caller merging in order
+    /// lets the closer one win, matching the documented "later overrides
+    /// earlier" hierarchy.
+    #[test]
+    fn test_find_all_configs_orders_root_before_nested() {
+        let temp_dir = TempDir::new().unwrap();
+        let sub_dir = temp_dir.path().join("docs");
+        fs::create_dir(&sub_dir).unwrap();
+        fs::write(temp_dir.path().join("mdlint.toml"), "gitignore = true\n").unwrap();
+        fs::write(sub_dir.join("mdlint.toml"), "gitignore = false\n").unwrap();
+
+        let configs = find_all_configs(&sub_dir).unwrap();
+        assert_eq!(configs.len(), 2);
+        assert!(configs[0].1.gitignore, "root config must come first");
+        assert!(!configs[1].1.gitignore, "nested config must come last");
+    }
 }
