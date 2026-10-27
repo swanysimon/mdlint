@@ -11,10 +11,10 @@ implementation work. Any ambiguity about what the formatter should produce is re
 2. **Idempotency is a hard requirement.** Formatting an already-formatted file produces no changes.
 3. **Semantic equivalence.** The formatter never changes meaning — only surface syntax.
 4. **Almost no configuration.** The formatter is opinionated. Its only configuration is paragraph reflow: whether it
-   runs (the `reflow` key or `--reflow` flag, off by default) and the fill column it uses (`rules.MD013.line_length`). Switching MD013
-   off (in config or via an inline directive) switches reflow off with it, since reflowing text the linter has been
-   told not to check would be a contradiction. Every other choice is fixed. If you disagree with one, open an
-   issue.
+   runs (the `reflow` key or `--reflow` flag, off by default) and the fill column it uses (`rules.MD013.line_length`).
+   Switching MD013 off (in config or via an inline directive) switches reflow off with it, since reflowing text the
+   linter has been told not to check would be a contradiction. Every other choice is fixed. If you disagree with one,
+   open an issue.
 
 ---
 
@@ -71,8 +71,7 @@ is not modified (content is preserved as-is).
 Every heading is preceded by exactly one blank line and followed by exactly one blank line, except:
 
 - A heading at the very start of the file has no preceding blank line.
-- A heading directly above or below an HTML comment keeps the author's spacing (see
-  [HTML Comments](#html-comments)).
+- A heading directly above or below an HTML comment keeps the author's spacing (see [HTML Comments](#html-comments)).
 
 ```markdown
 # Document Title
@@ -121,14 +120,12 @@ item's content column, and a blockquote inside an item keeps both the indent and
 block starts on the marker line; a nested list or a thematic rule would merge with the marker (`- - x`, `- ---`), so it
 starts on the next line instead.
 
-```markdown
+````markdown
 - ```toml
   enabled = false
-```
-
+  ```
 - > Quoted
   > - Nested in the quote
-
 ````
 
 ```markdown
@@ -139,7 +136,7 @@ starts on the next line instead.
 1. Top level
    - Nested once
      - Nested twice
-````
+```
 
 ### Blank Lines Around Lists (MD032)
 
@@ -180,8 +177,8 @@ This is **critical**.
 
 ### Paragraph Reflow (MD013)
 
-Paragraph reflow is opt-in: it runs only with `reflow = true` in the config or `--reflow` on the command line. Without it, the line breaks inside
-a paragraph are kept as written and everything below this paragraph does not apply.
+Paragraph reflow is opt-in: it runs only with `reflow = true` in the config or `--reflow` on the command line. Without
+it, the line breaks inside a paragraph are kept as written and everything below this paragraph does not apply.
 
 When enabled, paragraph text is reflowed. Existing line breaks inside a paragraph carry no meaning in CommonMark — they
 render as a single space — so the formatter discards them and refills the paragraph greedily up to the fill column.
@@ -314,14 +311,13 @@ Not: a heading preceded by spaces (e.g., two spaces then `# heading`)
 
 ### Front Matter
 
-Front matter (YAML `---` blocks or TOML `+++` blocks) at the start of a file is passed through
-verbatim, trailing whitespace included: YAML block scalars and TOML multi-line strings treat it as
-content. It is never parsed as Markdown. Exactly one blank line separates it from the body, as
-between any two blocks. Front matter is detected exactly as `mdlint check` detects it.
+Front matter (YAML `---` blocks or TOML `+++` blocks) at the start of a file is passed through verbatim, trailing
+whitespace included: YAML block scalars and TOML multi-line strings treat it as content. It is never parsed as Markdown.
+Exactly one blank line separates it from the body, as between any two blocks. Front matter is detected exactly as
+`mdlint check` detects it.
 
-Formatting never creates front matter. When canonical output would open like a front matter block
-although the input did not (`***` becomes `---`, for instance), the output keeps one leading blank
-line, which `CommonMark` ignores.
+Formatting never creates front matter. When canonical output would open like a front matter block although the input did
+not (`***` becomes `---`, for instance), the output keeps one leading blank line, which `CommonMark` ignores.
 
 ### Footnote Definitions
 
@@ -343,11 +339,11 @@ code block, heading or table) puts that block on the line after the label, inden
 
 ### HTML Comments
 
-An HTML comment block keeps the author's spacing to its neighbours: when no blank line separates it
-from the block above or below, the formatter adds none; otherwise exactly one. `mdlint check`
-likewise treats a comment line as blank for MD022, MD031, and MD032, so both spacings are accepted.
-This matters for correctness, not just style: `<!-- mdlint-disable-next-line MD025 -->` applies to
-the line directly below it, and a blank line inserted there would silently disable the directive.
+An HTML comment block keeps the author's spacing to its neighbours: when no blank line separates it from the block above
+or below, the formatter adds none; otherwise exactly one. `mdlint check` likewise treats a comment line as blank for
+MD022, MD031, and MD032, so both spacings are accepted. This matters for correctness, not just style:
+`<!-- mdlint-disable-next-line MD025 -->` applies to the line directly below it, and a blank line inserted there would
+silently disable the directive.
 
 ---
 
@@ -389,7 +385,7 @@ Rules that the formatter enforces but the linter cannot report (because they req
 a per-violation fix can express) are formatter-only behaviors documented above.
 
 MD013 is the one deliberate exception to the "no divergence" rule, in the opposite direction: with reflow enabled,
-`mdlint format` fixes over-long paragraph lines by reflowing them, but `mdlint check --fix` does not. Reflow is a whole-paragraph rewrite, and
-expressing it as a per-violation `Fix` would mean reimplementing the wrapping logic inside the rule, where only a
-`MarkdownParser` is available rather than formatter state. Duplicating it in two places is worse than the divergence.
-Run `mdlint format` to fix line length.
+`mdlint format` fixes over-long paragraph lines by reflowing them, but `mdlint check --fix` does not. Reflow is a
+whole-paragraph rewrite, and expressing it as a per-violation `Fix` would mean reimplementing the wrapping logic inside
+the rule, where only a `MarkdownParser` is available rather than formatter state. Duplicating it in two places is worse
+than the divergence. Run `mdlint format` to fix line length.
