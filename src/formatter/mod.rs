@@ -71,8 +71,8 @@ impl From<&Config> for FormatOptions {
         .unwrap_or(DEFAULT_WIDTH);
         Self {
             width,
-            no_inline_config: config.no_inline_config,
-            reflow: config.reflow && config.rule_enabled("MD013"),
+            no_inline_config: config.no_inline_config(),
+            reflow: config.reflow() && config.rule_enabled("MD013"),
         }
     }
 }
@@ -2452,7 +2452,7 @@ mod tests {
         use crate::lint::LintEngine;
 
         let engine = LintEngine::new(Config {
-            default_enabled: true,
+            default_enabled: Some(true),
             ..Config::default()
         });
         let inputs = [

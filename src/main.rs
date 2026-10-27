@@ -40,8 +40,12 @@ fn run() -> Result<bool> {
 
 fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
-    let should_fix = args.should_fix().unwrap_or(config.fix);
-    let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
+    let should_fix = args.should_fix().unwrap_or_else(|| config.fix());
+    let files = find_files(
+        &args.files(),
+        &excludes,
+        respect_ignore(args.should_respect_ignore(), &config),
+    )?;
     let config = config.apply_rule_filters(&args.select, &args.ignore);
 
     if files.is_empty() {
@@ -73,7 +77,11 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
 
 fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
-    let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
+    let files = find_files(
+        &args.files(),
+        &excludes,
+        respect_ignore(args.should_respect_ignore(), config),
+    )?;
 
     if files.is_empty() {
         eprintln!("No markdown files found");
@@ -82,7 +90,7 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
 
     let mut any_changed = false;
     let config = Config {
-        reflow: args.should_reflow().unwrap_or(config.reflow),
+        reflow: args.should_reflow().or(config.reflow),
         ..config.clone()
     };
     let options = formatter::FormatOptions::from(&config);
@@ -120,6 +128,11 @@ fn load_config(cli: &Cli) -> Result<Config> {
         }
         loader => loader.load(),
     }
+}
+
+/// `.gitignore` is respected unless either the CLI flag or the config turns it off.
+fn respect_ignore(cli_respects_ignore: bool, config: &Config) -> bool {
+    cli_respects_ignore && config.gitignore()
 }
 
 fn merge_excludes(cli_excludes: &[PathBuf], config_excludes: &[String]) -> Vec<PathBuf> {

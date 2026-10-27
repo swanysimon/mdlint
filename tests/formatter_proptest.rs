@@ -215,7 +215,7 @@ proptest! {
         let mut rules = HashMap::new();
         rules.insert("MD013".to_owned(), RuleConfig::Config(params));
         let config = Config {
-            default_enabled: false,
+            default_enabled: Some(false),
             rules,
             ..Config::default()
         };

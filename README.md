@@ -120,7 +120,7 @@ Rule selection:
       --ignore <RULE_CODE>  Comma-separated list of rules to disable
 
 Configuration:
-      --config <CONFIG>  Path to TOML configuration file (`mdlint.toml`)
+      --config <CONFIG>  Path to a configuration file (mdlint.toml, pyproject.toml or package.json)
       --no-config        Ignore all configuration files
 
 Log levels:
@@ -155,7 +155,7 @@ File selection:
       --respect-ignore     Respect `.gitignore` and similar exclusion files. Use `--no-respect-ignore` to disable
 
 Configuration:
-      --config <CONFIG>  Path to TOML configuration file (`mdlint.toml`)
+      --config <CONFIG>  Path to a configuration file (mdlint.toml, pyproject.toml or package.json)
       --no-config        Ignore all configuration files
 
 Log levels:
@@ -185,7 +185,7 @@ Options:
   -h, --help           Print help
 
 Configuration:
-      --config <CONFIG>  Path to TOML configuration file (`mdlint.toml`)
+      --config <CONFIG>  Path to a configuration file (mdlint.toml, pyproject.toml or package.json)
       --no-config        Ignore all configuration files
 
 Log levels:
@@ -250,23 +250,93 @@ mdlint migrate --from markdownlint-cli2 .markdownlint-cli2.jsonc --output mdlint
 
 ## Configuration
 
-mdlint uses TOML configuration files, discovered by searching upward from the current directory. The tool searches for
-these files in order (first found wins per directory level), walking up from the current directory:
+mdlint is configured in TOML, discovered by searching upward from the current directory. Settings can live in a
+dedicated file or inside a manifest your project already has. Within a directory, the first of these that holds mdlint
+settings wins:
 
 1. `mdlint.toml`
 2. `.mdlint.toml`
+3. `pyproject.toml` — under a `[tool.mdlint]` table
+4. `package.json` — under a top-level `"mdlint"` key
 
-Planned: `package.json` and `pyproject.toml` support.
+A `pyproject.toml` or `package.json` without mdlint settings is not a config: the search walks past it to the parent
+directory, so an unrelated manifest never shadows a config higher up. Pointing `--config` at a manifest that has no
+mdlint section is an error rather than a silent fall back to defaults.
+
+### pyproject.toml
+
+Options go under `[tool.mdlint]`, rules under `[tool.mdlint.rules.MDxxx]` — the same layout as `mdlint.toml`, nested one
+level deeper:
+
+```toml
+[tool.mdlint]
+gitignore = true
+exclude = ["docs/generated"]
+
+[tool.mdlint.rules.MD013]
+line_length = 100
+
+[tool.mdlint.rules.MD033]
+enabled = false
+```
+
+### package.json
+
+Options go under a top-level `"mdlint"` key. The keys are identical to the TOML ones:
+
+```json
+{
+  "name": "my-project",
+  "mdlint": {
+    "gitignore": true,
+    "exclude": ["docs/generated"],
+    "rules": {
+      "MD013": { "line_length": 100 },
+      "MD033": { "enabled": false }
+    }
+  }
+}
+```
 
 ### Configuration hierarchy
 
-Configs are discovered by walking up the directory tree. Scalar values from closer configs override those farther away;
-arrays are extended. Priority order (highest to lowest):
+Discovery walks up from the working directory to the filesystem root, taking **at most one config per directory** — the
+first of the four file names above that actually holds mdlint settings. Every config found along the way is merged, with
+the one nearest the working directory winning.
 
-1. `--config` flag on the CLI
-2. `mdlint.toml` / `.mdlint.toml` in the current directory
-3. Config files in parent directories (walking up to the filesystem root)
-4. Built-in defaults
+Priority, highest to lowest:
+
+1. CLI flags — `--select`, `--ignore`, `--fix` / `--no-fix`, `--reflow` / `--no-reflow`, `--exclude`,
+   `--no-respect-ignore`
+2. `--config <path>`, which **replaces discovery entirely**: no other config file is read, not even one in the working
+   directory
+3. The config in the working directory
+4. Configs in parent directories, nearest first, up to the filesystem root
+5. Built-in defaults
+
+`--no-config` skips 2 through 4 and runs on built-in defaults alone.
+
+How values from different configs combine:
+
+- **Scalars** — `default_enabled`, `fix`, `reflow`, `gitignore`, `no_inline_config`, `front_matter`: the nearest config
+  that *sets* the option wins. A config that omits an option leaves whatever an outer config set it to, rather than
+  resetting it to the built-in default.
+- **Arrays** — `exclude`, `custom_rules`: accumulate, so every config in the chain contributes its entries. There is no
+  way to remove an entry an outer config added.
+- **`[rules.MDxxx]`**: merged per rule code. The nearest config that configures a rule replaces that rule's whole
+  section — parameters are not merged one at a time, so a closer `line_length = 90` drops any other MD013 parameters an
+  outer config had set.
+
+CLI flags then apply on top of the merged result:
+
+- `--fix` / `--no-fix` overrides `fix`.
+- `--reflow` / `--no-reflow` overrides `reflow`.
+- `--exclude` is added to `exclude` rather than replacing it.
+- `--no-respect-ignore` forces `.gitignore` off, and so does `gitignore = false` in any config; `.gitignore` is
+  respected only when neither turns it off.
+- `--select` turns `default_enabled` off and enables just the listed rules, keeping any parameters those rules were
+  given in a config.
+- `--ignore` disables the listed rules, overriding both the config files and `--select`.
 
 ### Global options
 

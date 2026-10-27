@@ -173,33 +173,20 @@ fn cli2_defaults() -> Vec<(&'static str, RuleConfig)> {
 
 fn build_config(source: Cli2Source) -> MigrationResult {
     let mut warnings = Vec::new();
-    let mut config = Config::default();
-
-    if let Some(fix) = source.fix {
-        config.fix = fix;
-    }
-
-    if let Some(ignores) = source.ignores {
-        config.exclude = ignores;
-    }
-
-    if let Some(gitignore) = source.gitignore {
-        config.gitignore = gitignore;
-    }
-
-    if let Some(no_inline_config) = source.no_inline_config {
-        config.no_inline_config = no_inline_config;
-    }
-
-    if let Some(front_matter) = source.front_matter {
-        config.front_matter = Some(front_matter);
-    }
+    let mut config = Config {
+        fix: source.fix,
+        gitignore: source.gitignore,
+        no_inline_config: source.no_inline_config,
+        front_matter: source.front_matter,
+        exclude: source.ignores.unwrap_or_default(),
+        ..Config::default()
+    };
 
     if let Some(rule_config) = source.config {
         for (name, value) in rule_config {
             if name == "default" {
                 if let Some(enabled) = value.as_bool() {
-                    config.default_enabled = enabled;
+                    config.default_enabled = Some(enabled);
                 }
                 continue;
             }
@@ -224,7 +211,7 @@ fn build_config(source: Cli2Source) -> MigrationResult {
             Some(RuleConfig::Enabled(true)) => {
                 config.rules.insert(code.to_string(), default);
             }
-            None if config.default_enabled => {
+            None if config.default_enabled() => {
                 config.rules.insert(code.to_string(), default);
             }
             Some(RuleConfig::Config(_) | RuleConfig::Enabled(false)) | None => {}
@@ -295,8 +282,8 @@ mod tests {
         .unwrap();
 
         let result = migrate_file(&path).unwrap();
-        assert!(result.config.default_enabled);
-        assert!(!result.config.fix);
+        assert!(result.config.default_enabled());
+        assert!(!result.config.fix());
         assert_eq!(result.config.exclude, vec!["dist/**".to_string()]);
         assert!(result.config.rules.contains_key("MD013"));
         assert!(result.warnings.is_empty());
@@ -329,8 +316,8 @@ mod tests {
         .unwrap();
 
         let result = migrate_file(&path).unwrap();
-        assert!(!result.config.gitignore);
-        assert!(result.config.no_inline_config);
+        assert!(!result.config.gitignore());
+        assert!(result.config.no_inline_config());
         assert_eq!(
             result.config.front_matter,
             Some("^-{3}\\s*\\n(?:.*?\\n)?-{3}\\s*\\n".to_string())
@@ -411,7 +398,7 @@ mod tests {
         fs::write(&path, r#"{ "default": false }"#).unwrap();
 
         let result = migrate_file(&path).unwrap();
-        assert!(!result.config.default_enabled);
+        assert!(!result.config.default_enabled());
         assert!(!result.config.rules.contains_key("MD013"));
         assert!(!result.config.rules.contains_key("MD003"));
     }
@@ -433,7 +420,7 @@ mod tests {
         .unwrap();
 
         let result = migrate_file(&path).unwrap();
-        assert!(!result.config.fix);
+        assert!(!result.config.fix());
         assert!(result.config.rules.contains_key("MD013"));
     }
 }

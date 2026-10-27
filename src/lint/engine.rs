@@ -63,7 +63,7 @@ impl LintEngine {
                 && (v.rule == "MD013" || !parser.comment_lines().contains(&v.line))
         });
 
-        if !self.config.no_inline_config {
+        if !self.config.no_inline_config() {
             let suppressed = parse_inline_config(&parser, &self.directives);
             if !suppressed.is_empty() {
                 violations.retain(|v| {
@@ -373,7 +373,7 @@ mod tests {
 
     fn engine_all_rules() -> LintEngine {
         LintEngine::new(Config {
-            default_enabled: true,
+            default_enabled: Some(true),
             ..Config::default()
         })
     }
@@ -450,8 +450,8 @@ mod tests {
             No heading here
         "};
         let engine = LintEngine::new(Config {
-            default_enabled: true,
-            no_inline_config: true,
+            default_enabled: Some(true),
+            no_inline_config: Some(true),
             ..Config::default()
         });
         let violations = engine.lint_content(content).unwrap();
