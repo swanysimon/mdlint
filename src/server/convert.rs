@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn minimal_edits_empty_when_already_formatted() {
-        assert!(minimal_edits("# Title\n", "# Title\n").is_empty());
+        assert_eq!(minimal_edits("# Title\n", "# Title\n").len(), 0);
     }
 
     #[test]
