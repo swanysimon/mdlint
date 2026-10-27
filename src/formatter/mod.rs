@@ -1456,13 +1456,36 @@ fn retreat_past_structure(
 /// `12.`): digits are not ASCII punctuation, so `\0` is not a valid `CommonMark`
 /// escape and would be doubled on re-parse.  Instead we place the backslash
 /// before the `.` or `)` — `0\.` — which is valid and renders identically.
+///
+/// A definition-shaped line (`[label]:`, `[^note]:`) has its colon escaped
+/// instead. `\[` would balance the brackets differently: in a paragraph that
+/// opens with an unclosed `[`, `[ text \[^a]: aa` becomes a valid link
+/// reference definition and the text vanishes on re-parse.
 fn escape_line(line: &str) -> String {
     let digits_len = line.chars().take_while(char::is_ascii_digit).count();
     if digits_len > 0 {
         format!("{}\\{}", &line[..digits_len], &line[digits_len..])
+    } else if let Some(colon) = definition_colon(line) {
+        format!("{}\\{}", &line[..colon], &line[colon..])
     } else {
         format!("\\{line}")
     }
+}
+
+/// Byte offset of the `:` in a line opening with `[label]:`, if it does.
+fn definition_colon(line: &str) -> Option<usize> {
+    let mut chars = line.strip_prefix('[')?.char_indices();
+    while let Some((index, ch)) = chars.next() {
+        match ch {
+            '\\' => {
+                chars.next();
+            }
+            '[' => return None,
+            ']' => return line[index + 2..].starts_with(':').then_some(index + 2),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Returns true if `line`, when emitted as the start of a new output line,
@@ -2528,6 +2551,23 @@ mod tests {
             );
         }
         assert_eq!(out, format_with(&out, &options), "idempotency");
+    }
+
+    /// `\[^a]:` at column 0 completed `[ ... \[^a]: aa` as a link reference
+    /// definition, since the escape left the opening `[` as the only bracket
+    /// the label had to match. Escaping the colon keeps the line plain text.
+    #[test]
+    fn test_definition_shaped_line_escapes_its_colon() {
+        let options = FormatOptions {
+            width: 8,
+            reflow: true,
+            ..FormatOptions::default()
+        };
+        let expected = "[^a]: [\n    a\n    a\n    [^a]\\:\n    aa\n";
+        assert_eq!(format_with("[^a]: [ a a [^a]: aa\n", &options), expected);
+        assert_eq!(format_with(expected, &options), expected, "idempotency");
+
+        assert_formats_to("\\[b]: c\n", "[b]\\: c\n");
     }
 
     // ── regressions found by the reflow proptest generator ───────────────────
