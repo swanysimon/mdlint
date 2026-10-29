@@ -62,7 +62,8 @@ impl Rule for MD051 {
                     link_line = parser.offset_to_line(range.start);
                 }
                 Event::End(TagEnd::Link) if in_link => {
-                    // Check if URL is a fragment-only link
+                    // Only a fragment-only link points into this document.  The
+                    // fragment in `other.md#section` names a heading in that file.
                     if let Some(fragment) = link_url.strip_prefix('#') {
                         // Remove the '#'
                         let fragment_id = fragment.to_owned();
@@ -77,25 +78,6 @@ impl Rule for MD051 {
                                 ),
                                 fix: None,
                             });
-                        }
-                    } else if let Some(pos) = link_url.find('#') {
-                        // URL with fragment (e.g., "page.html#section")
-                        // For now, skip external links (only check internal fragments)
-                        if !link_url.starts_with("http://") && !link_url.starts_with("https://") {
-                            let fragment = &link_url[pos + 1..];
-                            let fragment_id = fragment.to_owned();
-
-                            if !heading_ids.contains_key(&fragment_id) {
-                                violations.push(Violation {
-                                    line: link_line,
-                                    column: Some(1),
-                                    rule: self.name().to_owned(),
-                                    message: format!(
-                                        "Link fragment '{fragment}' does not match any heading"
-                                    ),
-                                    fix: None,
-                                });
-                            }
                         }
                     }
 
@@ -206,5 +188,17 @@ mod tests {
 
         // External links should be ignored
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_fragment_in_link_to_another_file_not_checked() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/100
+        let content = indoc! {"
+            # Doc
+
+            See [the vocabulary](other.md#vocabulary).
+        "};
+        let parser = MarkdownParser::new(content);
+        assert_eq!(MD051.check(&parser, None).len(), 0);
     }
 }

@@ -63,8 +63,10 @@ Heading 2
 # Heading 3 #
 ```
 
-Exactly one space between the `#` markers and the heading text (MD018, MD019). No trailing `#` characters. Heading text
-is not modified (content is preserved as-is).
+Exactly one space between the `#` markers and the heading text (MD018, MD019). No trailing `#` characters, with one
+exception: heading text ending in `}` that is not an attribute block keeps a closing `#` (`# Use {x} #`), because without
+it `{x}` would be read as heading attributes. MD003 accepts that closing sequence under either ATX style. Heading text is
+not modified (content is preserved as-is), and an attribute block (`{#custom-id}`) is kept after it.
 
 ### Blank Lines Around Headings (MD022)
 
@@ -101,14 +103,21 @@ Always use `-` (dash). Never `*` or `+`.
 
 ### Ordered List Markers (MD029)
 
-Always use sequential numbering starting from `1.`. Items are renumbered regardless of what numbers appear in the source
-— non-contiguous or repeated numbers are corrected.
+Always use sequential numbering, continuing from the first item's number. Items after the first are renumbered
+regardless of what numbers appear in the source — non-contiguous or repeated numbers are corrected. The first number is
+kept: it is the list's start, which renders (`<ol start="3">`), and prose often refers to items by number.
 
 ```markdown
 1. First item
 2. Second item
 3. Third item
+
+3. A list that continues the numbering of an earlier one
+4. Next item
 ```
+
+A nested ordered list that starts at a number other than 1 keeps a blank line after its parent item's text: only a list
+starting at 1 can interrupt a paragraph, so without it the list would re-parse as more of the paragraph.
 
 ### List Indentation (MD007)
 
@@ -206,6 +215,11 @@ never breaks inside a link destination, a code span, an inline HTML tag, or imme
 because a break in any of those positions changes meaning. Nor does it break immediately *before* inline HTML: escaping
 a tag that landed at column 0 would turn it into literal text, so that break opportunity is withdrawn rather than used.
 
+A line ending inside a code span renders as a space, the same as any other soft break. Without reflow it is kept where
+the author put it, so a long code span can be split to fit the line limit. With reflow it is discarded like every other
+soft break. A kept break that would open a line re-parsing as a block element becomes a space instead: unlike prose, the
+line cannot be escaped, because a backslash inside a code span is literal.
+
 Reflow relies on runs of spaces having already collapsed to one (see [Repeated Spaces](#repeated-spaces)): a break
 landing inside a run would strand a space at a line edge, which trailing-whitespace stripping then removes, changing the
 text on the next pass.
@@ -252,6 +266,24 @@ container rules above, which re-derive it from the open containers.
 
 ```markdown
 Two  spaces   between words collapse.
+```
+
+### Backslash Escapes
+
+A backslash escape of a character with inline meaning — `` \ ` * _ ~ [ ] ! ( { } & | < ^ `` — is kept. Dropping one
+can change the document: `\*not emphasis\*` would become emphasis, `\![a](b)` an image, `\[x]` a link if a definition
+for `x` exists.
+
+Escapes of characters that only mean something at the start of a line — `#`, `-`, `+`, `=`, `>`, `:`, the `.` or `)`
+after a number, and a `*` with spaces on both sides — are dropped and re-derived: the formatter escapes a line wherever
+its output would otherwise re-parse as a block element, based on where each line actually starts after formatting.
+Escapes of punctuation that means nothing (`\@`, `\,`) are dropped.
+
+An `&` that pulldown-cmark decoded from `&amp;` is written back as `\&` when what follows would spell an entity or
+character reference (`&amp;copy;` stays literal rather than becoming `©`).
+
+```markdown
+\*not emphasis\* and \[not a link]
 ```
 
 ### Trailing Whitespace (MD009)
@@ -386,11 +418,14 @@ silently disable the directive.
   and their order, are never altered.
 - **Code block contents.** The content inside fenced or indented code blocks is preserved character-for-character,
   including indentation, tabs, and blank lines.
-- **Inline code.** The content inside backtick spans is not modified.
+- **Inline code.** The content inside backtick spans is not modified. Without reflow, line breaks inside a span are kept
+  too (see "Paragraph Reflow").
+- **Backslash escapes with inline meaning.** See "Backslash Escapes".
 - **HTML blocks.** Raw HTML blocks are passed through verbatim.
 - **Link/image URLs and titles.** Not reformatted.
 - **Heading text content.** The text of headings is preserved exactly; only the surrounding syntax (ATX vs setext,
-  spacing) is canonicalized.
+  spacing) is canonicalized. An attribute block (`{#custom-id .class}`) is kept after the text. Heading text that ends in
+  `}` but is not an attribute block keeps a closing `#`, since without one it would be read as attributes.
 - **Table content.** Cell content is preserved. Column alignment markers are preserved. Table formatting (column widths,
   pipe alignment) may be normalized in a future version but is not in scope for the initial implementation.
 

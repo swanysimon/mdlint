@@ -78,12 +78,16 @@ proptest! {
 /// meaning when reflow joins two previously separate lines, or when it lands at
 /// the start of a line. `on_text` escapes `\`, backtick, `<`, `_` and `~`, but
 /// not `*` or `[`/`]`, so those adjacencies are only reachable this way.
+/// Escaped hazards are there because the formatter keeps some escapes and
+/// re-derives others, and the two must agree from one pass to the next.
 fn hazard_word() -> impl Strategy<Value = String> {
     prop_oneof![
         6 => "[a-z]{1,8}",
         1 => prop::sample::select(vec![
             "*", "**", "[", "]", "_", "`", "<", "|", "#", "-", "+", ">",
             "1.", "---", "===", "~~", "!", "\\", "<div>", "](x)", "```", "[^a]:",
+            "\\*", "\\**", "\\[", "\\]", "\\#", "\\-", "\\!", "\\|", "1\\.", "\\---",
+            "`a", "b`",
         ])
         .prop_map(str::to_owned),
     ]
@@ -152,6 +156,15 @@ proptest! {
             width,
             text
         );
+    }
+
+    /// Without reflow the author's line breaks are kept, including those
+    /// inside code spans, which need their own handling at a line start.
+    #[test]
+    fn formatter_is_idempotent_on_hazard_paragraphs(text in paragraph(hazard_word())) {
+        let once = formatter::format(&text);
+        let twice = formatter::format(&once);
+        prop_assert_eq!(&once, &twice, "not idempotent on input: {:?}", text);
     }
 
     /// Every line must fit the fill column, *unless* it is a single token the

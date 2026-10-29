@@ -75,7 +75,8 @@ style = "atx"
 style = "dash"
 
 # MD007 — Unordered list indentation
-# indent: number of spaces each nested list level is indented.
+# indent: number of spaces each nested list level is indented. A list nested in
+#         an ordered list is not checked: its indent is the ordered marker's width.
 [rules.MD007]
 indent = 2
 
@@ -141,7 +142,8 @@ punctuation = ".,;:!"
 
 # MD029 — Ordered list item prefix
 # style: the required numbering style.
-#   "ordered"        — items numbered sequentially (1. 2. 3.) — enforced by `mdlint format`
+#   "ordered"        — items numbered sequentially from the first item's number
+#                      (1. 2. 3., or 3. 4. 5.) — enforced by `mdlint format`
 #   "one"            — every item labeled 1.
 #   "one_or_ordered" — either style is accepted, but must be consistent
 [rules.MD029]
@@ -225,6 +227,13 @@ style = "asterisk"
 #   "consistent" — whatever delimiter appears first in the file
 [rules.MD050]
 style = "asterisk"
+
+# MD052 — Reference links and images should use a label that is defined
+# shortcut_syntax: when true, shortcut references (`[label]` alone) are checked
+#                  too. Off by default, as in markdownlint: bracketed prose such
+#                  as `[sic]` renders as literal text and is not a broken link.
+[rules.MD052]
+shortcut_syntax = false
 
 # MD055 — Table pipe style
 # style: where pipe characters are required on table rows.
