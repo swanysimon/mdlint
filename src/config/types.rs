@@ -37,6 +37,11 @@ pub struct Config {
     /// [`Config::fix`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fix: Option<bool>,
+
+    /// Reflow paragraphs to MD013's `line_length` when running `mdlint format`; read it
+    /// through [`Config::reflow`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reflow: Option<bool>,
 }
 
 /// Built-in defaults, used for every option no config in the chain sets.
@@ -60,6 +65,11 @@ impl Config {
     pub fn fix(&self) -> bool {
         self.fix.unwrap_or(true)
     }
+
+    #[must_use]
+    pub fn reflow(&self) -> bool {
+        self.reflow.unwrap_or_default()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -75,6 +85,22 @@ impl Config {
     #[must_use]
     pub fn config(&self) -> &HashMap<String, RuleConfig> {
         &self.rules
+    }
+
+    /// Whether `rule` is switched on, accounting for `default_enabled` and for
+    /// an `enabled = false` inside the rule's own parameter table.
+    ///
+    /// Shared by the linter and the formatter so that turning a rule off means
+    /// the same thing to both: MD013 governs reflow as well as the lint.
+    #[must_use]
+    pub fn rule_enabled(&self, rule: &str) -> bool {
+        match self.rules.get(rule) {
+            Some(RuleConfig::Enabled(enabled)) => *enabled,
+            Some(RuleConfig::Config(params)) => {
+                params.get("enabled") != Some(&toml::Value::Boolean(false))
+            }
+            None => self.default_enabled(),
+        }
     }
 
     /// Apply `--select`/`--ignore` CLI overrides on top of the loaded config.
@@ -182,5 +208,37 @@ mod tests {
             config.rules.get("MD013"),
             Some(RuleConfig::Enabled(false))
         ));
+    }
+
+    #[test]
+    fn test_rule_enabled_matches_every_spelling() {
+        let mut config = Config::default();
+        assert!(config.rule_enabled("MD013"), "on by default");
+
+        config
+            .rules
+            .insert("MD013".to_owned(), RuleConfig::Enabled(false));
+        assert!(!config.rule_enabled("MD013"));
+
+        let mut params = HashMap::new();
+        params.insert("enabled".to_owned(), toml::Value::Boolean(false));
+        config
+            .rules
+            .insert("MD013".to_owned(), RuleConfig::Config(params));
+        assert!(
+            !config.rule_enabled("MD013"),
+            "enabled = false in the table"
+        );
+
+        let mut params = HashMap::new();
+        params.insert("line_length".to_owned(), toml::Value::Integer(80));
+        config
+            .rules
+            .insert("MD013".to_owned(), RuleConfig::Config(params));
+        assert!(config.rule_enabled("MD013"), "parameters alone enable it");
+
+        config.rules.remove("MD013");
+        config.default_enabled = Some(false);
+        assert!(!config.rule_enabled("MD013"), "default_enabled = false");
     }
 }

@@ -25,7 +25,12 @@ fn all_rules_engine() -> LintEngine {
 fn format_produces_expected_output() {
     let input = fixture("format/input.md");
     let expected = fixture("format/expected.md");
-    let got = formatter::format(&input);
+    // The golden pair covers reflow, which is opt-in.
+    let options = formatter::FormatOptions {
+        reflow: true,
+        ..Default::default()
+    };
+    let got = formatter::format_with(&input, &options);
     assert_eq!(got, expected, "formatter output did not match golden file");
 }
 

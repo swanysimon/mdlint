@@ -555,7 +555,6 @@ mod tests {
         let parser = MarkdownParser::new(content);
 
         let events: Vec<_> = parser.parse().collect();
-        assert_ne!(events.len(), 0);
         assert!(parser.is_heading(&events[0]));
     }
 
@@ -848,7 +847,7 @@ mod tests {
         let content = "Use `<!--` to open a comment.\n\n#NoSpace\n";
         let parser = MarkdownParser::new(content);
 
-        assert_eq!(parser.comments(), [] as [Range<usize>; 0]);
+        assert_eq!(parser.comments().len(), 0);
         assert!(parser.comment_lines().is_empty());
     }
 

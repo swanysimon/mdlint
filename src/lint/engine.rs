@@ -85,28 +85,17 @@ impl LintEngine {
     }
 
     fn rule_config(&self, rule: &dyn Rule) -> RuleSetting {
-        let enabled_if = |enabled: bool| {
-            if enabled {
-                RuleSetting::Enabled(None)
-            } else {
-                RuleSetting::Disabled
-            }
-        };
+        if !self.config.rule_enabled(rule.name()) {
+            return RuleSetting::Disabled;
+        }
         match self.config.config().get(rule.name()) {
-            Some(RuleConfig::Enabled(enabled)) => enabled_if(*enabled),
             Some(RuleConfig::Config(cfg)) => {
                 // Convert TOML config to JSON for rule consumption
                 let mut table = toml::map::Map::new();
                 table.extend(cfg.clone());
-                let json_value = toml_to_json(toml::Value::Table(table));
-                if matches!(json_value.get("enabled"), Some(Value::Bool(false))) {
-                    RuleSetting::Disabled
-                } else {
-                    RuleSetting::Enabled(Some(json_value))
-                }
+                RuleSetting::Enabled(Some(toml_to_json(toml::Value::Table(table))))
             }
-            // If default_enabled is true and no specific config exists, enable the rule
-            None => enabled_if(self.config.default_enabled()),
+            _ => RuleSetting::Enabled(None),
         }
     }
 
@@ -299,6 +288,18 @@ fn parse_inline_config(
     }
 
     suppressed
+}
+
+/// Lines on which inline directives switch `rule` off.
+///
+/// Lets the formatter honour the same directives as the linter, through the same
+/// parser, so `<!-- mdlint-disable MD013 -->` means one thing to both.
+pub(crate) fn directive_suppressed_lines(content: &str, rule: &str) -> HashSet<usize> {
+    let parser = MarkdownParser::new(content);
+    let names = DirectiveNames::new(&crate::lint::rules::create_default_registry());
+    parse_inline_config(&parser, &names)
+        .remove(rule)
+        .unwrap_or_default()
 }
 
 enum DirectiveKind {

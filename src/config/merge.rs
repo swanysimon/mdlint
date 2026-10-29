@@ -17,6 +17,7 @@ pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
     base.front_matter = override_cfg.front_matter.or(base.front_matter);
     base.gitignore = override_cfg.gitignore.or(base.gitignore);
     base.no_inline_config = override_cfg.no_inline_config.or(base.no_inline_config);
+    base.reflow = override_cfg.reflow.or(base.reflow);
 
     base.rules.extend(override_cfg.rules);
 
@@ -82,6 +83,7 @@ mod tests {
         // default: the outer config that did set it still wins.
         let base = Config {
             fix: Some(false),
+            reflow: Some(true),
             default_enabled: Some(false),
             gitignore: Some(false),
             no_inline_config: Some(true),
@@ -91,6 +93,7 @@ mod tests {
 
         let merged = merge_configs(base, Config::default());
         assert!(!merged.fix());
+        assert!(merged.reflow());
         assert!(!merged.default_enabled());
         assert!(!merged.gitignore());
         assert!(merged.no_inline_config());
@@ -104,18 +107,21 @@ mod tests {
         let base = Config {
             gitignore: Some(false),
             no_inline_config: Some(true),
+            reflow: Some(true),
             ..Default::default()
         };
 
         let override_cfg = Config {
             gitignore: Some(true),
             no_inline_config: Some(false),
+            reflow: Some(false),
             ..Default::default()
         };
 
         let merged = merge_configs(base, override_cfg);
         assert!(merged.gitignore());
         assert!(!merged.no_inline_config());
+        assert!(!merged.reflow());
     }
 
     #[test]

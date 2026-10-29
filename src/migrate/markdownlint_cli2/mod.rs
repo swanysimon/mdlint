@@ -286,7 +286,7 @@ mod tests {
         assert!(!result.config.fix());
         assert_eq!(result.config.exclude, vec!["dist/**".to_string()]);
         assert!(result.config.rules.contains_key("MD013"));
-        assert_eq!(result.warnings, [] as [String; 0]);
+        assert_eq!(result.warnings, Vec::<String>::new());
     }
 
     #[test]
