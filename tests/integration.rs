@@ -14,7 +14,7 @@ fn fixture(path: &str) -> String {
 
 fn all_rules_engine() -> LintEngine {
     LintEngine::new(Config {
-        default_enabled: true,
+        default_enabled: Some(true),
         ..Config::default()
     })
 }
@@ -25,7 +25,12 @@ fn all_rules_engine() -> LintEngine {
 fn format_produces_expected_output() {
     let input = fixture("format/input.md");
     let expected = fixture("format/expected.md");
-    let got = formatter::format(&input);
+    // The golden pair covers reflow, which is opt-in.
+    let options = formatter::FormatOptions {
+        reflow: true,
+        ..Default::default()
+    };
+    let got = formatter::format_with(&input, &options);
     assert_eq!(got, expected, "formatter output did not match golden file");
 }
 
@@ -154,7 +159,7 @@ fn format_output_for_nested_list_passes_check() {
 fn check_clean_file_has_no_violations() {
     let content = fixture("format/expected.md");
     let engine = LintEngine::new(Config {
-        default_enabled: true,
+        default_enabled: Some(true),
         rules: {
             // MD041 requires a top-level heading — our fixture has one, but MD013
             // line length and other cosmetic rules might fire; only disable none.

@@ -55,7 +55,7 @@ impl Rule for MD035 {
                                     line_end: line_number,
                                     column_start: None,
                                     column_end: None,
-                                    replacement: "---".to_owned(),
+                                    replacement: dash_rule_replacement(parser, line_number, "---"),
                                     description: "Replace with canonical horizontal rule".to_owned(),
                                 }),
                             });
@@ -76,7 +76,7 @@ impl Rule for MD035 {
                             line_end: line_number,
                             column_start: None,
                             column_end: None,
-                            replacement: style.to_owned(),
+                            replacement: dash_rule_replacement(parser, line_number, style),
                             description: "Replace with required horizontal rule style".to_owned(),
                         }),
                     });
@@ -89,6 +89,27 @@ impl Rule for MD035 {
 
     fn fixable(&self) -> bool {
         true
+    }
+}
+
+/// The replacement for a rule on `line_number`, with a blank line above where
+/// `mdlint format` puts one, for the same reasons:
+/// - a dash rule directly under paragraph text would be a setext underline,
+///   turning the paragraph into a heading;
+/// - a `---` on line 1 with another `---` below it would open front matter.
+fn dash_rule_replacement(parser: &MarkdownParser, line_number: usize, style: &str) -> String {
+    let under_text = line_number > 1 && !parser.is_blank_line(line_number - 1);
+    let opens_front_matter = line_number == 1
+        && style == "---"
+        && parser
+            .lines()
+            .iter()
+            .skip(1)
+            .any(|line| *line == "---" || is_horizontal_rule(line.trim()));
+    if style.starts_with('-') && (under_text || opens_front_matter) {
+        format!("\n{style}")
+    } else {
+        style.to_owned()
     }
 }
 
@@ -235,6 +256,37 @@ mod tests {
 
                 Content
             "}
+        );
+    }
+
+    #[test]
+    fn test_fix_keeps_rule_under_paragraph_a_rule() {
+        // `***` under text is a thematic break; `---` there would be a setext
+        // underline, so the fix adds the blank line `mdlint format` adds.
+        let content = "Paragraph\n***\nMore\n";
+        let parser = MarkdownParser::new(content);
+        let violations = MD035.check(&parser, None);
+
+        assert_eq!(
+            apply_fixes(content, &violations),
+            "Paragraph\n\n---\nMore\n"
+        );
+        assert_eq!(
+            crate::formatter::format(&apply_fixes(content, &violations)),
+            crate::formatter::format(content)
+        );
+    }
+
+    #[test]
+    fn test_fix_never_opens_front_matter() {
+        let content = "***\n\nIntro\n\n***\n";
+        let parser = MarkdownParser::new(content);
+        let fixed = apply_fixes(content, &MD035.check(&parser, None));
+
+        assert_eq!(fixed, "\n---\n\nIntro\n\n---\n");
+        assert_eq!(
+            crate::formatter::format(&fixed),
+            crate::formatter::format(content)
         );
     }
 }

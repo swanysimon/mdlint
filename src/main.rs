@@ -3,7 +3,6 @@ use mdlint::args::{CheckArgs, Cli, Command, FormatArgs, OutputFormat, TerminalCo
 use mdlint::config::loader::{ConfigLoader, find_all_configs};
 use mdlint::config::{Config, merge_many_configs};
 use mdlint::error::Result;
-use mdlint::fix::Fixer;
 use mdlint::format::{DefaultFormatter, Formatter as _, GitlabFormatter, JsonFormatter};
 use mdlint::formatter;
 use mdlint::glob::FileWalker;
@@ -17,7 +16,13 @@ use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    process::exit(run().map_or(2i32, i32::from));
+    match run() {
+        Ok(found_problems) => process::exit(i32::from(found_problems)),
+        Err(e) => {
+            eprintln!("error: {e}");
+            process::exit(2);
+        }
+    }
 }
 
 fn run() -> Result<bool> {
@@ -35,8 +40,12 @@ fn run() -> Result<bool> {
 
 fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
-    let should_fix = args.should_fix().unwrap_or(config.fix);
-    let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
+    let should_fix = args.should_fix().unwrap_or_else(|| config.fix());
+    let files = find_files(
+        &args.files(),
+        &excludes,
+        respect_ignore(args.should_respect_ignore(), &config),
+    )?;
     let config = config.apply_rule_filters(&args.select, &args.ignore);
 
     if files.is_empty() {
@@ -44,15 +53,16 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
         return Ok(false);
     }
 
+    let engine = LintEngine::try_new(config)?;
     let mut lint_result = if args.parallel && !args.no_parallel {
-        lint_files_parallel(config, &files, verbose)?
+        lint_files_parallel(&engine, &files, verbose)?
     } else {
-        lint_files(config, &files, verbose)?
+        lint_files(&engine, &files, verbose)?
     };
     lint_result.sort_violations();
 
     if should_fix && lint_result.has_errors() {
-        apply_fixes(&lint_result)?;
+        apply_fixes(&engine, &lint_result)?;
     }
 
     let output = match args.output_format {
@@ -67,7 +77,11 @@ fn run_check(args: &CheckArgs, config: Config, use_color: bool, verbose: bool) -
 
 fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     let excludes = merge_excludes(&args.exclude, &config.exclude);
-    let files = find_files(&args.files(), &excludes, args.should_respect_ignore())?;
+    let files = find_files(
+        &args.files(),
+        &excludes,
+        respect_ignore(args.should_respect_ignore(), config),
+    )?;
 
     if files.is_empty() {
         eprintln!("No markdown files found");
@@ -75,10 +89,15 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     }
 
     let mut any_changed = false;
+    let config = Config {
+        reflow: args.should_reflow().or(config.reflow),
+        ..config.clone()
+    };
+    let options = formatter::FormatOptions::from(&config);
 
     for path in &files {
         let original = fs::read_to_string(path)?;
-        let formatted = formatter::format(&original);
+        let formatted = formatter::format_with(&original, &options);
 
         if formatted == original {
             continue;
@@ -109,6 +128,11 @@ fn load_config(cli: &Cli) -> Result<Config> {
         }
         loader => loader.load(),
     }
+}
+
+/// `.gitignore` is respected unless either the CLI flag or the config turns it off.
+fn respect_ignore(cli_respects_ignore: bool, config: &Config) -> bool {
+    cli_respects_ignore && config.gitignore()
 }
 
 fn merge_excludes(cli_excludes: &[PathBuf], config_excludes: &[String]) -> Vec<PathBuf> {
@@ -160,10 +184,13 @@ fn is_excluded(path: &PathBuf, excludes: &[PathBuf]) -> bool {
 
 type FileOutcome = Result<(PathBuf, Vec<Violation>, Vec<String>)>;
 
-fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
+fn lint_files_parallel(
+    engine: &LintEngine,
+    files: &[PathBuf],
+    verbose: bool,
+) -> Result<LintResult> {
     use rayon::prelude::*;
 
-    let engine = LintEngine::new(config);
     let outcomes: Vec<FileOutcome> = files
         .par_iter()
         .map(|file_path| {
@@ -189,8 +216,7 @@ fn lint_files_parallel(config: Config, files: &[PathBuf], verbose: bool) -> Resu
     Ok(lint_result)
 }
 
-fn lint_files(config: Config, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
-    let engine = LintEngine::new(config);
+fn lint_files(engine: &LintEngine, files: &[PathBuf], verbose: bool) -> Result<LintResult> {
     let mut lint_result = LintResult::new();
 
     for file_path in files {
@@ -224,27 +250,19 @@ fn should_use_color(color: &TerminalColor) -> bool {
     }
 }
 
-#[expect(clippy::similar_names)] // `fixer` and `fixes` are clearly distinct: one is the engine, one is the data
-fn apply_fixes(lint_result: &LintResult) -> Result<()> {
-    let fixer = Fixer::new();
-
+fn apply_fixes(engine: &LintEngine, lint_result: &LintResult) -> Result<()> {
     for file_result in &lint_result.file_results {
-        let fixes: Vec<_> = file_result
-            .violations
-            .iter()
-            .filter_map(|v| v.fix.clone())
-            .collect();
-
-        if fixes.is_empty() {
+        if file_result.violations.iter().all(|v| v.fix.is_none()) {
             continue;
         }
 
         let content = fs::read_to_string(&file_result.path)?;
-        match fixer.apply_fixes_to_content(&content, &fixes) {
-            Ok(fixed_content) => {
+        match engine.fix_content(&content) {
+            Ok(fixed_content) if fixed_content != content => {
                 fs::write(&file_result.path, fixed_content)?;
                 eprintln!("Fixed: {}", file_result.path.display());
             }
+            Ok(_) => {}
             Err(e) => {
                 eprintln!(
                     "Failed to apply fixes to {}: {}",

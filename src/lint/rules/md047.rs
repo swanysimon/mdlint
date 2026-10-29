@@ -46,14 +46,17 @@ impl Rule for MD047 {
                     description: "Add newline at end of file".to_owned(),
                 }),
             });
-        } else if content.ends_with("\n\n") {
+        } else if content.ends_with("\n\n")
+            // Blank lines at the end of an unclosed code block are its content.
+            && !parser.get_code_block_line_numbers().contains(&lines.len())
+        {
             // Multiple trailing newlines - count them
             let trailing_newlines = content.chars().rev().take_while(|&c| c == '\n').count();
 
             if trailing_newlines > 1 {
-                // Remove all but one newline
-                // The last "line" in lines() will be empty string(s) for trailing newlines
-                let last_content_line_idx = lines.len().saturating_sub(trailing_newlines);
+                // Remove all but one newline. `lines()` yields one empty line per
+                // newline after the first: "text\n\n" is ["text", ""].
+                let last_content_line_idx = lines.len().saturating_sub(trailing_newlines - 1);
                 let last_content_line = if last_content_line_idx > 0 {
                     lines.get(last_content_line_idx - 1).unwrap_or(&"")
                 } else {
@@ -183,5 +186,26 @@ mod tests {
                 Content
             "}
         );
+    }
+
+    #[test]
+    fn test_fix_removes_extra_trailing_newlines_and_keeps_content() {
+        for (content, expected) in [
+            ("# Heading\n\nContent\n\n", "# Heading\n\nContent\n"),
+            ("# Heading\n\nContent\n\n\n\n", "# Heading\n\nContent\n"),
+            ("Content\n\n", "Content\n"),
+        ] {
+            let parser = MarkdownParser::new(content);
+            let violations = MD047.check(&parser, None);
+            assert_eq!(apply_fixes(content, &violations), expected, "{content:?}");
+        }
+    }
+
+    #[test]
+    fn test_blank_lines_ending_an_unclosed_code_block_are_content() {
+        let content = "# Heading\n\n```\ncode\n\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(MD047.check(&parser, None).len(), 0);
     }
 }

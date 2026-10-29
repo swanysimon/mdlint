@@ -14,10 +14,10 @@ pub fn render(config: &Config) -> String {
     let mut out = String::from(HEADER);
     out.push('\n');
 
-    writeln!(out, "default_enabled = {}", config.default_enabled).unwrap();
-    writeln!(out, "gitignore = {}", config.gitignore).unwrap();
-    writeln!(out, "no_inline_config = {}", config.no_inline_config).unwrap();
-    writeln!(out, "fix = {}", config.fix).unwrap();
+    writeln!(out, "default_enabled = {}", config.default_enabled()).unwrap();
+    writeln!(out, "gitignore = {}", config.gitignore()).unwrap();
+    writeln!(out, "no_inline_config = {}", config.no_inline_config()).unwrap();
+    writeln!(out, "fix = {}", config.fix()).unwrap();
 
     if let Some(front_matter) = &config.front_matter {
         writeln!(out, "front_matter = {front_matter:?}").unwrap();

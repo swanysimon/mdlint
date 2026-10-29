@@ -33,13 +33,20 @@ impl Rule for MD032 {
         let mut current_marker: Option<ListMarker> = None;
         let mut last_list_line: usize = 0;
         let code_block_lines = parser.get_code_block_line_numbers();
+        let html_block_lines = parser.html_block_lines();
 
         for (line_num, line) in lines.iter().enumerate() {
             if code_block_lines.contains(&(line_num + 1)) {
                 continue;
             }
             let trimmed = line.trim_start();
-            let list_marker = get_list_marker(trimmed);
+            // Raw HTML never starts a list, but it does end one: the formatter
+            // separates a list from a following HTML block like any block.
+            let list_marker = if html_block_lines.contains(&(line_num + 1)) {
+                None
+            } else {
+                get_list_marker(trimmed)
+            };
             let is_indented = !line.is_empty()
                 && line
                     .chars()
@@ -61,37 +68,35 @@ impl Rule for MD032 {
                     current_marker = Some(marker);
                     last_list_line = line_num;
 
-                    // Check if previous line is blank (unless it's the first line)
-                    if line_num > 0 {
-                        let prev_line = lines.get(line_num - 1).expect("line_num > 0");
-                        if !prev_line.trim().is_empty() {
-                            // Detect broken ordered list continuation: a line that
-                            // looks like an ordered list item (e.g. "6.") following
-                            // non-list text won't be parsed as a list item because
-                            // only "1." can interrupt a paragraph (CommonMark §5.2).
-                            if marker == ListMarker::Ordered && !starts_with_one(trimmed) {
-                                // Report on the interrupting line (previous line),
-                                // not the list-like line — that's where the break is.
-                                violations.push(Violation {
-                                    line: line_num, // previous line (0-indexed → 1-indexed)
-                                    column: Some(1),
-                                    rule: self.name().to_owned(),
-                                    message: "Line breaks ordered list continuation; subsequent \
+                    // Check if previous line is blank (unless it's the first line).
+                    // Comment/front-matter lines count as blank here too.
+                    if line_num > 0 && !parser.is_blank_line(line_num) {
+                        // Detect broken ordered list continuation: a line that
+                        // looks like an ordered list item (e.g. "6.") following
+                        // non-list text won't be parsed as a list item because
+                        // only "1." can interrupt a paragraph (CommonMark §5.2).
+                        if marker == ListMarker::Ordered && !starts_with_one(trimmed) {
+                            // Report on the interrupting line (previous line),
+                            // not the list-like line — that's where the break is.
+                            violations.push(Violation {
+                                line: line_num, // previous line (0-indexed → 1-indexed)
+                                column: Some(1),
+                                rule: self.name().to_owned(),
+                                message: "Line breaks ordered list continuation; subsequent \
                                          numbered items are parsed as text, not list items"
-                                        .to_owned(),
-                                    fix: None,
-                                });
-                            } else {
-                                violations.push(Violation {
-                                    line: line_num + 1,
-                                    column: Some(1),
-                                    rule: self.name().to_owned(),
-                                    message: "List should be surrounded by blank lines \
+                                    .to_owned(),
+                                fix: None,
+                            });
+                        } else {
+                            violations.push(Violation {
+                                line: line_num + 1,
+                                column: Some(1),
+                                rule: self.name().to_owned(),
+                                message: "List should be surrounded by blank lines \
                                          (missing before)"
-                                        .to_owned(),
-                                    fix: None,
-                                });
-                            }
+                                    .to_owned(),
+                                fix: None,
+                            });
                         }
                     }
                 } else if Some(marker) != current_marker {
@@ -123,8 +128,9 @@ impl Rule for MD032 {
             } else if in_list && is_indented && !line.trim().is_empty() {
                 // Indented non-list line - this is a continuation of the list item
                 // Do nothing, stay in list
-            } else if in_list && !line.trim().is_empty() {
-                // Ending a list (non-blank, non-indented, non-list line)
+            } else if in_list && !parser.is_blank_line(line_num + 1) {
+                // Ending a list (non-blank, non-indented, non-list line). Comment
+                // and front-matter lines count as blank and don't end the list.
                 in_list = false;
                 current_marker = None;
 
@@ -136,24 +142,12 @@ impl Rule for MD032 {
                     message: "List should be surrounded by blank lines (missing after)".to_owned(),
                     fix: None,
                 });
-            } else if in_list && line.trim().is_empty() {
-                // Blank line during list - might be end
-                // Look ahead to see if list continues with same marker
-                let mut continues = false;
-                for future_line in lines.iter().skip(line_num + 1) {
-                    if let Some(future_marker) = get_list_marker(future_line.trim_start()) {
-                        if Some(future_marker) == current_marker {
-                            continues = true;
-                        }
-                        break;
-                    } else if !future_line.trim().is_empty() {
-                        break;
-                    }
-                }
-                if !continues {
-                    in_list = false;
-                    current_marker = None;
-                }
+            } else if in_list
+                && parser.is_blank_line(line_num + 1)
+                && !list_continues_after_blank(parser, lines, line_num, current_marker)
+            {
+                in_list = false;
+                current_marker = None;
             }
         }
 
@@ -163,6 +157,26 @@ impl Rule for MD032 {
     fn fixable(&self) -> bool {
         false
     }
+}
+
+/// After a blank line inside a list, reports whether the same list resumes.
+/// The first marker found decides it: a matching marker continues the list, a
+/// different one starts a new list. Any other non-blank content ends the list.
+/// Comment and front-matter lines count as blank and don't end the lookahead.
+fn list_continues_after_blank(
+    parser: &MarkdownParser,
+    lines: &[&str],
+    line_num: usize,
+    current_marker: Option<ListMarker>,
+) -> bool {
+    for (offset, future_line) in lines.iter().enumerate().skip(line_num + 1) {
+        if let Some(future_marker) = get_list_marker(future_line.trim_start()) {
+            return Some(future_marker) == current_marker;
+        } else if !parser.is_blank_line(offset + 1) {
+            return false;
+        }
+    }
+    false
 }
 
 /// Returns true if the line starts with `1.` or `1)` (the only ordered marker
@@ -421,5 +435,34 @@ mod tests {
         let violations = rule.check(&parser, None);
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_comment_around_list_counts_as_blank() {
+        let content = "<!-- note -->\n* Item 1\n* Item 2\n<!-- note -->\nText after";
+        let parser = MarkdownParser::new(content);
+        let rule = MD032;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_marker_inside_html_block_is_not_a_list() {
+        let content = "<div>\n- item\n</div>\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(MD032.check(&parser, None).len(), 0);
+    }
+
+    #[test]
+    fn test_html_block_right_after_list() {
+        let content = "- item\n<div>\nx\n</div>\n";
+        let parser = MarkdownParser::new(content);
+
+        assert_eq!(
+            rendered(&MD032.check(&parser, None)),
+            ["test.md:2:1: MD032 List should be surrounded by blank lines (missing after)"]
+        );
     }
 }

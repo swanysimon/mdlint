@@ -18,6 +18,8 @@ Run `mdlint format` and stop thinking about it.
 ## Features
 
 - **Formatter first**: `mdlint format` rewrites files to a canonical style — no configuration required
+- **Reflows prose (opt-in)**: with `--reflow` or `reflow = true`, paragraphs are unwrapped and refilled to the
+  configured line length, so where you happened to press Enter stops showing up in diffs
 - **Linter second**: `mdlint check` reports violations; fixable rules are auto-corrected by `mdlint format` or
   `mdlint check --fix`
 - **Fast**: written in Rust for performance
@@ -61,8 +63,8 @@ docker run --rm -v "$PWD:/workspace" ghcr.io/swanysimon/mdlint:latest check
 docker run --rm -v "$PWD:/workspace" simonswanson/mdlint:latest       format
 ```
 
-Pre-built binaries for Linux (x86_64/ARM64, glibc and musl), macOS (Intel/Apple Silicon), and Windows are available
-on the [releases page](https://github.com/swanysimon/mdlint/releases). A [Homebrew](https://brew.sh) formula is planned.
+Pre-built binaries for Linux (x86_64/ARM64, glibc and musl), macOS (Intel/Apple Silicon), and Windows are available on
+the [releases page](https://github.com/swanysimon/mdlint/releases). A [Homebrew](https://brew.sh) formula is planned.
 
 ### pre-commit framework
 
@@ -72,7 +74,7 @@ Add to `.pre-commit-config.yaml`:
 repos:
   - repo: https://github.com/swanysimon/mdlint
     # use the latest release tag
-    rev: v0.3.23
+    rev: v0.3.25
     hooks:
       - id: mdlint-format
       - id: mdlint-check
@@ -98,43 +100,72 @@ Lint Markdown files and report issues.
 Usage: mdlint check [OPTIONS] [FILES]...
 
 Arguments:
-  [FILES]...                       Files or directories to check (defaults to current directory)
+  [FILES]...  Files or directories to check (defaults to current directory)
 
 Options:
-      --fix                        Apply auto-fixes where possible
-      --no-fix                     Disable auto-fix even if enabled in config
-      --output-format <FORMAT>     Output format [default: default] [possible values: default, json]
-      --select <RULE_CODE>,...     Enable only the specified rules (comma-separated, or ALL)
-      --ignore <RULE_CODE>,...     Disable the specified rules (comma-separated)
-      --exclude <PATH>             Exclude files or directories from analysis
-      --no-respect-ignore          Do not respect .gitignore files
-      --parallel                   Lint files in parallel (experimental)
-  -h, --help                       Print help
+      --fix                     Apply auto-fixes where possible
+      --output-format <FORMAT>  Output format [default: default] [possible values: default, json, gitlab]
+      --color <COLOR>           Control colors in output [possible values: auto, always, never]
+  -h, --help                    Print help
 
-Global options:
-      --config <CONFIG>            Path to TOML configuration file
-      --no-config                  Ignore all configuration files
-  -v, --verbose                    Enable verbose logging
-  -q, --quiet                      Print diagnostics only
-  -s, --silent                     Disable all logging (exit code still reflects result)
-      --color <COLOR>              Control colors in output [default: auto] [possible values: auto, always, never]
+File selection:
+      --exclude <EXCLUDE>  Files and directories to exclude from analysis
+      --respect-ignore     Respect `.gitignore` and similar exclusion files. Use `--no-respect-ignore` to disable
+
+Experimental:
+      --parallel  Lint files in parallel (experimental)
+
+Rule selection:
+      --select <RULE_CODE>  Comma-separated list of rules to enable (or `ALL`)
+      --ignore <RULE_CODE>  Comma-separated list of rules to disable
+
+Configuration:
+      --config <CONFIG>  Path to a configuration file (mdlint.toml, pyproject.toml or package.json)
+      --no-config        Ignore all configuration files
+
+Log levels:
+  -v, --verbose  Enable verbose logging
+  -q, --quiet    Print diagnostics, nothing else
+  -s, --silent   Disable all logging (exit code still reflects result)
 ```
 
 ### mdlint format
 
 Format Markdown files with opinionated style.
 
+Paragraph reflow is opt-in: pass `--reflow`, or set `reflow = true` in `mdlint.toml` (`--no-reflow` overrides the config
+for one run). Existing line breaks inside a paragraph are then discarded and the text is refilled up to
+`rules.MD013.line_length` (default 120). Headings, tables, code blocks, and HTML are left alone. Note that turning it on
+rewrites every file with hard-wrapped prose the next time you run `mdlint format`.
+
+Tables are the one place where "left alone" needed a matching change to the linter: a table row is always a single line,
+so nothing in the tool can narrow one, and MD013 therefore does not check table widths unless you ask it to with
+`tables = true`.
+
 ```text
 Usage: mdlint format [OPTIONS] [FILES]...
 
 Arguments:
-  [FILES]...                       Files or directories to format (defaults to current directory)
+  [FILES]...  Files or directories to format (defaults to current directory)
 
 Options:
-      --check                      Check formatting only; do not modify files (exits 1 if any file would change)
-      --exclude <PATH>             Exclude files or directories
-      --no-respect-ignore          Do not respect .gitignore files
-  -h, --help                       Print help
+      --check          Check formatting without modifying files (exits with 1 if any file would change)
+      --reflow         Reflow paragraphs to MD013's line_length. Use `--no-reflow` to disable
+      --color <COLOR>  Control colors in output [possible values: auto, always, never]
+  -h, --help           Print help
+
+File selection:
+      --exclude <EXCLUDE>  Files and directories to exclude from formatting
+      --respect-ignore     Respect `.gitignore` and similar exclusion files. Use `--no-respect-ignore` to disable
+
+Configuration:
+      --config <CONFIG>  Path to a configuration file (mdlint.toml, pyproject.toml or package.json)
+      --no-config        Ignore all configuration files
+
+Log levels:
+  -v, --verbose  Enable verbose logging
+  -q, --quiet    Print diagnostics, nothing else
+  -s, --silent   Disable all logging (exit code still reflects result)
 ```
 
 ### mdlint migrate
@@ -146,29 +177,40 @@ Migrate a configuration from another Markdown tool to `mdlint.toml`. Currently s
 Usage: mdlint migrate [OPTIONS] [INPUT]
 
 Arguments:
-  [INPUT]                          Path to the configuration to migrate (auto-detected if omitted)
+  [INPUT]  Path to the configuration to migrate (auto-detected if omitted)
 
 Options:
-      --from <SOURCE>               Tool to migrate the configuration from [default: markdownlint-cli2]
-      --output <PATH>               Output path for the generated config [default: mdlint.toml]
-      --force                       Overwrite the output file if it already exists
-      --dry-run                     Print the generated config without writing it
-  -h, --help                        Print help
+      --from <SOURCE>  Tool to migrate the configuration from [default: markdownlint-cli2] [possible values:
+                       markdownlint-cli2]
+      --output <PATH>  Output path for the generated config [default: mdlint.toml]
+      --force          Overwrite the output file if it already exists
+      --dry-run        Print the generated config without writing it
+      --color <COLOR>  Control colors in output [possible values: auto, always, never]
+  -h, --help           Print help
+
+Configuration:
+      --config <CONFIG>  Path to a configuration file (mdlint.toml, pyproject.toml or package.json)
+      --no-config        Ignore all configuration files
+
+Log levels:
+  -v, --verbose  Enable verbose logging
+  -q, --quiet    Print diagnostics, nothing else
+  -s, --silent   Disable all logging (exit code still reflects result)
 ```
 
 #### markdownlint-cli2
 
-Supports `.markdownlint-cli2.{json,jsonc,yaml,yml}` and standalone `.markdownlint.{json,jsonc,yaml,yml}` rule
-configs, and falls back to the `"markdownlint-cli2"` field in `package.json` if no dedicated config file is found.
-Rule names and their common aliases (e.g. `line-length` for `MD013`) are both recognized. The `gitignore`,
-`noInlineConfig`, and `frontMatterPattern` cli2 options map onto mdlint's equivalent `gitignore`, `no_inline_config`,
-and `front_matter` settings. `.cjs`/`.mjs` configs are evaluated with a Node.js runtime when one is found on `PATH`
-(the same thing `markdownlint-cli2` itself would do when loading them), correctly resolving `require()`, spread
-syntax, and computed values. If Node isn't available, mdlint falls back to a best-effort text scrape and warns that
-dynamic values may not have been resolved; if a config can't be parsed either way, migration fails with a message
-asking you to export it with `console.log(JSON.stringify(config))` and migrate the resulting JSON file instead.
-Rules with no mdlint implementation, and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`,
-`outputFormatters`), are skipped with a warning rather than failing the migration.
+Supports `.markdownlint-cli2.{json,jsonc,yaml,yml}` and standalone `.markdownlint.{json,jsonc,yaml,yml}` rule configs,
+and falls back to the `"markdownlint-cli2"` field in `package.json` if no dedicated config file is found. Rule names and
+their common aliases (e.g. `line-length` for `MD013`) are both recognized. The `gitignore`, `noInlineConfig`, and
+`frontMatterPattern` cli2 options map onto mdlint's equivalent `gitignore`, `no_inline_config`, and `front_matter`
+settings. `.cjs`/`.mjs` configs are evaluated with a Node.js runtime when one is found on `PATH` (the same thing
+`markdownlint-cli2` itself would do when loading them), correctly resolving `require()`, spread syntax, and computed
+values. If Node isn't available, mdlint falls back to a best-effort text scrape and warns that dynamic values may not
+have been resolved; if a config can't be parsed either way, migration fails with a message asking you to export it with
+`console.log(JSON.stringify(config))` and migrate the resulting JSON file instead. Rules with no mdlint implementation,
+and cli2-specific fields with no mdlint equivalent (`globs`, `customRules`, `outputFormatters`), are skipped with a
+warning rather than failing the migration.
 
 ### Examples
 
@@ -212,25 +254,97 @@ mdlint migrate --from markdownlint-cli2 .markdownlint-cli2.jsonc --output mdlint
 
 ## Configuration
 
-mdlint uses TOML configuration files, discovered by searching upward from the current directory. The tool searches for
-these files in order (first found wins per directory level), walking up from the current directory:
+mdlint is configured in TOML, discovered by searching upward from the current directory. Settings can live in a
+dedicated file or inside a manifest your project already has. Within a directory, the first of these that holds mdlint
+settings wins:
 
 1. `mdlint.toml`
 2. `.mdlint.toml`
+3. `pyproject.toml` — under a `[tool.mdlint]` table
+4. `package.json` — under a top-level `"mdlint"` key
 
-Planned: `package.json` and `pyproject.toml` support.
+A `pyproject.toml` or `package.json` without mdlint settings is not a config: the search walks past it to the parent
+directory, so an unrelated manifest never shadows a config higher up. Pointing `--config` at a manifest that has no
+mdlint section is an error rather than a silent fall back to defaults.
+
+### pyproject.toml
+
+Options go under `[tool.mdlint]`, rules under `[tool.mdlint.rules.MDxxx]` — the same layout as `mdlint.toml`, nested one
+level deeper:
+
+```toml
+[tool.mdlint]
+gitignore = true
+exclude = ["docs/generated"]
+
+[tool.mdlint.rules.MD013]
+line_length = 100
+
+[tool.mdlint.rules.MD033]
+enabled = false
+```
+
+### package.json
+
+Options go under a top-level `"mdlint"` key. The keys are identical to the TOML ones:
+
+```json
+{
+  "name": "my-project",
+  "mdlint": {
+    "gitignore": true,
+    "exclude": ["docs/generated"],
+    "rules": {
+      "MD013": { "line_length": 100 },
+      "MD033": { "enabled": false }
+    }
+  }
+}
+```
 
 ### Configuration hierarchy
 
-Configs are discovered by walking up the directory tree. Scalar values from closer configs override those farther away;
-arrays are extended. Priority order (highest to lowest):
+Discovery walks up from the working directory to the filesystem root, taking **at most one config per directory** — the
+first of the four file names above that actually holds mdlint settings. Every config found along the way is merged, with
+the one nearest the working directory winning.
 
-1. `--config` flag on the CLI
-2. `mdlint.toml` / `.mdlint.toml` in the current directory
-3. Config files in parent directories (walking up to the filesystem root)
-4. Built-in defaults
+Priority, highest to lowest:
+
+1. CLI flags — `--select`, `--ignore`, `--fix` / `--no-fix`, `--reflow` / `--no-reflow`, `--exclude`,
+   `--no-respect-ignore`
+2. `--config <path>`, which **replaces discovery entirely**: no other config file is read, not even one in the working
+   directory
+3. The config in the working directory
+4. Configs in parent directories, nearest first, up to the filesystem root
+5. Built-in defaults
+
+`--no-config` skips 2 through 4 and runs on built-in defaults alone.
+
+How values from different configs combine:
+
+- **Scalars** — `default_enabled`, `fix`, `reflow`, `gitignore`, `no_inline_config`, `front_matter`: the nearest config
+  that *sets* the option wins. A config that omits an option leaves whatever an outer config set it to, rather than
+  resetting it to the built-in default.
+- **Arrays** — `exclude`, `custom_rules`: accumulate, so every config in the chain contributes its entries. There is no
+  way to remove an entry an outer config added.
+- **`[rules.MDxxx]`**: merged per rule code. The nearest config that configures a rule replaces that rule's whole
+  section — parameters are not merged one at a time, so a closer `line_length = 90` drops any other MD013 parameters an
+  outer config had set.
+
+CLI flags then apply on top of the merged result:
+
+- `--fix` / `--no-fix` overrides `fix`.
+- `--reflow` / `--no-reflow` overrides `reflow`.
+- `--exclude` is added to `exclude` rather than replacing it.
+- `--no-respect-ignore` forces `.gitignore` off, and so does `gitignore = false` in any config; `.gitignore` is
+  respected only when neither turns it off.
+- `--select` turns `default_enabled` off and enables just the listed rules, keeping any parameters those rules were
+  given in a config.
+- `--ignore` disables the listed rules, overriding both the config files and `--select`.
 
 ### Global options
+
+<!-- mdlint-disable MD013 -->
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -238,9 +352,12 @@ arrays are extended. Priority order (highest to lowest):
 | `gitignore` | `true` | Respect `.gitignore` files when discovering Markdown files. |
 | `no_inline_config` | `false` | Ignore all `<!-- mdlint-disable -->` comments. |
 | `fix` | `true` | `mdlint check` automatically applies all fixable violations; equivalent to passing `--fix` on the CLI. |
+| `reflow` | `false` | `mdlint format` refills paragraphs to MD013's `line_length`; equivalent to passing `--reflow` on the CLI. |
 | `front_matter` | auto | Front matter delimiter. Auto-detects `---` (YAML) and `+++` (TOML). Set to `"---"` to accept YAML only. |
 | `exclude` | `[]` | Paths/glob patterns excluded from discovery; merged with any `--exclude` CLI flags. |
 | `custom_rules` | `[]` | Paths to external rule modules (future feature). |
+
+<!-- mdlint-enable MD013 -->
 
 ### Rule configuration
 
@@ -265,9 +382,24 @@ names = ["JavaScript", "TypeScript", "GitHub"]
 
 See [`mdlint.default.toml`](mdlint.default.toml) for every option with its default value.
 
+### Front matter and comments
+
+YAML/TOML front matter is excluded from every rule and is not parsed as Markdown. A front matter `title` field is
+treated as the document's primary top-level heading, so MD025 (multiple top-level headings) and MD041 (first line should
+be a top-level heading) are satisfied by it instead of requiring a `#` heading in the body. As in markdownlint, the
+field is found by each rule's `front_matter_title` pattern, a case-insensitive regular expression matched against every
+front matter line (default `^\s*"?title"?\s*[:=]`); set it to `""` to turn this off. An invalid pattern is a
+configuration error.
+
+HTML comments (`<!-- ... -->`, including multi-line comments) are excluded from every rule except MD013 (line length),
+since line length is a property of the raw line rather than of Markdown semantics. A `<!--` inside a code span or code
+block is literal text, not a comment.
+
 ### Inline configuration
 
-Rules can be suppressed for specific lines using HTML comments:
+Rules can be suppressed for specific lines using HTML comments. Both `mdlint-` and `markdownlint-` prefixes are accepted
+as equivalent aliases, so existing `markdownlint`/`markdownlint-cli2` comments keep working, except for the
+`disable-file`, `enable-file`, and `configure-file` forms, which mdlint does not support:
 
 ```markdown
 <!-- mdlint-disable-next-line MD013 -->
@@ -282,12 +414,42 @@ This line may be longer than the configured limit.
 | --- | --- |
 | `<!-- mdlint-disable MD001 -->` | Disable rule from this line onward |
 | `<!-- mdlint-enable MD001 -->` | Re-enable rule from this line onward |
+| `<!-- mdlint-disable-line MD001 -->` | Disable rule for the current line only |
 | `<!-- mdlint-disable-next-line MD001 -->` | Disable rule for the next line only |
 | `<!-- mdlint-disable -->` | Disable all rules from this line onward |
 | `<!-- mdlint-enable -->` | Re-enable all rules |
+| `<!-- mdlint-capture -->` | Save the current enable/disable state |
+| `<!-- mdlint-restore -->` | Restore the most recently captured state |
 
-Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule codes. Set `no_inline_config = true`
-in `mdlint.toml` to ignore all inline comments project-wide.
+Multiple rules: `<!-- mdlint-disable MD001 MD013 -->` — space-separate rule names. As in markdownlint, a name may be a
+rule code, a markdownlint alias (`line-length`), or a tag (`headings`, covering every rule with it), in any case. Names
+mdlint does not know are ignored. `disable`/`enable` with no rule names applies to every rule; a rule-specific `enable`
+after a bare `disable` re-enables just that rule (e.g. `disable` then `enable MD013` means "all rules except MD013").
+`capture`/`restore` nest like a stack, so a block of directives can be undone as a unit regardless of what state it
+started from. Directives shown inside a code span or code block are examples and have no effect. Set
+`no_inline_config = true` in `mdlint.toml` to ignore all inline comments project-wide.
+
+With reflow enabled, disabling **MD013** also stops `mdlint format` reflowing: paragraphs covered by the directive keep
+the line breaks you gave them. Setting `enabled = false` under `[rules.MD013]` does the same thing for the whole project
+— the comment and the config key are one switch, spelled two ways. This is the way to protect deliberately hand-wrapped
+prose — one sentence per line, an aligned list, ASCII art in a paragraph — from being refilled. Reflow rewrites a whole
+paragraph or none of it, so a directive covering any part of a paragraph protects all of it.
+
+Use the block form (`disable` … `enable`) to protect prose, not `disable-line` or `disable-next-line`. Those two forms
+suppress the *lint* on one line, while the formatter protects the whole paragraph that line belongs to: on a paragraph
+spanning several lines, `format` stops reflowing it and `mdlint check` goes on reporting every line of it except the one
+named — a violation neither command will ever fix. The block form suppresses the rule and the reflow over the same
+range.
+
+```markdown
+<!-- mdlint-disable MD013 -->
+
+These line breaks are deliberate
+and the formatter will leave them
+exactly where they are.
+
+<!-- mdlint-enable MD013 -->
+```
 
 ## Exit Codes
 
@@ -299,11 +461,17 @@ in `mdlint.toml` to ignore all inline comments project-wide.
 
 ## Rules
 
-Rules marked ✓ in the **Fix** column are auto-corrected by `mdlint check --fix` and `mdlint format`. Rules without ✓
-are reported by `mdlint check` only and require manual correction. **Default** shows mdlint's configured default for
-the rule's key parameter(s); **markdownlint** shows the
-[original markdownlint](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) default where it differs from
-mdlint's. `—` means the rule has no configurable parameters.
+Rules marked ✓ in the **Fix** column are auto-corrected by `mdlint check --fix` and `mdlint format`. Rules without ✓ are
+reported by `mdlint check` only and require manual correction. **Default** shows mdlint's configured default for the
+rule's key parameter(s); **markdownlint** shows the [original
+markdownlint](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md) default where it differs from mdlint's.
+`—` means the rule has no configurable parameters.
+
+MD013 is marked `✓*` because it is the one rule the two paths disagree on: with reflow on, `mdlint format` fixes
+over-long paragraphs by reflowing them, but `mdlint check --fix` never does. Reflow rewrites a whole paragraph, which a
+per-violation fix cannot express. With reflow off (the default), neither path fixes line length.
+
+<!-- mdlint-disable MD013 -->
 
 | Rule | Fix | Default | markdownlint | Description | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -311,12 +479,12 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD003](https://github.com/DavidAnson/markdownlint/blob/main/doc/md003.md) |  | `atx` | `consistent` | Heading style should be consistent throughout the document | Config: `style` — `atx` (`# Heading`), `setext`, `atx_closed`, `consistent` |
 | [MD004](https://github.com/DavidAnson/markdownlint/blob/main/doc/md004.md) | ✓ | `dash` | `consistent` | Unordered list style should be consistent | Config: `style` — `dash`, `asterisk`, `plus`, `consistent` |
 | [MD005](https://github.com/DavidAnson/markdownlint/blob/main/doc/md005.md) |  | — | — | Inconsistent indentation for list items at the same level | Catches copy-paste errors where sibling items have different indentation |
-| [MD007](https://github.com/DavidAnson/markdownlint/blob/main/doc/md007.md) |  | `indent: 2` |  | Unordered list indentation | Config: `indent` — spaces per nesting level |
+| [MD007](https://github.com/DavidAnson/markdownlint/blob/main/doc/md007.md) |  | `indent: 2` |  | Unordered list indentation | Config: `indent` — spaces per nesting level. A list nested in an ordered list is not checked: its indent is the ordered marker's width |
 | [MD009](https://github.com/DavidAnson/markdownlint/blob/main/doc/md009.md) | ✓ | `br_spaces: 2` |  | Trailing spaces | Two trailing spaces mean a hard line break; format converts them to `\` syntax. Config: `br_spaces`, `strict` |
 | [MD010](https://github.com/DavidAnson/markdownlint/blob/main/doc/md010.md) | ✓ | `code_blocks: true` |  | Hard tabs | Tabs render inconsistently across editors; format replaces with spaces. Config: `code_blocks` |
 | [MD011](https://github.com/DavidAnson/markdownlint/blob/main/doc/md011.md) |  | — | — | Reversed link syntax | Catches the common typo of swapped parentheses and brackets; should always be enabled |
 | [MD012](https://github.com/DavidAnson/markdownlint/blob/main/doc/md012.md) | ✓ | `maximum: 1` |  | Multiple consecutive blank lines | Config: `maximum` — max consecutive blank lines allowed |
-| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) |  | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
+| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) | ✓* | `line: 120, heading: 80, tables: false` | `line: 80, tables: true` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` doubles as the formatter's fill column: with reflow on, `mdlint format` reflows paragraphs to it; `mdlint check --fix` does not (see above). Lines the formatter cannot break -- a bare URL or other single long token -- are exempt, so a reflowing `format` never leaves behind an MD013 error. Table rows are never wrapped either and cannot be, so `tables` defaults to off; headings and code blocks keep their own flags on and are still reported. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
 | [MD014](https://github.com/DavidAnson/markdownlint/blob/main/doc/md014.md) | ✓ | — | — | Dollar signs used before commands without showing output | `$`-prefixed shell commands cannot be copy-pasted; omit the `$` prompt |
 | [MD018](https://github.com/DavidAnson/markdownlint/blob/main/doc/md018.md) | ✓ | — | — | No space after hash on atx style heading | `#Title` renders inconsistently; format inserts the required space |
 | [MD019](https://github.com/DavidAnson/markdownlint/blob/main/doc/md019.md) | ✓ | — | — | Multiple spaces after hash on atx style heading | `#  Title` → `# Title`; format normalises to one space |
@@ -325,23 +493,23 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD022](https://github.com/DavidAnson/markdownlint/blob/main/doc/md022.md) | ✓ | — | — | Headings should be surrounded by blank lines | Required by many renderers for correct parsing; format inserts blank lines |
 | [MD023](https://github.com/DavidAnson/markdownlint/blob/main/doc/md023.md) | ✓ | — | — | Headings must start at the beginning of the line | Indented headings are treated as code or paragraphs in CommonMark |
 | [MD024](https://github.com/DavidAnson/markdownlint/blob/main/doc/md024.md) |  | `siblings_only: false` |  | Multiple headings with the same content | Config: `siblings_only` — set `true` to flag only duplicates within the same parent heading |
-| [MD025](https://github.com/DavidAnson/markdownlint/blob/main/doc/md025.md) |  | — | — | Multiple top-level headings in the same document | Disable for document fragments that intentionally lack a single top-level title |
+| [MD025](https://github.com/DavidAnson/markdownlint/blob/main/doc/md025.md) |  | — | — | Multiple top-level headings in the same document | Disable for document fragments that intentionally lack a single top-level title. A front matter `title` field counts as the first top-level heading. Config: `front_matter_title` |
 | [MD026](https://github.com/DavidAnson/markdownlint/blob/main/doc/md026.md) |  | `".,;:!?。，；：！？"` | `".,;:!。，；：！"` | Trailing punctuation in heading | Headings are labels, not sentences. mdlint additionally disallows `?`. Config: `punctuation` |
 | [MD027](https://github.com/DavidAnson/markdownlint/blob/main/doc/md027.md) | ✓ | — | — | Multiple spaces after blockquote symbol | `>  text` → `> text`; format normalises |
 | [MD028](https://github.com/DavidAnson/markdownlint/blob/main/doc/md028.md) |  | — | — | Blank line inside blockquote | Blank lines split blockquotes into separate elements in CommonMark; may be intentional |
-| [MD029](https://github.com/DavidAnson/markdownlint/blob/main/doc/md029.md) | ✓ | `ordered` | `one_or_ordered` | Ordered list item prefix | mdlint requires sequential numbering. Config: `style` — `ordered` (1. 2. 3.), `one` (all 1s), `one_or_ordered` |
+| [MD029](https://github.com/DavidAnson/markdownlint/blob/main/doc/md029.md) | ✓ | `ordered` | `one_or_ordered` | Ordered list item prefix | mdlint requires sequential numbering, continuing from the list's first number (`3. 4. 5.` is fine; the start number renders). Config: `style` — `ordered` (1. 2. 3.), `one` (all 1s), `one_or_ordered` |
 | [MD030](https://github.com/DavidAnson/markdownlint/blob/main/doc/md030.md) | ✓ | `all: 1` |  | Spaces after list markers | Config: `ul_single`, `ul_multi`, `ol_single`, `ol_multi` — spaces after marker per context |
 | [MD031](https://github.com/DavidAnson/markdownlint/blob/main/doc/md031.md) | ✓ | — | — | Fenced code blocks should be surrounded by blank lines | Some renderers require blank lines around fences to parse correctly |
 | [MD032](https://github.com/DavidAnson/markdownlint/blob/main/doc/md032.md) |  | — | — | Lists should be surrounded by blank lines | Consistent blank lines around lists improve rendering across processors |
 | [MD033](https://github.com/DavidAnson/markdownlint/blob/main/doc/md033.md) |  | `allowed_elements: []` |  | Inline HTML | HTML reduces portability. Config: `allowed_elements` — add e.g. `["details", "summary"]` |
 | [MD034](https://github.com/DavidAnson/markdownlint/blob/main/doc/md034.md) |  | — | — | Bare URL used | Plain URLs don't render as links in all Markdown processors; use `[text](url)` |
 | [MD035](https://github.com/DavidAnson/markdownlint/blob/main/doc/md035.md) | ✓ | `---` | `consistent` | Horizontal rule style | Config: `style` — `---`, `***`, `___`, `consistent` |
-| [MD036](https://github.com/DavidAnson/markdownlint/blob/main/doc/md036.md) |  | `".,;:!?。，；：！？"` |  | Emphasis used instead of a heading | Bold/italic-only lines won't appear in a table of contents. Config: `punctuation` |
+| [MD036](https://github.com/DavidAnson/markdownlint/blob/main/doc/md036.md) |  | `".,;:!?。，；：！？"` |  | Emphasis used instead of a heading | Bold/italic-only paragraphs won't appear in a table of contents. Config: `punctuation` |
 | [MD037](https://github.com/DavidAnson/markdownlint/blob/main/doc/md037.md) |  | — | — | Spaces inside emphasis markers | `* text *` and `** text **` do not render as emphasis in CommonMark |
 | [MD038](https://github.com/DavidAnson/markdownlint/blob/main/doc/md038.md) |  | — | — | Spaces inside code span elements | `` ` text ` `` is technically valid but inconsistent with expected style |
 | [MD039](https://github.com/DavidAnson/markdownlint/blob/main/doc/md039.md) |  | — | — | Spaces inside link text | `[ text ]` is valid but inconsistent |
 | [MD040](https://github.com/DavidAnson/markdownlint/blob/main/doc/md040.md) |  | — | — | Fenced code blocks should have a language specified | Language tags enable syntax highlighting. Config: `allowed_languages` |
-| [MD041](https://github.com/DavidAnson/markdownlint/blob/main/doc/md041.md) |  | `level: 1` |  | First line in file should be a top-level heading | Disable for files starting with badges, front matter, or that are document fragments |
+| [MD041](https://github.com/DavidAnson/markdownlint/blob/main/doc/md041.md) |  | `level: 1` |  | First line in file should be a top-level heading | Disable for files starting with badges or that are document fragments. A front matter `title` field satisfies this rule. Config: `level`, `front_matter_title` |
 | [MD042](https://github.com/DavidAnson/markdownlint/blob/main/doc/md042.md) |  | — | — | No empty links | `[text]()` is almost always a mistake |
 | [MD043](https://github.com/DavidAnson/markdownlint/blob/main/doc/md043.md) |  | — | — | Required heading structure | Useful for template-driven documentation; too restrictive for most projects. Config: `headings` |
 | [MD044](https://github.com/DavidAnson/markdownlint/blob/main/doc/md044.md) |  | `names: []` |  | Proper names should have the correct capitalization | Requires configuration to be useful. Config: `names`, `code_blocks` |
@@ -351,8 +519,8 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD048](https://github.com/DavidAnson/markdownlint/blob/main/doc/md048.md) |  | `backtick` | `consistent` | Code fence style | Config: `style` — `backtick`, `tilde`, `consistent` |
 | [MD049](https://github.com/DavidAnson/markdownlint/blob/main/doc/md049.md) | ✓ | `asterisk` | `consistent` | Emphasis style should be consistent | Config: `style` — `asterisk`, `underscore`, `consistent` |
 | [MD050](https://github.com/DavidAnson/markdownlint/blob/main/doc/md050.md) | ✓ | `asterisk` | `consistent` | Strong style should be consistent | Config: `style` — `asterisk`, `underscore`, `consistent` |
-| [MD051](https://github.com/DavidAnson/markdownlint/blob/main/doc/md051.md) |  | — | — | Link fragments should be valid | Broken `#anchor` links are invisible to parsers but silently break in-page navigation |
-| [MD052](https://github.com/DavidAnson/markdownlint/blob/main/doc/md052.md) |  | — | — | Reference links and images should use a label that is defined | Undefined reference links silently render as plain text instead of a link |
+| [MD051](https://github.com/DavidAnson/markdownlint/blob/main/doc/md051.md) |  | — | — | Link fragments should be valid | Broken `#anchor` links are invisible to parsers but silently break in-page navigation. Only same-document `#anchor` links are checked |
+| [MD052](https://github.com/DavidAnson/markdownlint/blob/main/doc/md052.md) |  | `shortcut_syntax: false` |  | Reference links and images should use a label that is defined | Undefined reference links silently render as plain text instead of a link. Bare `[label]` is checked only with `shortcut_syntax = true`, since bracketed prose like `[sic]` is common. Config: `shortcut_syntax` |
 | [MD053](https://github.com/DavidAnson/markdownlint/blob/main/doc/md053.md) |  | — | — | Link and image reference definitions should be needed | Cleans up leftover link definitions after references are removed |
 | [MD054](https://github.com/DavidAnson/markdownlint/blob/main/doc/md054.md) |  | — | — | Link and image style | Enforces consistent use of inline vs reference link syntax |
 | [MD055](https://github.com/DavidAnson/markdownlint/blob/main/doc/md055.md) |  | `leading_and_trailing` | `consistent` | Table pipe style | Config: `style` — `leading_and_trailing`, `leading_only`, `trailing_only`, `no_leading_or_trailing`, `consistent` |
@@ -361,14 +529,16 @@ mdlint's. `—` means the rule has no configurable parameters.
 | [MD059](https://github.com/DavidAnson/markdownlint/blob/main/doc/md059.md) |  | — | — | Link text should be descriptive | "click here" and "read more" are inaccessible; use meaningful link text |
 | [MD060](https://github.com/DavidAnson/markdownlint/blob/main/doc/md060.md) |  | `consistent` | `any` | Table column style | mdlint requires a consistent alignment choice. Config: `style` — `consistent`, `default`, `left`, `right`, `center` |
 
+<!-- mdlint-enable MD013 -->
+
 ## Contributing
 
 Contributions are welcome!
 
 ### Development setup
 
-Prerequisites: [mise](https://mise.jdx.dev/) and [Rust](https://rustup.rs/). Optionally, Docker is needed for
-Dockerfile linting. [uv](https://docs.astral.sh/uv/) is required only if working on the Python package.
+Prerequisites: [mise](https://mise.jdx.dev/) and [Rust](https://rustup.rs/). Optionally, Docker is needed for Dockerfile
+linting. [uv](https://docs.astral.sh/uv/) is required only if working on the Python package.
 
 ```bash
 git clone https://github.com/swanysimon/mdlint.git
@@ -391,15 +561,15 @@ All quality checks run via `prek run -a`. This must pass before submitting a pul
 
 ### Release process
 
-Releases use [`cargo-release`](https://github.com/crate-ci/cargo-release), which bumps all package manifests in sync
-and pushes the tag that triggers CI to build, package, and publish everything automatically:
+Releases use [`cargo-release`](https://github.com/crate-ci/cargo-release), which bumps all package manifests in sync and
+pushes the tag that triggers CI to build, package, and publish everything automatically:
 
 ```bash
 cargo release patch --execute   # or minor / major
 ```
 
-Once the tag is pushed, CI verifies manifest versions, builds binaries for all 7 platforms, and publishes to
-crates.io, PyPI, and npm via trusted publishing (no tokens required).
+Once the tag is pushed, CI verifies manifest versions, builds binaries for all 7 platforms, and publishes to crates.io,
+PyPI, and npm via trusted publishing (no tokens required).
 
 ## License
 

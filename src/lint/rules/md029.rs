@@ -34,13 +34,11 @@ impl Rule for MD029 {
         for (event, range) in parser.parse_with_offsets() {
             match event {
                 Event::Start(Tag::List(start)) => {
-                    if start.is_some() {
-                        // Ordered list. The formatter canonicalises all ordered lists to
-                        // start at 1, so we always expect the first item to be 1.
-                        list_stack.push(Some((1, false)));
-                    } else {
-                        list_stack.push(None);
-                    }
+                    // The first item's number is the list's start, which renders
+                    // (`<ol start="3">`), so numbering continues from it.
+                    list_stack.push(
+                        start.map(|start| (usize::try_from(start).unwrap_or(usize::MAX), false)),
+                    );
                 }
                 Event::End(TagEnd::List(_)) => {
                     list_stack.pop();
@@ -331,5 +329,42 @@ mod tests {
 
         // Each `1.` is the first item of a fresh list — no violations.
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_list_starting_after_one_continues_from_its_start() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/100
+        let content = indoc! {"
+            ## Group A
+
+            1. Rule one.
+            2. Rule two.
+
+            ## Group B
+
+            3. Rule three.
+            4. Rule four.
+        "};
+        let parser = MarkdownParser::new(content);
+        assert_eq!(MD029.check(&parser, None).len(), 0);
+    }
+
+    #[test]
+    fn test_fix_renumbers_from_the_start_number() {
+        let content = indoc! {"
+            3. First
+            3. Second
+            7. Third
+        "};
+        let parser = MarkdownParser::new(content);
+        let violations = MD029.check(&parser, None);
+        assert_eq!(
+            apply_fixes(content, &violations),
+            indoc! {"
+                3. First
+                4. Second
+                5. Third
+            "}
+        );
     }
 }

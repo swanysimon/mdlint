@@ -41,6 +41,14 @@ impl Rule for MD003 {
                 continue;
             }
             let trimmed = line.trim();
+            // `# Text {x} #` keeps its closing sequence because without it
+            // `{x}` is read as an attribute block, so it counts as either ATX
+            // style rather than as a style choice.
+            let required_closing = trimmed.starts_with('#')
+                && trimmed
+                    .trim_end_matches('#')
+                    .strip_suffix(' ')
+                    .is_some_and(|text| text.trim_end().ends_with('}'));
 
             // Detect heading style
             let current_style = if trimmed.starts_with('#') {
@@ -76,7 +84,15 @@ impl Rule for MD003 {
                 None
             };
 
-            if let Some(current) = current_style {
+            if let Some(mut current) = current_style {
+                if required_closing {
+                    current = match (style, first_style) {
+                        ("atx_closed", _) | ("consistent", Some(HeadingStyle::AtxClosed)) => {
+                            HeadingStyle::AtxClosed
+                        }
+                        _ => HeadingStyle::Atx,
+                    };
+                }
                 if style == "consistent" {
                     if let Some(first) = first_style {
                         if current != first {
@@ -225,5 +241,17 @@ mod tests {
         let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_closing_sequence_protecting_braces_counts_as_atx() {
+        // `mdlint format` writes it: without the closing `#`, `{x}` would be
+        // read as a heading attribute block.
+        let content = "# Title {x} #\n\n## Other\n";
+        let parser = MarkdownParser::new(content);
+        assert_eq!(MD003.check(&parser, None).len(), 0);
+        let config = serde_json::json!({ "style": "atx_closed" });
+        let closed = MarkdownParser::new("# Title {x} #\n\n## Other ##\n");
+        assert_eq!(MD003.check(&closed, Some(&config)).len(), 0);
     }
 }

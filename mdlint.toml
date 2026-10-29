@@ -1,5 +1,8 @@
 # mdlint configuration for the mdlint repository itself.
 
+# Reflow is opt-in; this repository dogfoods it.
+reflow = true
+
 # Files containing intentionally non-canonical Markdown (test inputs, syntax
 # documentation) are excluded from both check and format.
 exclude = [

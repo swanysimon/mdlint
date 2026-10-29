@@ -3,7 +3,7 @@ use crate::markdown::MarkdownParser;
 use crate::types::{Fix, Violation};
 use pulldown_cmark::{Event, Tag};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 pub struct MD030;
 
@@ -45,61 +45,20 @@ impl Rule for MD030 {
 
         let mut violations = Vec::new();
 
-        // Get code block lines to skip (not inline code, which can appear in list items)
-        let code_lines = parser.get_code_block_line_numbers();
+        // Only lines where the parser starts a list item. Text that merely
+        // begins with a marker character (`-->`, `+1`, `*emphasis*`) is not a
+        // list, and "fixing" it would turn it into one.
+        let item_lines: BTreeSet<usize> = parser
+            .parse_with_offsets()
+            .filter(|(event, _)| matches!(event, Event::Start(Tag::Item)))
+            .map(|(_, range)| parser.offset_to_line(range.start))
+            .collect();
 
-        // Use AST to identify lines that start with emphasis (to exclude them)
-        let mut emphasis_start_lines = HashSet::new();
-
-        // Calculate line start offsets
-        let mut line_offsets = vec![0];
-        let mut current_offset = 0;
-        for line in parser.lines() {
-            current_offset += line.len() + 1; // +1 for newline
-            line_offsets.push(current_offset);
-        }
-
-        for (event, range) in parser.parse_with_offsets() {
-            if let Event::Start(Tag::Emphasis | Tag::Strong) = event {
-                let line_num = parser.offset_to_line(range.start);
-                // Check if this emphasis starts at the beginning of the line (after whitespace)
-                if let Some(line) = parser.lines().get(line_num - 1) {
-                    let trimmed_start = line.len() - line.trim_start().len();
-                    // If the emphasis starts right at the trimmed position, exclude this line
-                    if let Some(&line_start_offset) = line_offsets.get(line_num - 1)
-                        && range.start == line_start_offset + trimmed_start
-                    {
-                        emphasis_start_lines.insert(line_num);
-                    }
-                }
-            }
-        }
-
-        // Now check spacing using string matching, but skip emphasis lines and code blocks
-        for (line_num, line) in parser.lines().iter().enumerate() {
-            let line_number = line_num + 1;
-
-            // Skip if line is in a code block or inline code
-            if code_lines.contains(&line_number) {
+        for line_number in item_lines {
+            let Some(line) = parser.get_line(line_number) else {
                 continue;
-            }
-
-            // Skip if line starts with emphasis (bold or italic)
-            if emphasis_start_lines.contains(&line_number) {
-                continue;
-            }
-
+            };
             let trimmed = line.trim_start();
-
-            // Skip horizontal rules (3+ of same char: -, *, _)
-            if is_horizontal_rule(trimmed) {
-                continue;
-            }
-
-            // Skip table separator lines (lines with only -, |, and spaces)
-            if is_table_separator(trimmed) {
-                continue;
-            }
 
             // Check unordered list markers
             if trimmed.starts_with('*') || trimmed.starts_with('+') || trimmed.starts_with('-') {
@@ -193,45 +152,6 @@ impl Rule for MD030 {
     }
 }
 
-/// Check if a line is a horizontal rule (3+ of same char: -, *, _)
-fn is_horizontal_rule(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.len() < 3 {
-        return false;
-    }
-
-    let chars: Vec<char> = trimmed.chars().filter(|&c| c != ' ').collect();
-    if chars.len() < 3 {
-        return false;
-    }
-
-    let first_char = chars.first().copied().expect("len >= 3 checked");
-    if first_char != '-' && first_char != '*' && first_char != '_' {
-        return false;
-    }
-
-    chars.iter().all(|&c| c == first_char)
-}
-
-/// Check if a line is a table separator (contains only -, |, and spaces)
-fn is_table_separator(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return false;
-    }
-
-    // Must contain at least one pipe and three dashes
-    let has_pipe = trimmed.contains('|');
-    let dash_count = trimmed.chars().filter(|&c| c == '-').count();
-
-    if !has_pipe || dash_count < 3 {
-        return false;
-    }
-
-    // All characters must be -, |, or space
-    trimmed.chars().all(|c| c == '-' || c == '|' || c == ' ')
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,16 +173,37 @@ mod tests {
     }
 
     #[test]
-    fn test_no_space() {
-        let content = "*Item without space";
-        let parser = MarkdownParser::new(content);
-        let rule = MD030;
-        let violations = rule.check(&parser, None);
+    fn test_marker_character_without_space_is_not_a_list() {
+        // None of these is a list item, and the old "fix" (`* Item`, `- ->`)
+        // would have turned each into one, which `mdlint format` never does.
+        let content = indoc! {"
+            *Item without space
 
-        assert_eq!(
-            rendered(&violations),
-            ["test.md:1:2: MD030 Expected 1 space(s) after list marker, found 0"]
-        );
+            -->
+
+            +++
+
+            -5 degrees"};
+        let parser = MarkdownParser::new(content);
+        let violations = MD030.check(&parser, None);
+
+        assert_eq!(violations.len(), 0, "{violations:?}");
+    }
+
+    #[test]
+    fn test_fix_collapses_spaces_after_marker() {
+        let content = "-  Item\n1.   Ordered\n";
+        let parser = MarkdownParser::new(content);
+        let found: Vec<_> = MD030
+            .check(&parser, None)
+            .into_iter()
+            .filter_map(|v| v.fix)
+            .collect();
+        let result = crate::fix::Fixer::new()
+            .apply_fixes_to_content(content, &found)
+            .unwrap();
+
+        assert_eq!(result, "- Item\n1. Ordered\n");
     }
 
     #[test]
@@ -382,14 +323,14 @@ mod tests {
             --config
             ```
 
-            *Item without space"};
+            *  Item with 2 spaces"};
         let parser = MarkdownParser::new(content);
         let rule = MD030;
         let violations = rule.check(&parser, None);
 
         assert_eq!(
             rendered(&violations),
-            ["test.md:5:2: MD030 Expected 1 space(s) after list marker, found 0"],
+            ["test.md:5:2: MD030 Expected 1 space(s) after list marker, found 2"],
             "Real list markers outside code blocks should be checked"
         );
     }
