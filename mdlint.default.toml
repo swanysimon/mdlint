@@ -107,13 +107,16 @@ maximum = 1
 # heading_line_length: maximum length for heading lines; kept shorter than prose
 #                      so headings scan well in raw files. Defaults to line_length.
 # code_blocks:         when true, lines inside code blocks are also checked.
-# tables:              when true, table rows are also checked.
+# tables:              when true, table rows are also checked.  Off by default:
+#                      a table row is always one line, so neither `mdlint format`
+#                      nor `check --fix` can narrow one, and reporting its width
+#                      only produces complaints nothing can act on.
 # headings:            when true, heading lines are also checked.
 [rules.MD013]
 line_length = 120
 heading_line_length = 80
 code_blocks = true
-tables = true
+tables = false
 headings = true
 
 # MD024 — Multiple headings with the same content

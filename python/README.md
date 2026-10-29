@@ -138,6 +138,10 @@ for one run). Existing line breaks inside a paragraph are then discarded and the
 `rules.MD013.line_length` (default 120). Headings, tables, code blocks, and HTML are left alone. Note that turning it on
 rewrites every file with hard-wrapped prose the next time you run `mdlint format`.
 
+Tables are the one place where "left alone" needed a matching change to the linter: a table row is always a single line,
+so nothing in the tool can narrow one, and MD013 therefore does not check table widths unless you ask it to with
+`tables = true`.
+
 ```text
 Usage: mdlint format [OPTIONS] [FILES]...
 
@@ -431,6 +435,12 @@ the line breaks you gave them. Setting `enabled = false` under `[rules.MD013]` d
 prose — one sentence per line, an aligned list, ASCII art in a paragraph — from being refilled. Reflow rewrites a whole
 paragraph or none of it, so a directive covering any part of a paragraph protects all of it.
 
+Use the block form (`disable` … `enable`) to protect prose, not `disable-line` or `disable-next-line`. Those two forms
+suppress the *lint* on one line, while the formatter protects the whole paragraph that line belongs to: on a paragraph
+spanning several lines, `format` stops reflowing it and `mdlint check` goes on reporting every line of it except the one
+named — a violation neither command will ever fix. The block form suppresses the rule and the reflow over the same
+range.
+
 ```markdown
 <!-- mdlint-disable MD013 -->
 
@@ -474,7 +484,7 @@ per-violation fix cannot express. With reflow off (the default), neither path fi
 | [MD010](https://github.com/DavidAnson/markdownlint/blob/main/doc/md010.md) | ✓ | `code_blocks: true` |  | Hard tabs | Tabs render inconsistently across editors; format replaces with spaces. Config: `code_blocks` |
 | [MD011](https://github.com/DavidAnson/markdownlint/blob/main/doc/md011.md) |  | — | — | Reversed link syntax | Catches the common typo of swapped parentheses and brackets; should always be enabled |
 | [MD012](https://github.com/DavidAnson/markdownlint/blob/main/doc/md012.md) | ✓ | `maximum: 1` |  | Multiple consecutive blank lines | Config: `maximum` — max consecutive blank lines allowed |
-| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) | ✓* | `line: 120, heading: 80` | `line: 80` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` doubles as the formatter's fill column: with reflow on, `mdlint format` reflows paragraphs to it; `mdlint check --fix` does not (see above). Lines the formatter cannot break -- a bare URL or other single long token -- are exempt, so a reflowing `format` never leaves behind an MD013 error. Headings, table rows, and code blocks are never wrapped, so they are still reported. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
+| [MD013](https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md) | ✓* | `line: 120, heading: 80, tables: false` | `line: 80, tables: true` | Line length | mdlint raises the line limit to 120 to better fit URLs and long identifiers. `line_length` doubles as the formatter's fill column: with reflow on, `mdlint format` reflows paragraphs to it; `mdlint check --fix` does not (see above). Lines the formatter cannot break -- a bare URL or other single long token -- are exempt, so a reflowing `format` never leaves behind an MD013 error. Table rows are never wrapped either and cannot be, so `tables` defaults to off; headings and code blocks keep their own flags on and are still reported. Config: `line_length`, `heading_line_length`, `code_blocks`, `tables`, `headings` |
 | [MD014](https://github.com/DavidAnson/markdownlint/blob/main/doc/md014.md) | ✓ | — | — | Dollar signs used before commands without showing output | `$`-prefixed shell commands cannot be copy-pasted; omit the `$` prompt |
 | [MD018](https://github.com/DavidAnson/markdownlint/blob/main/doc/md018.md) | ✓ | — | — | No space after hash on atx style heading | `#Title` renders inconsistently; format inserts the required space |
 | [MD019](https://github.com/DavidAnson/markdownlint/blob/main/doc/md019.md) | ✓ | — | — | Multiple spaces after hash on atx style heading | `#  Title` → `# Title`; format normalises to one space |

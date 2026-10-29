@@ -39,10 +39,18 @@ impl Rule for MD013 {
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
+        // AIDEV: off by default, unlike markdownlint. A table row is one line in
+        // GFM -- there is no continuation syntax -- so the formatter never wraps
+        // one, and normalising the pipes to `| cell |` can even push a row that
+        // fitted past the limit. Reporting a width nothing in the tool can
+        // change is the same noise this rule now skips for bare URLs. Revisit if
+        // the formatter ever gains a way to narrow a table (column dropping, a
+        // `<br>` policy), or if enough projects want width policing here to be
+        // worth the unfixable reports: the flag already turns it back on.
         let check_tables = config
             .and_then(|c| c.get("tables"))
             .and_then(serde_json::Value::as_bool)
-            .unwrap_or(true);
+            .unwrap_or(false);
 
         let check_headings = config
             .and_then(|c| c.get("headings"))
@@ -426,6 +434,17 @@ mod tests {
                 "test.md:4:11: MD013 Line exceeds maximum length (15 > 10)",
             ]
         );
+    }
+
+    #[test]
+    fn test_long_table_line_is_not_checked_by_default() {
+        let content = indoc! {"
+            | Col1 | Col2 |
+            |------|------|
+            | A    | B    |"};
+        let parser = MarkdownParser::new(content);
+        let config = serde_json::json!({ "line_length": 10 });
+        assert_eq!(MD013.check(&parser, Some(&config)).len(), 0);
     }
 
     #[test]

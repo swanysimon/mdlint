@@ -107,10 +107,9 @@ fn formatting(conn: &Connection, req: &Request, docs: &DocumentStore) {
     // the repo root uses the root config for every file, while format-on-save
     // uses whatever config is nearest each document. This is deliberate --
     // each is the natural default for its context -- not a bug to fix here.
-    // A config
-    // that fails to load must fail the request rather than silently fall back
-    // to defaults -- that would rewrite the document at the wrong width with
-    // no indication anything was wrong.
+    // A config that fails to load must fail the request rather than silently
+    // fall back to defaults -- that would rewrite the document at the wrong
+    // width with no indication anything was wrong.
     let config = match load_config(uri) {
         Ok(config) => config,
         Err(err) => {

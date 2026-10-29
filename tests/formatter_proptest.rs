@@ -139,10 +139,10 @@ proptest! {
         width in 8usize..80,
     ) {
         let options = FormatOptions {
-        width,
-        reflow: true,
-        ..Default::default()
-    };
+            width,
+            reflow: true,
+            ..Default::default()
+        };
         let once = format_with(&text, &options);
         let twice = format_with(&once, &options);
         prop_assert_eq!(
@@ -165,10 +165,10 @@ proptest! {
         width in 4usize..80,
     ) {
         let options = FormatOptions {
-        width,
-        reflow: true,
-        ..Default::default()
-    };
+            width,
+            reflow: true,
+            ..Default::default()
+        };
         let out = format_with(&text, &options);
         for line in out.lines() {
             let len = line.chars().count();
@@ -198,10 +198,10 @@ proptest! {
         width in 8usize..80,
     ) {
         let options = FormatOptions {
-        width,
-        reflow: true,
-        ..Default::default()
-    };
+            width,
+            reflow: true,
+            ..Default::default()
+        };
         let out = format_with(&text, &options);
 
         let mut params = HashMap::new();

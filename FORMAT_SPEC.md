@@ -206,18 +206,19 @@ never breaks inside a link destination, a code span, an inline HTML tag, or imme
 because a break in any of those positions changes meaning. Nor does it break immediately *before* inline HTML: escaping
 a tag that landed at column 0 would turn it into literal text, so that break opportunity is withdrawn rather than used.
 
-Runs of spaces also collapse to one as part of reflow. A break landing inside a run of spaces would strand a space at a
-line edge, which trailing-whitespace stripping then removes -- changing the text on the next pass. Collapsing costs
-nothing visually, since a run of spaces renders as one anyway.
+Reflow relies on runs of spaces having already collapsed to one (see [Repeated Spaces](#repeated-spaces)): a break
+landing inside a run would strand a space at a line edge, which trailing-whitespace stripping then removes, changing the
+text on the next pass.
 
 Two consequences follow:
 
 - **A token longer than the fill column is never broken.** A long URL, path, or identifier emits an over-width line
   rather than being corrupted. MD013 exempts prose lines with nowhere the formatter could have broken them: a space
   inside a code span, inline HTML, or a link destination/title doesn't count, since reflow never breaks there either, so
-  the formatter never produces output that the linter then complains about. Headings, table rows, and code blocks are
-  the exception: they are never wrapped, so `heading_line_length` and MD013's `tables` and `code_blocks` checks stay
-  genuinely unfixable.
+  the formatter never produces output that the linter then complains about. Headings and code blocks are the exception:
+  they are never wrapped, so `heading_line_length` and MD013's `code_blocks` check stay genuinely unfixable. Table rows
+  cannot be wrapped at all — a row is one line in GFM, and normalising its pipes to `| cell |` can even push a row that
+  fitted past the limit — so MD013's `tables` check is off by default rather than reporting a width nothing can change.
 - **Hard breaks are preserved.** A paragraph containing hard breaks is split into segments at each hard break, and each
   segment is refilled independently.
 
@@ -231,9 +232,27 @@ author's line breaks and are not refilled, which is how deliberately hand-wrappe
 rewrites a whole paragraph or none of it, a directive covering any part of a paragraph protects the whole paragraph.
 `no_inline_config = true` disables this along with every other inline directive.
 
+That paragraph-wide scope is wider than the line-scoped directives are, which makes `disable-line` and
+`disable-next-line` the wrong tool for protecting prose from reflow. They suppress MD013 on their one line, while the
+formatter stops reflowing the entire paragraph around it, so every other line of a multi-line paragraph stays over-width
+and stays reported, with no `mdlint format` run able to fix it. The block `disable`/`enable` pair covers the same range
+in both halves of the tool and is the documented way to protect hand-wrapped prose.
+
 Switching MD013 off in configuration (`[rules.MD013] enabled = false`, or `default_enabled = false` without enabling it)
 disables reflow for the whole project. The inline comment and the config key are the same switch spelled two ways, so
 they mean the same thing. Every other canonical style rule still applies; only the refilling of paragraphs stops.
+
+### Repeated Spaces
+
+A run of spaces inside paragraph text collapses to a single space. This applies always, not only when reflow is on: a
+run renders as one space in every CommonMark processor, so the extra ones carry no meaning, and a canonical formatter
+settles the question rather than preserving whichever width the author's keyboard produced. Code spans, code blocks, raw
+HTML, and front matter keep their spacing verbatim. Indentation is not spacing between words: it is governed by the
+container rules above, which re-derive it from the open containers.
+
+```markdown
+Two  spaces   between words collapse.
+```
 
 ### Trailing Whitespace (MD009)
 
