@@ -47,6 +47,7 @@ expect_exit() {
 
 expect_exit 1 "check" "$binary" check --no-fix --color never "$work"
 expect_exit 0 "format" "$binary" format --color never "$work"
+expect_exit 0 "format --reflow" "$binary" format --reflow --color never "$work"
 
 # `format` rewrites files and `check` does not, so every run starts from a fresh
 # copy of the corpus. The restore is setup, not measured.
@@ -57,4 +58,6 @@ hyperfine --warmup 3 --runs 10 --ignore-failure \
   --command-name "check --parallel" \
   "$binary check --no-fix --parallel --color never '$work'" \
   --command-name "format" \
-  "$binary format --color never '$work'"
+  "$binary format --color never '$work'" \
+  --command-name "format --reflow" \
+  "$binary format --reflow --color never '$work'"
