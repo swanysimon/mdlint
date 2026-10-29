@@ -1,6 +1,8 @@
 use std::fmt::Write as _;
 
-use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{
+    Alignment, BlockQuoteKind, CodeBlockKind, Event, Options, Parser, Tag, TagEnd,
+};
 
 use crate::markdown::detect_front_matter;
 
@@ -140,6 +142,21 @@ fn mk_options() -> Options {
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
         | Options::ENABLE_HEADING_ATTRIBUTES
+        | Options::ENABLE_GFM
+}
+
+/// GitHub's canonical, uppercase spelling of a blockquote alert marker — the
+/// `[!NOTE]` line pulldown-cmark strips out of the event stream and reports as
+/// `BlockQuoteKind` instead. Re-emitted verbatim regardless of the source's
+/// casing (`[!note]`, `[!Note]`), matching the "one canonical form" principle.
+fn alert_marker(kind: BlockQuoteKind) -> &'static str {
+    match kind {
+        BlockQuoteKind::Note => "[!NOTE]",
+        BlockQuoteKind::Tip => "[!TIP]",
+        BlockQuoteKind::Important => "[!IMPORTANT]",
+        BlockQuoteKind::Warning => "[!WARNING]",
+        BlockQuoteKind::Caution => "[!CAUTION]",
+    }
 }
 
 #[allow(clippy::struct_excessive_bools)] // each bool is a distinct formatting phase flag
@@ -377,9 +394,14 @@ impl FormatterState {
                 }
                 self.emit_blank_if_needed();
             }
-            Tag::BlockQuote(_) => {
+            Tag::BlockQuote(kind) => {
                 self.emit_blank_if_needed();
                 self.bq_depth += 1;
+                if let Some(kind) = kind {
+                    self.write_bq_prefix();
+                    self.out.push_str(alert_marker(kind));
+                    self.out.push('\n');
+                }
             }
             Tag::FootnoteDefinition(label) => {
                 self.emit_blank_if_needed();
@@ -1596,6 +1618,100 @@ mod tests {
         let once = format(">\u{85}");
         let twice = format(&once);
         assert_eq!(once, twice, "idempotency: blockquote + NEL");
+    }
+
+    #[test]
+    fn test_gfm_alert_blockquote_preserved() {
+        assert_formats_to(
+            indoc! {"
+                > [!NOTE]
+                > A nice note and not a link label.
+            "},
+            indoc! {"
+                > [!NOTE]
+                > A nice note and not a link label.
+            "},
+        );
+    }
+
+    #[test]
+    fn test_gfm_alert_blockquote_normalizes_case() {
+        assert_formats_to(
+            indoc! {"
+                > [!tip]
+                > lowercase input is normalized to uppercase.
+            "},
+            indoc! {"
+                > [!TIP]
+                > lowercase input is normalized to uppercase.
+            "},
+        );
+    }
+
+    #[test]
+    fn test_gfm_alert_marker_with_trailing_text_is_not_an_alert() {
+        // GFM requires the marker to be alone on its line (scan_blank_line after
+        // `]`); text on the same line disqualifies it, so this stays plain
+        // blockquote text containing a literal "[!NOTE]" — unchanged by format.
+        assert_formats_to(
+            "> [!NOTE] inline text on the same line.\n",
+            "> [!NOTE] inline text on the same line.\n",
+        );
+    }
+
+    #[test]
+    fn test_gfm_alert_content_two_lines_below_unquoted_blank() {
+        // An unquoted blank line ends the blockquote outright, so the marker
+        // becomes its own (contentless) alert blockquote and the following text
+        // is a separate, unquoted paragraph — not alert content.
+        assert_formats_to(
+            indoc! {"
+                > [!NOTE]
+
+                Some text two lines below, not quoted.
+            "},
+            indoc! {"
+                > [!NOTE]
+
+                Some text two lines below, not quoted.
+            "},
+        );
+    }
+
+    #[test]
+    fn test_gfm_alert_content_two_lines_below_quoted_blank() {
+        // A quoted blank line (`>`) keeps the text inside the same blockquote as
+        // the marker, but it separates no content from the marker line itself
+        // (the marker produces no paragraph), so formatting collapses it away.
+        assert_formats_to(
+            indoc! {"
+                > [!NOTE]
+                >
+                > Some text two lines below, still quoted.
+            "},
+            indoc! {"
+                > [!NOTE]
+                > Some text two lines below, still quoted.
+            "},
+        );
+    }
+
+    #[test]
+    fn test_gfm_alert_blockquote_nested() {
+        assert_formats_to(
+            indoc! {"
+                > Outer quote
+                >
+                > > [!WARNING]
+                > > Nested alert.
+            "},
+            indoc! {"
+                > Outer quote
+                >
+                > > [!WARNING]
+                > > Nested alert.
+            "},
+        );
     }
 
     #[test]
