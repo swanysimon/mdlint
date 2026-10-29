@@ -146,17 +146,17 @@ fn format_markdown(input: &str, options: &FormatOptions) -> String {
         .map(|i| matches!(events.get(i + 1), Some(Event::Start(Tag::List(None)))))
         .collect();
 
-    // Precompute the first character of the immediately following Text event, if
-    // any.  pulldown-cmark splits a run like `Ⓐ~A` into three Text events; the
-    // `_`/`~` flanking check in on_text needs the char *after* the current event
-    // to match its cross-event handling of the char *before* (via self.inline).
-    // Only an adjacent Text event contributes an alphanumeric neighbour; any other
-    // event (emphasis marker, code, break, block end) is a non-alphanumeric
-    // boundary, represented as None.
-    let next_text_char: Vec<Option<char>> = (0..events.len())
+    // Precompute the immediately following Text event, if any.  pulldown-cmark
+    // splits a run like `Ⓐ~A` into three Text events; the `_`/`~` flanking check
+    // in on_text needs the char *after* the current event to match its
+    // cross-event handling of the char *before* (via self.inline), and the `&`
+    // check needs what follows to see whether it would spell an entity.  Only an
+    // adjacent Text event contributes; any other event (emphasis marker, code,
+    // break, block end) is a boundary, represented as an empty string.
+    let next_text: Vec<String> = (0..events.len())
         .map(|i| match events.get(i + 1) {
-            Some(Event::Text(t)) => t.chars().next(),
-            _ => None,
+            Some(Event::Text(t)) => t.to_string(),
+            _ => String::new(),
         })
         .collect();
 
@@ -164,13 +164,13 @@ fn format_markdown(input: &str, options: &FormatOptions) -> String {
         .into_iter()
         .zip(ranges)
         .zip(lookahead)
-        .zip(next_text_char)
+        .zip(next_text)
         .zip(attached)
     {
         state.reflow_suppressed =
             !options.reflow || suppressed.contains(&line_at(&line_starts, range.start));
         state.next_is_unordered_list = next_is_ul;
-        state.next_text_char = next_char;
+        state.next_text = next_char;
         state.attached = attached;
         state.source_escaped = is_escaped_text(input, &event, &range);
         state.code_source = match event {
@@ -476,6 +476,9 @@ struct FormatterState {
     // or empty.  pulldown-cmark strips it from the heading text.
     heading_attributes: String,
 
+    // True inside a heading, which is always written on one line.
+    in_heading: bool,
+
     // Link/image stack: stores (dest_url, title) from Start until End.
     link_stack: Vec<(String, String)>,
 
@@ -484,9 +487,9 @@ struct FormatterState {
     // two adjacent unordered lists so we can insert a separator.
     next_is_unordered_list: bool,
 
-    // First char of the next Text event, or None if the next event is not Text.
-    // Supplies cross-event right-flank context for the `_`/`~` escape check.
-    next_text_char: Option<char>,
+    // The next Text event, or empty if the next event is not Text.  Supplies
+    // cross-event right context for the `_`/`~` and `&` escape checks.
+    next_text: String,
 
     // Set by the outer format() loop: true when this event is Text whose first
     // character was backslash-escaped in the source.  See `is_escaped_text`.
@@ -541,9 +544,10 @@ impl FormatterState {
             code_fences: VecDeque::new(),
             code_fence: String::new(),
             heading_attributes: String::new(),
+            in_heading: false,
             link_stack: Vec::new(),
             next_is_unordered_list: false,
-            next_text_char: None,
+            next_text: String::new(),
             source_escaped: false,
             attached: false,
             table_alignments: Vec::new(),
@@ -684,6 +688,7 @@ impl FormatterState {
                 self.emit_blank_if_needed();
                 // The prefix (hashes) is written at End, when we have the level.
                 self.heading_attributes = heading_attributes(id.as_deref(), &classes, &attrs);
+                self.in_heading = true;
             }
             Tag::CodeBlock(kind) => {
                 self.flush_pending_inline();
@@ -865,6 +870,7 @@ impl FormatterState {
                 // leaving it unescaped and breaking idempotency on re-parse.
                 let heading_raw = collapse_heading_breaks(&text);
                 let heading_text = escape_trailing_hashes(heading_raw.trim());
+                self.in_heading = false;
                 let mut attributes = std::mem::take(&mut self.heading_attributes);
                 // Text ending in `}` would be read as an attribute block -- a
                 // backslash does not stop that -- unless a closing sequence or
@@ -1088,6 +1094,11 @@ impl FormatterState {
                     // `<#@a>` → email autolink), changing meaning.  `\<` renders as
                     // `<` and can never start a tag, so escape unconditionally.
                     '<' => s.push_str("\\<"),
+                    // pulldown-cmark decodes `&amp;` to `&`.  Written back bare
+                    // in front of `copy;`, it would spell `&copy;` and render ©.
+                    '&' if spells_entity(&chars[i + 1..], &self.next_text) => {
+                        s.push_str("\\&");
+                    }
                     '_' | '~' => {
                         let prev = if i > 0 {
                             chars.get(i - 1).copied()
@@ -1099,7 +1110,7 @@ impl FormatterState {
                         // run split across events (e.g. `Ⓐ~A` → three events) is
                         // judged the same as the merged form on re-parse.
                         let next = chars.get(i + 1).copied().or(if i + 1 == chars.len() {
-                            self.next_text_char
+                            self.next_text.chars().next()
                         } else {
                             None
                         });
@@ -1140,8 +1151,8 @@ impl FormatterState {
         // included, so a pipe in a cell's code span only survives escaped.
         if self.table_alignments.is_empty() {
             let code = match self.code_source.take() {
-                Some(source) => restore_code_breaks(code, &source),
-                None => code.to_owned(),
+                Some(source) if !self.in_heading => restore_code_breaks(code, &source),
+                _ => code.to_owned(),
             };
             let base = self.inline.len();
             self.code_breaks
@@ -1497,6 +1508,26 @@ fn heading_attributes(
     }
 }
 
+/// Whether `&` followed by `rest` and then `next` reads as an entity or numeric
+/// character reference (`&copy;`, `&#169;`, `&#xA9;`).  Matched by shape, not
+/// against the entity table: escaping a lookalike costs nothing.
+fn spells_entity(rest: &[char], next: &str) -> bool {
+    // The longest named entity is 31 characters.
+    let tail: String = rest.iter().copied().chain(next.chars()).take(40).collect();
+    let (body, valid): (&str, fn(&char) -> bool) = match tail.strip_prefix('#') {
+        Some(number) => match number.strip_prefix(['x', 'X']) {
+            Some(hex) => (hex, char::is_ascii_hexdigit),
+            None => (number, char::is_ascii_digit),
+        },
+        None if tail.starts_with(|c: char| c.is_ascii_alphabetic()) => {
+            (&tail, char::is_ascii_alphanumeric)
+        }
+        None => return false,
+    };
+    let len = body.chars().take_while(valid).count();
+    len > 0 && body[len..].starts_with(';')
+}
+
 /// Escape a trailing run of `#` in heading text.
 ///
 /// `## text #` is a *closed* ATX heading: the trailing run is a closing sequence
@@ -1840,6 +1871,12 @@ mod tests {
         "};
         assert_formats_to_without_reflow(input, input);
         assert_formats_to_without_reflow("> a `b\n>    c` d\n", "> a `b\n> c` d\n");
+        // A heading is one line, so its code span is joined -- with any
+        // backslash before the break kept, as in the paragraph after it.
+        assert_formats_to_without_reflow(
+            "a `x\\\ny`\n===\n\npara `p\\\nq` r\n",
+            "# a `x\\ y`\n\npara `p\\\nq` r\n",
+        );
     }
 
     #[test]
@@ -1852,6 +1889,14 @@ mod tests {
     #[test]
     fn test_line_break_inside_code_span_is_refilled_with_reflow() {
         assert_formats_to("a `b\nc` d\n", "a `b c` d\n");
+    }
+
+    #[test]
+    fn test_escaped_entity_stays_literal() {
+        assert_formats_to(
+            "Use &amp;copy; or &amp;#169; for AT&amp;T &amp; co.\n",
+            "Use \\&copy; or \\&#169; for AT&T & co.\n",
+        );
     }
 
     #[test]

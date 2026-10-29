@@ -63,8 +63,10 @@ Heading 2
 # Heading 3 #
 ```
 
-Exactly one space between the `#` markers and the heading text (MD018, MD019). No trailing `#` characters. Heading text
-is not modified (content is preserved as-is).
+Exactly one space between the `#` markers and the heading text (MD018, MD019). No trailing `#` characters, with one
+exception: heading text ending in `}` that is not an attribute block keeps a closing `#` (`# Use {x} #`), because without
+it `{x}` would be read as heading attributes. MD003 accepts that closing sequence under either ATX style. Heading text is
+not modified (content is preserved as-is), and an attribute block (`{#custom-id}`) is kept after it.
 
 ### Blank Lines Around Headings (MD022)
 
@@ -276,6 +278,9 @@ Escapes of characters that only mean something at the start of a line — `#`, `
 after a number, and a `*` with spaces on both sides — are dropped and re-derived: the formatter escapes a line wherever
 its output would otherwise re-parse as a block element, based on where each line actually starts after formatting.
 Escapes of punctuation that means nothing (`\@`, `\,`) are dropped.
+
+An `&` that pulldown-cmark decoded from `&amp;` is written back as `\&` when what follows would spell an entity or
+character reference (`&amp;copy;` stays literal rather than becoming `©`).
 
 ```markdown
 \*not emphasis\* and \[not a link]
