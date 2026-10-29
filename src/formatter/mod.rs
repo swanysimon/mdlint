@@ -172,10 +172,53 @@ fn format_markdown(input: &str, options: &FormatOptions) -> String {
         state.next_is_unordered_list = next_is_ul;
         state.next_text_char = next_char;
         state.attached = attached;
+        state.source_escaped = is_escaped_text(input, &event, &range);
+        state.code_source = match event {
+            Event::Code(_) if state.reflow_suppressed => {
+                input.get(range.clone()).map(str::to_owned)
+            }
+            _ => None,
+        };
         state.process(event);
     }
 
     state.finish()
+}
+
+/// Punctuation whose backslash escape can matter inline.
+const INLINE_PUNCTUATION: &str = "\\`*_~[]!({}&|<^";
+
+/// Whether `event` is text whose first character the author backslash-escaped,
+/// and the escape has to be kept.
+///
+/// pulldown-cmark resolves an escape by starting a new Text event just after the
+/// backslash, so the escape survives only in the source.  Dropping it can change
+/// the document: `\*a\*` would become emphasis, `\![a](b)` an image, `\[x]` a
+/// link.  Escapes of characters that only mean something at the start of a
+/// line (`#`, `-`, `>`, `1.`) are not kept: `escape_line` re-derives those from
+/// where each line actually starts, on every pass.  Keeping them would let an
+/// escape added on one pass widen its line on the next and move the breaks.
+fn is_escaped_text(input: &str, event: &Event<'_>, range: &Range<usize>) -> bool {
+    let (Event::Text(_), Some(before), Some(rest)) =
+        (event, input.get(..range.start), input.get(range.start..))
+    else {
+        return false;
+    };
+    let Some(before) = before.strip_suffix('\\') else {
+        return false;
+    };
+    match rest.chars().next() {
+        // A run of `*` with whitespace on both sides can neither open nor close
+        // emphasis: it only matters as a list marker or a rule, so it is a
+        // line-start character like the rest.
+        Some('*') => {
+            let spaced = |c: Option<char>| c.is_none_or(char::is_whitespace);
+            !(spaced(before.chars().next_back())
+                && spaced(rest.trim_start_matches('*').chars().next()))
+        }
+        Some(c) => INLINE_PUNCTUATION.contains(c),
+        None => false,
+    }
 }
 
 /// An HTML block opened by `<!--` (`CommonMark` type 2): a comment, which runs
@@ -412,6 +455,15 @@ struct FormatterState {
     // HTML, emphasis markers) is atomic, so a break can never land inside it.
     break_offsets: Vec<usize>,
 
+    // Byte offsets into `inline` of the line breaks kept inside code spans.  A
+    // break there cannot be escaped (a backslash in a code span is literal), so
+    // one that would open a structural line is turned back into a space.
+    code_breaks: Vec<usize>,
+
+    // Set by the outer format() loop on a Code event while reflow is off: the
+    // span's source, from which the author's line breaks are recovered.
+    code_source: Option<String>,
+
     // Code block state
     in_code_block: bool,
     /// Fence of every code block in the document, in order; consumed as each
@@ -419,6 +471,10 @@ struct FormatterState {
     code_fences: VecDeque<String>,
     /// Fence of the open code block, repeated to close it.
     code_fence: String,
+
+    // The open heading's `{#id .class key=value}` block, with a leading space,
+    // or empty.  pulldown-cmark strips it from the heading text.
+    heading_attributes: String,
 
     // Link/image stack: stores (dest_url, title) from Start until End.
     link_stack: Vec<(String, String)>,
@@ -431,6 +487,10 @@ struct FormatterState {
     // First char of the next Text event, or None if the next event is not Text.
     // Supplies cross-event right-flank context for the `_`/`~` escape check.
     next_text_char: Option<char>,
+
+    // Set by the outer format() loop: true when this event is Text whose first
+    // character was backslash-escaped in the source.  See `is_escaped_text`.
+    source_escaped: bool,
 
     // Set by the outer format() loop: true on a comment block's Start (End)
     // when the author left no blank line above (below) it.
@@ -475,12 +535,16 @@ impl FormatterState {
             container_prefix: Vec::new(),
             inline: String::new(),
             break_offsets: Vec::new(),
+            code_breaks: Vec::new(),
+            code_source: None,
             in_code_block: false,
             code_fences: VecDeque::new(),
             code_fence: String::new(),
+            heading_attributes: String::new(),
             link_stack: Vec::new(),
             next_is_unordered_list: false,
             next_text_char: None,
+            source_escaped: false,
             attached: false,
             table_alignments: Vec::new(),
             table_head_cells: Vec::new(),
@@ -613,10 +677,13 @@ impl FormatterState {
                 }
                 self.in_tight_item = false;
             }
-            Tag::Heading { .. } => {
+            Tag::Heading {
+                id, classes, attrs, ..
+            } => {
                 self.flush_pending_inline();
                 self.emit_blank_if_needed();
                 // The prefix (hashes) is written at End, when we have the level.
+                self.heading_attributes = heading_attributes(id.as_deref(), &classes, &attrs);
             }
             Tag::CodeBlock(kind) => {
                 self.flush_pending_inline();
@@ -642,6 +709,14 @@ impl FormatterState {
                 self.flush_pending_inline();
                 if self.list_depth == 0 {
                     self.emit_blank_if_needed();
+                } else if matches!(start, Some(n) if n != 1) {
+                    // Only a list starting at 1 can interrupt a paragraph, so
+                    // any other keeps the blank line after its parent's text.
+                    self.emit_blank_if_needed();
+                    if self.on_item_marker_line() {
+                        self.out.push('\n');
+                    }
+                    self.in_tight_item = false;
                 } else {
                     // Nested list: suppress any pending blank line.
                     // A sublist follows its parent item text without a blank line.
@@ -656,8 +731,9 @@ impl FormatterState {
                 self.list_depth += 1;
                 self.list_tight
                     .push(self.tight_lists.pop_front().unwrap_or(false));
-                // Ordered lists always start at 1 in canonical form (MD029).
-                self.list_starts.push(start.map(|_| 1u64));
+                // An ordered list keeps its start number, which renders: items
+                // are renumbered from it (MD029).
+                self.list_starts.push(start);
             }
             Tag::Item => {
                 // Items of a loose list are separated by a blank line; items of
@@ -766,6 +842,7 @@ impl FormatterState {
                     // and wrap_segment treats stale offsets as real breaks,
                     // dropping whatever character sits at each one.
                     self.break_offsets.clear();
+                    self.code_breaks.clear();
                     self.block_reflow_suppressed = false;
                 } else {
                     let prefix = self.continuation_prefix();
@@ -778,6 +855,7 @@ impl FormatterState {
                 let text = std::mem::take(&mut self.inline);
                 // Headings are never wrapped; drop the opportunities unused.
                 self.break_offsets.clear();
+                self.code_breaks.clear();
                 self.block_reflow_suppressed = false;
                 let hashes = "#".repeat(level as usize);
                 self.open_line();
@@ -787,7 +865,14 @@ impl FormatterState {
                 // leaving it unescaped and breaking idempotency on re-parse.
                 let heading_raw = collapse_heading_breaks(&text);
                 let heading_text = escape_trailing_hashes(heading_raw.trim());
-                writeln!(self.out, "{hashes} {heading_text}")
+                let mut attributes = std::mem::take(&mut self.heading_attributes);
+                // Text ending in `}` would be read as an attribute block -- a
+                // backslash does not stop that -- unless a closing sequence or
+                // a real attribute block follows it.
+                if attributes.is_empty() && heading_text.ends_with('}') {
+                    attributes.push_str(" #");
+                }
+                writeln!(self.out, "{hashes} {heading_text}{attributes}")
                     .expect("writing to String is infallible");
                 self.in_tight_item = false;
                 self.needs_blank = true;
@@ -876,6 +961,7 @@ impl FormatterState {
                 let cell = std::mem::take(&mut self.inline);
                 // Cell content is never wrapped; drop the opportunities unused.
                 self.break_offsets.clear();
+                self.code_breaks.clear();
                 self.block_reflow_suppressed = false;
                 self.current_row_cells.push(cell);
             }
@@ -988,6 +1074,11 @@ impl FormatterState {
                     }
                     continue;
                 }
+                if i == 0 && self.source_escaped {
+                    s.push('\\');
+                    s.push(ch);
+                    continue;
+                }
                 match ch {
                     '\\' => s.push_str("\\\\"),
                     '`' => s.push_str("\\`"),
@@ -1045,7 +1136,20 @@ impl FormatterState {
         if needs_space {
             self.inline.push(' ');
         }
-        self.inline.push_str(code);
+        // A table row is split on `|` before inline parsing, code spans
+        // included, so a pipe in a cell's code span only survives escaped.
+        if self.table_alignments.is_empty() {
+            let code = match self.code_source.take() {
+                Some(source) => restore_code_breaks(code, &source),
+                None => code.to_owned(),
+            };
+            let base = self.inline.len();
+            self.code_breaks
+                .extend(code.match_indices('\n').map(|(index, _)| base + index));
+            self.inline.push_str(&code);
+        } else {
+            self.inline.push_str(&code.replace('|', "\\|"));
+        }
         if needs_space {
             self.inline.push(' ');
         }
@@ -1114,6 +1218,7 @@ impl FormatterState {
     /// whatever part of the container prefix its output line still lacks.
     fn flush_inline_text(&mut self, text: &str, continuation_prefix: &str) {
         let offsets = std::mem::take(&mut self.break_offsets);
+        let text = &unbreak_structural_code_lines(text, &std::mem::take(&mut self.code_breaks));
         // Strip trailing hard-break markers (`\\\n`) preceded by only whitespace.
         // A `\` before a line ending that is at the end of a block is re-parsed by
         // pulldown-cmark as a literal `\`, not a hard break — so emitting `\\\n` at
@@ -1260,6 +1365,70 @@ impl FormatterState {
     }
 }
 
+/// `code` (a code span's content, every line ending already a space) with the
+/// line breaks the author put in its `source` restored.
+///
+/// A line ending inside a code span renders as a space, so the author can
+/// break a long span across lines; joining it back is what made a line too
+/// long for MD013.  Each source line but the last is located in `code` in
+/// turn, and the whitespace that follows it becomes the break.  A break
+/// that cannot be placed exactly is left as the space it already is.
+fn restore_code_breaks(code: &str, source: &str) -> String {
+    let mut lines: Vec<&str> = source.split('\n').collect();
+    lines.pop();
+    let Some(first) = lines.first_mut() else {
+        return code.to_owned();
+    };
+    *first = first.trim_start_matches('`');
+    let mut out = String::with_capacity(code.len());
+    let mut pos = 0;
+    for line in lines {
+        // Each later line still carries its container's markers and indent.
+        let content = line.trim_start_matches([' ', '\t', '>']).trim_end();
+        let Some(start) = code.get(pos..).and_then(|rest| rest.find(content)) else {
+            break;
+        };
+        let end = pos + start + content.len();
+        let next = end + code[end..].len() - code[end..].trim_start_matches(' ').len();
+        if content.is_empty() || end == 0 || next == end || next >= code.len() {
+            break;
+        }
+        out.push_str(&code[pos..end]);
+        out.push('\n');
+        pos = next;
+    }
+    out.push_str(&code[pos..]);
+    out
+}
+
+/// `text` with every kept code-span break (at the byte offsets in `breaks`)
+/// that would leave a structural line on either side turned back into a space.
+///
+/// Prose lines are escaped instead, but a backslash inside a code span would
+/// be literal content.  Either side counts: `` ```a `` ending a line opens a
+/// fence just as surely as `# x` starting one opens a heading.  Joining one
+/// break lengthens its neighbours' lines, so the check repeats until nothing
+/// changes.
+fn unbreak_structural_code_lines(text: &str, breaks: &[usize]) -> String {
+    let mut text = text.to_owned();
+    let mut breaks = breaks.to_vec();
+    loop {
+        let joined = breaks.iter().position(|&offset| {
+            let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+            let line_end = text[offset + 1..]
+                .find('\n')
+                .map_or(text.len(), |index| offset + 1 + index);
+            needs_line_escape(&text[line_start..offset], line_start > 0)
+                || needs_line_escape(&text[offset + 1..line_end], true)
+        });
+        let Some(index) = joined else {
+            return text;
+        };
+        let offset = breaks.remove(index);
+        text.replace_range(offset..=offset, " ");
+    }
+}
+
 /// Collapse the break markers inside a heading's inline buffer to single spaces.
 ///
 /// A heading cannot span lines, so both soft breaks (`\n`) and hard breaks
@@ -1299,6 +1468,33 @@ fn collapse_heading_breaks(text: &str) -> String {
         }
     }
     out
+}
+
+/// A heading's attribute block as written after its text: ` {#id .class
+/// key=value}`, or empty when it has none.  Dropping it would break every link
+/// to a custom anchor.
+fn heading_attributes(
+    id: Option<&str>,
+    classes: &[pulldown_cmark::CowStr<'_>],
+    attrs: &[(
+        pulldown_cmark::CowStr<'_>,
+        Option<pulldown_cmark::CowStr<'_>>,
+    )],
+) -> String {
+    let parts: Vec<String> = id
+        .map(|id| format!("#{id}"))
+        .into_iter()
+        .chain(classes.iter().map(|class| format!(".{class}")))
+        .chain(attrs.iter().map(|(key, value)| match value {
+            Some(value) => format!("{key}={value}"),
+            None => key.to_string(),
+        }))
+        .collect();
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!(" {{{}}}", parts.join(" "))
+    }
 }
 
 /// Escape a trailing run of `#` in heading text.
@@ -1604,6 +1800,68 @@ mod tests {
         );
     }
 
+    /// `assert_formats_to` with the default options, reflow off.
+    fn assert_formats_to_without_reflow(input: &str, expected: &str) {
+        let got = super::format(input);
+        assert_eq!(
+            got, expected,
+            "format(input) did not match expected.\nInput:\n{input}\nExpected:\n{expected}\nGot:\n{got}"
+        );
+        assert_eq!(super::format(expected), expected, "not idempotent");
+    }
+
+    #[test]
+    fn test_author_escapes_are_kept() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/100:
+        // each of these escapes is what keeps the text literal.
+        assert_formats_to(
+            "\\*not emphasis\\* \\![not](an-image) [not]\\(a-link) \\[x]\n",
+            "\\*not emphasis\\* \\![not](an-image) [not]\\(a-link) \\[x]\n",
+        );
+        assert_formats_to(
+            "- Item one \\[Directional]\n",
+            "- Item one \\[Directional]\n",
+        );
+        assert_formats_to("# Heading \\#\n", "# Heading \\#\n");
+    }
+
+    #[test]
+    fn test_escaped_pipe_in_table_cell_code_span_is_kept() {
+        let table = "| a | b |\n| --- | --- |\n| x \\| y | `p \\| q` |\n";
+        assert_formats_to(table, table);
+    }
+
+    #[test]
+    fn test_line_break_inside_code_span_is_kept_without_reflow() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/100
+        let input = indoc! {"
+            - Key: `(alpha_identifier, beta_identifier, gamma_identifier, delta_identifier, epsilon_identifier,
+              zeta_identifier, eta_identifier)` with a note.
+        "};
+        assert_formats_to_without_reflow(input, input);
+        assert_formats_to_without_reflow("> a `b\n>    c` d\n", "> a `b\n> c` d\n");
+    }
+
+    #[test]
+    fn test_line_break_inside_code_span_that_would_open_a_block_is_joined() {
+        // A backslash inside the span would be literal, so the line cannot be
+        // escaped the way prose is; the break becomes a space instead.
+        assert_formats_to_without_reflow("a `x\n    # y` b\n", "a `x # y` b\n");
+    }
+
+    #[test]
+    fn test_line_break_inside_code_span_is_refilled_with_reflow() {
+        assert_formats_to("a `b\nc` d\n", "a `b c` d\n");
+    }
+
+    #[test]
+    fn test_heading_attributes_are_kept() {
+        assert_formats_to("# Title {#custom-id}\n", "# Title {#custom-id}\n");
+        assert_formats_to("Title {#a .b c=d}\n===\n", "# Title {#a .b c=d}\n");
+        // Literal text that looks like attributes keeps a closing sequence.
+        assert_formats_to("# Title {#not-an-id} #\n", "# Title {#not-an-id} #\n");
+    }
+
     #[test]
     fn test_empty_input() {
         assert_eq!(format(""), "");
@@ -1743,16 +2001,37 @@ mod tests {
 
     #[test]
     fn test_ordered_list_non_one_start_renumbered() {
-        // Lists starting at a number other than 1 are renumbered from 1.
+        // The start number renders (`<ol start="3">`), so it is kept and the
+        // items after it are renumbered from it.
         assert_formats_to(
             indoc! {"
                 3. First
                 5. Second
                 9. Third"},
             indoc! {"
-                1. First
-                2. Second
-                3. Third
+                3. First
+                4. Second
+                5. Third
+            "},
+        );
+    }
+
+    #[test]
+    fn test_nested_ordered_list_not_starting_at_one_keeps_its_blank_line() {
+        // Only a list starting at 1 can interrupt a paragraph: without the
+        // blank line, `3. Child` would be read as more of `Parent`.
+        assert_formats_to(
+            indoc! {"
+                - Parent
+
+                  3. Child
+                  4. Child
+            "},
+            indoc! {"
+                - Parent
+
+                  3. Child
+                  4. Child
             "},
         );
     }
@@ -2683,7 +2962,8 @@ mod tests {
         assert_eq!(format_with("[^a]: [ a a [^a]: aa\n", &options), expected);
         assert_eq!(format_with(expected, &options), expected, "idempotency");
 
-        assert_formats_to("\\[b]: c\n", "[b]\\: c\n");
+        // The author's own escape is kept, and already keeps the line plain.
+        assert_formats_to("\\[b]: c\n", "\\[b]: c\n");
     }
 
     // ── regressions found by the reflow proptest generator ───────────────────

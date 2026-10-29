@@ -19,7 +19,14 @@ impl Rule for MD052 {
         &["links"]
     }
 
-    fn check(&self, parser: &MarkdownParser, _config: Option<&Value>) -> Vec<Violation> {
+    fn check(&self, parser: &MarkdownParser, config: Option<&Value>) -> Vec<Violation> {
+        // As in markdownlint, a bare `[label]` is not checked by default:
+        // bracketed prose like `[sic]` or `[WIP]` is common and renders as the
+        // literal text it is.
+        let shortcut_syntax = config
+            .and_then(|c| c.get("shortcut_syntax"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let mut violations = Vec::new();
 
         // A broken-link callback forces pulldown-cmark to still emit an event for
@@ -34,10 +41,12 @@ impl Rule for MD052 {
                 _ => continue,
             };
 
-            if matches!(
-                link_type,
-                LinkType::ReferenceUnknown | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown
-            ) {
+            let undefined = match link_type {
+                LinkType::ReferenceUnknown | LinkType::CollapsedUnknown => true,
+                LinkType::ShortcutUnknown => shortcut_syntax,
+                _ => false,
+            };
+            if undefined {
                 let item_type = if is_image { "image" } else { "link" };
                 violations.push(Violation {
                     line: parser.offset_to_line(range.start),
@@ -128,12 +137,21 @@ mod tests {
     }
 
     #[test]
+    fn test_shortcut_reference_undefined_not_checked_by_default() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/100
+        let content = "- Item one [Directional]";
+        let parser = MarkdownParser::new(content);
+        assert_eq!(MD052.check(&parser, None).len(), 0);
+    }
+
+    #[test]
     fn test_shortcut_reference_undefined() {
         // Regression test for https://github.com/swanysimon/mdlint/issues/53
         let content = "Here a [reference] is unused.";
         let parser = MarkdownParser::new(content);
         let rule = MD052;
-        let violations = rule.check(&parser, None);
+        let config = serde_json::json!({ "shortcut_syntax": true });
+        let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(
             rendered(&violations),
@@ -175,7 +193,8 @@ mod tests {
         let content = "> [!NOTE] inline text on the same line.";
         let parser = MarkdownParser::new(content);
         let rule = MD052;
-        let violations = rule.check(&parser, None);
+        let config = serde_json::json!({ "shortcut_syntax": true });
+        let violations = rule.check(&parser, Some(&config));
 
         assert_eq!(
             rendered(&violations),

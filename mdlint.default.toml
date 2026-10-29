@@ -226,6 +226,13 @@ style = "asterisk"
 [rules.MD050]
 style = "asterisk"
 
+# MD052 — Reference links and images should use a label that is defined
+# shortcut_syntax: when true, shortcut references (`[label]` alone) are checked
+#                  too. Off by default, as in markdownlint: bracketed prose such
+#                  as `[sic]` renders as literal text and is not a broken link.
+[rules.MD052]
+shortcut_syntax = false
+
 # MD055 — Table pipe style
 # style: where pipe characters are required on table rows.
 #   "leading_and_trailing" — | col | col |

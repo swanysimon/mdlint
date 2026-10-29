@@ -107,6 +107,10 @@ src/
 - Fence length comes from the content: three backticks unless a content line indented at most three spaces starts with a
   run that long, then one longer than the longest such run (`code_fences` precomputes it per block). A fixed
   three-backtick fence let a Markdown example of a code block close its container early
+- Backslash escapes of inline punctuation (`*`, `[`, `!`, `&` …) are kept: pulldown-cmark starts a new Text event right
+  after the backslash, so `is_escaped_text` recovers it from the source; dropping them turned `\*a\*` into emphasis.
+  Escapes of line-start characters (`#`, `-`, `>`, `1.`, a space-bounded `*`) are not kept, because `escape_line`
+  re-derives them every pass; keeping one it added widens that line on the next pass and moves the breaks
 - Escape reservation is decided on the whole chosen line, not its first token: a thematic break can span tokens (`**` is
   plain text, `** **` is a rule)
 
