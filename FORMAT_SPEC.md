@@ -288,6 +288,20 @@ Exactly one space after each `>` marker:
 No blank lines between consecutive blockquote lines that belong to the same block. One blank line between a blockquote
 and surrounding content.
 
+### GFM Alert Blockquotes (MD052)
+
+A blockquote whose first line is `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!CAUTION]`
+(case-insensitive, alone on the line) is a GitHub-style alert, not a reference link shortcut. The
+marker is normalized to its canonical uppercase spelling; no blank line separates it from the
+blockquote content that follows.
+
+```markdown
+> [!NOTE]
+> A nice note, not an undefined reference link label.
+```
+
+`mdlint check` (MD052) does not flag the marker as an undefined reference label.
+
 ### ATX Heading Space (MD018, MD019)
 
 Exactly one space between the opening `#` characters and the heading text. No extra spaces.

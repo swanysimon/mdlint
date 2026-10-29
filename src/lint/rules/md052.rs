@@ -155,6 +155,35 @@ mod tests {
     }
 
     #[test]
+    fn test_gfm_alert_not_a_reference_label() {
+        // Regression test for https://github.com/swanysimon/mdlint/issues/103
+        let content = indoc! {"
+            > [!NOTE]
+            > A nice note and not a link label."};
+        let parser = MarkdownParser::new(content);
+        let rule = MD052;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(violations.len(), 0);
+    }
+
+    #[test]
+    fn test_gfm_alert_lookalike_with_trailing_text_still_flagged() {
+        // Text after "[!NOTE]" on the same line disqualifies the GFM alert
+        // syntax (it must be alone on its line), so this is genuinely an
+        // undefined shortcut reference and MD052 must still catch it.
+        let content = "> [!NOTE] inline text on the same line.";
+        let parser = MarkdownParser::new(content);
+        let rule = MD052;
+        let violations = rule.check(&parser, None);
+
+        assert_eq!(
+            rendered(&violations),
+            ["test.md:1:1: MD052 Reference link label '!NOTE' is not defined"]
+        );
+    }
+
+    #[test]
     fn test_collapsed_reference_undefined() {
         let content = "[Link][]";
         let parser = MarkdownParser::new(content);
