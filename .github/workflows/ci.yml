@@ -28,7 +28,9 @@ jobs:
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
       - name: Run formatters and linters
-        run: prek run -av
+        # -v keeps output from hooks that pass; --show-diff-on-failure prints what each
+        # file-rewriting hook (cargo fmt, tombi, clippy --fix, dogfood format) changed
+        run: prek run -av --show-diff-on-failure
 
       - name: Run tests
         run: mise run test
