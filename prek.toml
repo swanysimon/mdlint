@@ -1,106 +1,92 @@
-default_install_hook_types = [
-  "pre-commit",
-  "pre-push",
-]
-
 [[repos]]
 repo = "builtin"
 
 [[repos.hooks]]
 id = "trailing-whitespace"
-prority = 1
+priority = 1
 
 [[repos.hooks]]
 id = "end-of-file-fixer"
-prority = 2
+priority = 2
 
 [[repos]]
 repo = "local"
 
 [[repos.hooks]]
-id = "actionlint"
+id = "format-toml"
+name = "format toml"
+entry = "mise run format:toml"
+language = "system"
+pass_filenames = false
+types = ["toml"]
+priority = 3
+
+[[repos.hooks]]
+id = "format-rust"
+name = "format rust"
+entry = "mise run format:rust"
+language = "system"
+pass_filenames = false
+types = ["rust"]
+priority = 3
+
+[[repos.hooks]]
+id = "lint-rust"
+name = "clippy (autofix)"
+entry = "mise run lint:rust --fix"
+language = "system"
+pass_filenames = false
+types = ["rust"]
+priority = 4
+
+[[repos.hooks]]
+id = "lint-workflows"
 name = "check workflows"
-entry = "actionlint"
+entry = "mise run lint:workflows"
 language = "system"
 types = ["yaml"]
 files = "^\\.github/workflows/"
-priority = 3
+priority = 4
 
 [[repos.hooks]]
-id = "hadolint"
+id = "lint-dockerfile"
 name = "check dockerfile"
-entry = "hadolint"
+entry = "mise run lint:dockerfile"
 language = "system"
 files = "^Dockerfile$"
-priority = 3
+priority = 4
 
 [[repos.hooks]]
-id = "shellcheck"
+id = "lint-shell"
 name = "check shell scripts"
-entry = "shellcheck"
+entry = "mise run lint:shell"
 language = "system"
 types = ["shell"]
-priority = 3
+priority = 4
 
 [[repos.hooks]]
-id = "tombi-fmt"
-name = "format toml"
-entry = "tombi format"
-language = "system"
-pass_filenames = false
-types = ["toml"]
-priority = 3
-
-[[repos.hooks]]
-id = "tombi-check"
+id = "lint-toml"
 name = "check toml"
-entry = "tombi check"
+entry = "mise run lint:toml"
 language = "system"
 pass_filenames = false
 types = ["toml"]
 priority = 4
 
 [[repos.hooks]]
-id = "rustfmt"
-name = "format rust"
-entry = "cargo fmt --"
+id = "format-markdown"
+name = "format markdown (dogfood)"
+entry = "mise run format:markdown"
 language = "system"
 pass_filenames = false
-types = ["rust"]
-priority = 4
-
-[[repos.hooks]]
-id = "clippy"
-name = "clippy"
-entry = "cargo clippy --fix --allow-dirty --all-targets"
-language = "system"
-pass_filenames = false
-types = ["rust"]
+types_or = ["markdown", "rust"]
 priority = 5
 
 [[repos.hooks]]
-id = "test"
-name = "test rust"
-entry = "cargo test"
+id = "lint-markdown"
+name = "check markdown (dogfood)"
+entry = "mise run lint:markdown"
 language = "system"
 pass_filenames = false
 types_or = ["markdown", "rust"]
 priority = 6
-
-[[repos.hooks]]
-id = "mdlint-format"
-name = "format markdown (dogfood)"
-entry = "cargo run -- format"
-language = "system"
-pass_filenames = false
-types_or = ["markdown", "rust"]
-priority = 7
-
-[[repos.hooks]]
-id = "mdlint-check"
-name = "check markdown (dogfood)"
-entry = "cargo run -- check"
-language = "system"
-pass_filenames = false
-types_or = ["markdown", "rust"]
-priority = 8
