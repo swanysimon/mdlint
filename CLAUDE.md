@@ -146,6 +146,10 @@ src/
 - Tools that only some tasks need (actionlint, hadolint, shellcheck, tombi) are pinned in that task's `tools` table
   rather than in `[tools]`, so they install on first use — a contributor who touches no Dockerfile never installs
   hadolint
+- `mise run bench` (`scripts/bench.sh`) times `check`/`format` with hyperfine over a pinned copy of the Rust book cached
+  in `target/bench/`; `check` exits 1 there, so hyperfine needs `--ignore-failure` and the script asserts the expected
+  exit codes itself. Per-rule costs are *not* measured — the 40 ms process floor swamps them; that would need an
+  in-process criterion bench
 - Formatting hooks (`format:rust`, `format:toml`, end-of-file-fixer, trailing-whitespace) modify files in place and
   report failure — re-running immediately after often passes with no further changes needed
 - Clippy denials come from `[lints.clippy]` and `[lints.rust]` in `Cargo.toml`, not a `-D warnings` CLI flag, so the

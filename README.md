@@ -565,6 +565,13 @@ mise run test
 `mise ci` runs tasks in parallel, so its output interleaves; `prek run -a` is the readable one when you want to see
 which check failed at a glance. Tests are not a git hook, so committing never waits on `cargo test`.
 
+### Benchmarking
+
+`mise run bench` times `check` and `format` end to end against a pinned copy of the [Rust
+book](https://github.com/rust-lang/book) (112 Markdown files), downloading the corpus into `target/bench/` on first run.
+The numbers cover process startup, file discovery, I/O and diagnostic rendering, so they reflect the tool as a user
+experiences it rather than the cost of any single rule.
+
 ### Pull request process
 
 1. Create a feature branch from `main`
