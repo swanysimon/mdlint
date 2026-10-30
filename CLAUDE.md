@@ -116,14 +116,40 @@ src/
 
 ### Code Quality
 
-- All checks run via `prek run -a` (defined in `prek.toml`), managed by `mise` (`mise.toml`)
-- `prek run -a` runs hooks sequentially with `fail_fast = true`: trailing-whitespace → end-of-file-fixer → actionlint →
-  hadolint → tombi check → tombi format → clippy (with `--fix`) → rustfmt → cargo test → mdlint check (dogfood) → mdlint
-  format (dogfood)
-- With `fail_fast`, each failure is one thing to fix; re-run after fixing until all hooks pass
-- Formatting hooks (rustfmt, tombi format, end-of-file-fixer, trailing-whitespace) modify files in place and report
-  failure — re-running immediately after often passes with no further changes needed
-- Clippy runs as errors: `-D warnings`; autofix (`--fix --allow-dirty`) applied before tests
+- Two entry points, same checks. `prek run -a` runs the formatters and linters with one clean pass/fail line per hook;
+  `mise ci` (alias of `mise run checks`) adds the test suite and runs everything in parallel, so its output interleaves.
+  CI uses the first plus a separate `mise run test`, for readable logs
+- Every check is a `mise` task; `prek.toml` holds only the file filters and priority. Add or change a command in
+  `mise.toml`, never in a hook `entry` — that is what keeps the hook, CI, and a manual run identical
+- Tests are deliberately **not** a prek hook. `mise ci` is what verifies them, so a commit is never gated on a full
+  `cargo test`
+- No hook sets `stages`, so every hook runs at every git stage. Scoping one to a single stage means also auditing
+  `ci.yml`, which calls `prek run -av` with no stage filter
+- Tasks are grouped by colon namespace, with `format`, `lint` and `checks` aggregating via `depends`. `mise tasks ls` is
+  the full list. Group members run in **parallel**, so anything order-dependent needs `wait_for`
+- `wait_for` (not `depends`) expresses ordering: it sequences tasks only when both are already scheduled, instead of
+  pulling the dependency in. `lint:toml` waits for `format:toml`, `lint:rust` for `format:rust`, `lint:markdown` for
+  `format:markdown`, and `test`/`proptest` for both Rust tasks — the last also keeps two cargo processes off the same
+  target lock
+- Anything that rewrites files is opt-in, so a tool that reports and a tool that fixes are one task with a flag:
+  `lint:rust` takes `--fix` (which the prek hook passes and nothing else does), and `lint:markdown` runs
+  `check --no-fix` because `format:markdown` is what fixes Markdown
+- Optional flags come from a task's `usage` field, which exposes `--fix` as `$usage_fix` and lets the task own the fact
+  that `--fix` implies `--allow-dirty`. The Tera `arg()`/`option()`/`flag()` template functions do the same thing but
+  are deprecated (removed in mise 2027.5.0) and render `true`/`false` rather than the flag text — do not add new uses
+- `lint:workflows`, `lint:dockerfile` and `lint:shell` take an optional variadic file list
+  (`arg "<files>" var=#true required=#false`) and fall back to discovering their own targets when given none. That is
+  what lets prek pass the files it matched — including the extensionless shell scripts its shebang-aware
+  `types = ["shell"]` finds and a glob would miss — while a bare `mise run` still works. Use `required=#false`, never
+  `default=""`: the latter sets the variable to a literal `''` that the tool then tries to open as a file
+- Hooks run sequentially in `priority` order; fix one failure at a time and re-run until it passes
+- Tools that only some tasks need (actionlint, hadolint, shellcheck, tombi) are pinned in that task's `tools` table
+  rather than in `[tools]`, so they install on first use — a contributor who touches no Dockerfile never installs
+  hadolint
+- Formatting hooks (`format:rust`, `format:toml`, end-of-file-fixer, trailing-whitespace) modify files in place and
+  report failure — re-running immediately after often passes with no further changes needed
+- Clippy denials come from `[lints.clippy]` and `[lints.rust]` in `Cargo.toml`, not a `-D warnings` CLI flag, so the
+  task needs no `--` separator
 - Common fixes: `unwrap_or()` over manual `is_some()`, iterators over range loops, `!is_empty()`
 - Prefer functional patterns: `str::replace` over char loops, `"x".repeat(n)` over push loops, bitflags OR operator over
   `.insert()` chains, `level as u8` over manual match-to-discriminant

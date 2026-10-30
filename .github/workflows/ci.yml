@@ -27,8 +27,11 @@ jobs:
         env:
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
-      - name: Run all codebase checks
-        run: prek run -av --hook-stage pre-push
+      - name: Run formatters and linters
+        run: prek run -av
+
+      - name: Run tests
+        run: mise run test
 
   check-npm:
     name: Verify npm package

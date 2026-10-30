@@ -543,20 +543,34 @@ linting. [uv](https://docs.astral.sh/uv/) is required only if working on the Pyt
 ```bash
 git clone https://github.com/swanysimon/mdlint.git
 cd mdlint
-mise install   # installs prek, tombi, hadolint
+mise install   # installs prek; other tools install on first use
 cargo build
 ```
 
 ### Code quality
 
-All quality checks run via `prek run -a`. This must pass before submitting a pull request.
+Run `mise ci` before submitting a pull request. It runs every formatter, linter, and the test suite.
+
+```bash
+mise ci                    # everything, including tests
+prek run -a                # formatters and linters only, one line per check
+mise tasks ls              # every available task
+mise run format            # every formatter
+mise run lint              # every linter
+mise run lint:rust         # clippy, report only
+mise run lint:rust --fix   # clippy, applying autofixes
+mise run test
+```
+
+`mise ci` runs tasks in parallel, so its output interleaves; `prek run -a` is the readable one when you want to see
+which check failed at a glance. Tests are not a git hook, so committing never waits on `cargo test`.
 
 ### Pull request process
 
 1. Create a feature branch from `main`
 2. Make focused commits with clear messages
 3. Add tests for new functionality
-4. Run `prek run -a` and fix any failures
+4. Run `mise ci` and fix any failures
 5. Submit a PR with a description of what changed and why
 
 ### Release process

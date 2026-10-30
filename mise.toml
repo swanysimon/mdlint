@@ -1,12 +1,82 @@
 [tools]
-actionlint = "1.7.12"
-cargo-release = "v1.1.6"
-hadolint = "2.15.1"
 prek = "0.5.5"
-shellcheck = "0.11.0"
-tombi = "1.7.3"
+
+[tasks.check]
+alias = ["ci", "checks"]
+description = "Run every quality check"
+depends = ["format", "lint", "test"]
+
+[tasks.format]
+description = "Run every formatter"
+depends = ["format:*"]
+
+[tasks.lint]
+description = "Run every linter"
+depends = ["lint:*"]
+wait_for = ["format:*"]
 
 [tasks.proptest]
 description = "Run formatter property tests with a large case count"
+wait_for = ["format:rust", "lint:rust", "test"]
 env = { PROPTEST_CASES = "100000" }
 run = "cargo test --test formatter_proptest"
+
+[tasks.test]
+description = "Run the test suite"
+env = { CARGO_BACKTRACE = "true" }
+wait_for = ["format:rust", "lint:rust"]
+run = "cargo test"
+
+[tasks."format:toml"]
+description = "Format TOML files"
+run = "tombi format"
+tools = { tombi = "1.7.3" }
+
+[tasks."format:rust"]
+description = "Format Rust sources"
+run = "cargo fmt --"
+
+[tasks."format:markdown"]
+description = "Format Markdown files (dogfood)"
+run = "cargo run -- format"
+wait_for = ["format:rust"]
+
+[tasks."lint:toml"]
+description = "Validate TOML files"
+wait_for = ["format:toml"]
+run = "tombi check"
+tools = { tombi = "1.7.3" }
+
+[tasks."lint:rust"]
+description = "Clippy. Pass --fix to apply autofixes to the working tree"
+usage = 'flag "--fix" help="apply clippy autofixes to the working tree"'
+wait_for = ["format:rust"]
+run = "cargo clippy --all-targets ${usage_fix:+--fix --allow-dirty}"
+
+[tasks."lint:markdown"]
+description = "Check Markdown files (dogfood)"
+wait_for = ["format:markdown"]
+run = "cargo run -- check"
+
+[tasks."lint:workflows"]
+description = "Lint GitHub Actions workflows"
+usage = 'arg "<files>" var=#true required=#false'
+run = "actionlint $usage_files"
+tools = { actionlint = "1.7.12", shellcheck = "0.11.0" }
+
+[tasks."lint:dockerfile"]
+description = "Lint the Dockerfile"
+usage = 'arg "<files>" var=#true required=#false'
+run = 'hadolint ${usage_files:-$(git ls-files "Dockerfile*")}'
+tools = { hadolint = "2.15.1" }
+
+[tasks."lint:shell"]
+description = "Lint shell scripts"
+usage = 'arg "<files>" var=#true required=#false'
+run = 'shellcheck ${usage_files:-$(git ls-files "*.sh" "*.bash")}'
+tools = { shellcheck = "0.11.0" }
+
+[tasks.release]
+description = "Create a release"
+run = "cargo release"
+tools = { cargo-release = "v1.1.6" }
