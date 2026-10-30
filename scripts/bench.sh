@@ -2,7 +2,8 @@
 # Benchmarks `mdlint check` and `mdlint format` end to end over a pinned copy of
 # the Rust book. These are whole-command numbers: they include process startup,
 # file discovery, I/O and diagnostic rendering, so they measure the tool as a
-# user experiences it rather than any one rule.
+# user experiences it rather than any one rule. hyperfine's default metrics add
+# peak resident memory next to wall-clock time.
 set -euo pipefail
 
 # rust-lang/book, pinned so the corpus never shifts under the numbers.
@@ -29,34 +30,26 @@ cargo build --release
 
 echo "corpus: $(find "$pristine" -name '*.md' | wc -l | tr -d ' ') Markdown files"
 
-# `check` exits 1 on this corpus because the Rust book has violations, so
-# hyperfine has to be told to ignore exit codes. Assert them once up front
-# instead, so a binary that dies on startup fails here rather than quietly
-# benchmarking a crash.
-expect_exit() {
-  local expected="$1" label="$2" status=0
-  shift 2
-  rm -rf "$work"
-  cp -R "$pristine" "$work"
-  "$@" >/dev/null 2>&1 || status=$?
-  if [[ "$status" -ne "$expected" ]]; then
-    echo "$label: expected exit $expected, got $status" >&2
-    exit 1
-  fi
-}
+# hyperfine compares every command with the first one in its invocation, so each
+# invocation holds the variants of a single command: `check --parallel` against
+# `check`, `format --reflow` against `format`. Commands run without a shell, so
+# the quoted paths below are split by hyperfine itself.
+common=(--warmup 3 --runs 10)
 
-expect_exit 1 "check" "$binary" check --no-fix --color never "$work"
-expect_exit 0 "format" "$binary" format --color never "$work"
-expect_exit 0 "format --reflow" "$binary" format --reflow --color never "$work"
-
-# `format` rewrites files and `check` does not, so every run starts from a fresh
-# copy of the corpus. The restore is setup, not measured.
-hyperfine --warmup 3 --runs 10 --ignore-failure \
-  --prepare "rm -rf '$work' && cp -R '$pristine' '$work'" \
+# `check` exits 1 on this corpus because the Rust book has violations. Accepting
+# exactly that code keeps a crash or a startup error fatal, and `check --no-fix`
+# never writes, so it runs on the pristine copy.
+hyperfine "${common[@]}" --ignore-failure=1 \
   --command-name "check" \
-  "$binary check --no-fix --color never '$work'" \
+  "$binary check --no-fix --color never '$pristine'" \
   --command-name "check --parallel" \
-  "$binary check --no-fix --parallel --color never '$work'" \
+  "$binary check --no-fix --parallel --color never '$pristine'"
+
+# `format` rewrites files, so every run starts from a fresh copy of the corpus.
+# The restore is setup, not measured, and runs in a shell even though the
+# benchmarked commands do not.
+hyperfine "${common[@]}" \
+  --prepare "rm -rf '$work' && cp -R '$pristine' '$work'" \
   --command-name "format" \
   "$binary format --color never '$work'" \
   --command-name "format --reflow" \

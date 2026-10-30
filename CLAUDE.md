@@ -147,9 +147,12 @@ src/
   rather than in `[tools]`, so they install on first use — a contributor who touches no Dockerfile never installs
   hadolint
 - `mise run bench` (`scripts/bench.sh`) times `check`/`format` with hyperfine over a pinned copy of the Rust book cached
-  in `target/bench/`; `check` exits 1 there, so hyperfine needs `--ignore-failure` and the script asserts the expected
-  exit codes itself. Per-rule costs are *not* measured — the 40 ms process floor swamps them; that would need an
-  in-process criterion bench
+  in `target/bench/`; `check` exits 1 there, so its run passes `--ignore-failure=1` and any other exit code (a crash)
+  still aborts hyperfine. hyperfine 2 compares every command with the first in its invocation, so `check` and `format`
+  variants are separate invocations. Commands run without a shell by default; only `--prepare` uses one. The default
+  metrics (wall-clock, peak RSS) are kept: `instructions` and the other hardware counters error out where perf access is
+  restricted (containers, CI VMs). Per-rule costs are *not* measured — the 40 ms process floor swamps them; that would
+  need an in-process criterion bench
 - Formatting hooks (`format:rust`, `format:toml`, end-of-file-fixer, trailing-whitespace) modify files in place and
   report failure — re-running immediately after often passes with no further changes needed
 - Clippy denials come from `[lints.clippy]` and `[lints.rust]` in `Cargo.toml`, not a `-D warnings` CLI flag, so the
