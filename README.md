@@ -570,7 +570,8 @@ which check failed at a glance. Tests are not a git hook, so committing never wa
 `mise run bench` times `check` and `format` end to end against a pinned copy of the [Rust
 book](https://github.com/rust-lang/book) (112 Markdown files), downloading the corpus into `target/bench/` on first run.
 The numbers cover process startup, file discovery, I/O and diagnostic rendering, so they reflect the tool as a user
-experiences it rather than the cost of any single rule.
+experiences it rather than the cost of any single rule. Each command reports wall-clock time and peak memory, and
+`--parallel` and `--reflow` are compared against the plain `check` and `format`.
 
 ### Pull request process
 
