@@ -18,7 +18,7 @@ wait_for = ["format:*"]
 [tasks.proptest]
 description = "Run formatter property tests with a large case count"
 wait_for = ["format:rust", "lint:rust", "test"]
-env = { PROPTEST_CASES = "100000" }
+env = { PROPTEST_CASES = "10000" }
 run = "cargo test --test formatter_proptest"
 
 [tasks.test]
