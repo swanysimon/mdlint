@@ -30,7 +30,7 @@ run = "cargo test"
 [tasks."format:toml"]
 description = "Format TOML files"
 run = "tombi format"
-tools = { tombi = "1.7.3" }
+tools = { tombi = "1.8.4" }
 
 [tasks."format:rust"]
 description = "Format Rust sources"
@@ -45,7 +45,7 @@ wait_for = ["format:rust"]
 description = "Validate TOML files"
 wait_for = ["format:toml"]
 run = "tombi check"
-tools = { tombi = "1.7.3" }
+tools = { tombi = "1.8.4" }
 
 [tasks."lint:rust"]
 description = "Clippy. Pass --fix to apply autofixes to the working tree"
