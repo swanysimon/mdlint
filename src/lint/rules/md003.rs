@@ -1,5 +1,5 @@
 use crate::lint::rule::Rule;
-use crate::markdown::MarkdownParser;
+use crate::markdown::{MarkdownParser, detect_front_matter};
 use crate::types::Violation;
 use serde_json::Value;
 
@@ -35,6 +35,8 @@ impl Rule for MD003 {
         let mut first_style: Option<HeadingStyle> = None;
         let code_block_lines = parser.get_code_block_line_numbers();
 
+        let front_matter_end_line = detect_front_matter(parser.content()).map_or(0, |x| x.end_line);
+
         for (line_num, line) in parser.lines().iter().enumerate() {
             let line_number = line_num + 1;
             if code_block_lines.contains(&line_number) {
@@ -61,7 +63,10 @@ impl Rule for MD003 {
                 } else {
                     Some(HeadingStyle::Atx)
                 }
-            } else if !trimmed.is_empty() && line_num + 1 < parser.lines().len() {
+            } else if !trimmed.is_empty()
+                && line_num + 1 > front_matter_end_line
+                && line_num + 1 < parser.lines().len()
+            {
                 // Check for setext (current line is heading text, next line is === or ---)
                 let next_line = parser
                     .lines()
@@ -253,5 +258,24 @@ mod tests {
         let config = serde_json::json!({ "style": "atx_closed" });
         let closed = MarkdownParser::new("# Title {x} #\n\n## Other ##\n");
         assert_eq!(MD003.check(&closed, Some(&config)).len(), 0);
+    }
+
+    /// Acceptance test for GitHub issue comment 51#issuecomment-6464161116:
+    /// front matter yaml ending dashes `---` should not be detected as `HeadingStyle.Setext`.
+    #[test]
+    fn test_detect_front_matter_not_as_setext() {
+        let content = indoc! {"
+            ---
+            title: Title
+            ---
+            # Test Markdown File
+            ## Level 2
+        "};
+        let parser = MarkdownParser::new(content);
+        let rule = MD003;
+        let config = serde_json::json!({ "style": "consistent" });
+        let violations = rule.check(&parser, Some(&config));
+
+        assert_eq!(violations.len(), 0);
     }
 }
