@@ -91,6 +91,7 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<bool> {
     let mut any_changed = false;
     let config = Config {
         reflow: args.should_reflow().or(config.reflow),
+        align_tables: args.should_align_tables().or(config.align_tables),
         ..config.clone()
     };
     let options = formatter::FormatOptions::from(&config);

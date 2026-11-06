@@ -238,11 +238,17 @@ impl CheckArgs {
 
     #[must_use]
     pub fn should_fix(&self) -> Option<bool> {
-        match (self.fix, self.no_fix) {
-            (true, _) => Some(true),
-            (_, true) => Some(false),
-            (false, false) => None,
-        }
+        flag_override(self.fix, self.no_fix)
+    }
+}
+
+/// The value a `--flag`/`--no-flag` pair asks for, or `None` when neither was given and the
+/// config decides.  `--flag` wins if both somehow arrive set.
+fn flag_override(on: bool, off: bool) -> Option<bool> {
+    match (on, off) {
+        (true, _) => Some(true),
+        (_, true) => Some(false),
+        (false, false) => None,
     }
 }
 
@@ -289,17 +295,29 @@ pub struct FormatArgs {
 
     #[arg(long, hide = true, overrides_with = "reflow")]
     pub no_reflow: bool,
+
+    #[arg(
+        long,
+        help = "Pad table cells so the pipes line up. Use `--no-align-tables` to disable",
+        overrides_with = "no_align_tables"
+    )]
+    pub align_tables: bool,
+
+    #[arg(long, hide = true, overrides_with = "align_tables")]
+    pub no_align_tables: bool,
 }
 
 impl FormatArgs {
     /// `Some` when `--reflow`/`--no-reflow` was given, overriding the config.
     #[must_use]
     pub fn should_reflow(&self) -> Option<bool> {
-        match (self.reflow, self.no_reflow) {
-            (true, _) => Some(true),
-            (_, true) => Some(false),
-            (false, false) => None,
-        }
+        flag_override(self.reflow, self.no_reflow)
+    }
+
+    /// `Some` when `--align-tables`/`--no-align-tables` was given, overriding the config.
+    #[must_use]
+    pub fn should_align_tables(&self) -> Option<bool> {
+        flag_override(self.align_tables, self.no_align_tables)
     }
 
     #[must_use]

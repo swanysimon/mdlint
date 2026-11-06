@@ -37,6 +37,11 @@ fix = true
 # (--no-reflow overrides it).  Off by default; turning it on rewrites every
 # hard-wrapped paragraph in the project.
 reflow = false
+# When true, `mdlint format` pads table cells to the widest cell in their
+# column so the pipes line up in an editor, equivalent to passing
+# --align-tables on the command line (--no-align-tables overrides it).  Off by
+# default: tables stay compact (`| a | b |`).  Independent of MD013.
+align_tables = false
 
 # front_matter = "---"   # Uncomment to fix the front-matter delimiter to YAML
 #                        # only. By default mdlint auto-detects both "---"

@@ -326,6 +326,42 @@ Horizontal rules are preceded and followed by blank lines (same block-spacing ru
 The formatter does not rewrite link or image syntax between styles (inline vs. reference). It does remove unnecessary
 angle brackets from URLs that do not require them per CommonMark (MD034).
 
+### Tables
+
+Every table is written with leading and trailing pipes, one row per line, a single space either side of each cell, and
+a delimiter row under the header. Cell content and column alignment markers are preserved. Two layouts exist, chosen by
+the `align_tables` config key or the `--align-tables`/`--no-align-tables` flags on `mdlint format`. It is off by
+default: padding makes one longer cell rewrite every row of its table, so it is opt-in like reflow.
+
+Compact (the default) joins cells with single spaces; the delimiter cells are `---`, `:---`, `---:` and `:---:`.
+
+```markdown
+| Name | Qty |
+| --- | ---: |
+| apple | 3 |
+| kiwi | 12 |
+```
+
+Aligned pads every cell to its column's widest, so the pipes line up when the file is read in an editor.
+
+```markdown
+| Name  | Qty |
+| ----- | --: |
+| apple |   3 |
+| kiwi  |  12 |
+```
+
+- **Width is display width.** A cell is measured in terminal columns, not characters or bytes, so East Asian wide
+  characters count as two. It is measured as written: backslash escapes (`\|`), code span backticks and emphasis
+  markers all take up room, because that is what the editor shows.
+- **Padding follows the column's alignment.** Left and unaligned columns pad on the right, right-aligned columns on the
+  left, and centred columns on both sides with any odd space going to the right. The header row is padded like any
+  other.
+- **Delimiter cells fill the column,** colons included, and a column is never narrower than three characters, so a
+  centred delimiter is at least `:-:`.
+- **Independent of MD013.** Unlike reflow, aligning does not switch off with `[rules.MD013] enabled = false`. Aligned
+  rows are as long as the widest row needs, and MD013 does not check table rows unless `tables = true`.
+
 ### Blockquotes (MD027, MD028)
 
 Exactly one space after each `>` marker:
@@ -426,8 +462,8 @@ silently disable the directive.
 - **Heading text content.** The text of headings is preserved exactly; only the surrounding syntax (ATX vs setext,
   spacing) is canonicalized. An attribute block (`{#custom-id .class}`) is kept after the text. Heading text that ends in
   `}` but is not an attribute block keeps a closing `#`, since without one it would be read as attributes.
-- **Table content.** Cell content is preserved. Column alignment markers are preserved. Table formatting (column widths,
-  pipe alignment) may be normalized in a future version but is not in scope for the initial implementation.
+- **Table content.** Cell content is preserved, and so are column alignment markers. Column widths are only touched when
+  `align_tables` is on (see "Tables").
 
 ---
 

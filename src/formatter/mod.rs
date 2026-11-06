@@ -8,6 +8,7 @@ use std::ops::Range;
 use pulldown_cmark::{
     Alignment, BlockQuoteKind, CodeBlockKind, Event, Options, Parser, Tag, TagEnd,
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::markdown::detect_front_matter;
 
@@ -44,6 +45,10 @@ pub struct FormatOptions {
     /// off: disabling the rule inline already stops reflow, and the config key
     /// is the same switch by another spelling.
     pub reflow: bool,
+    /// Pad table cells to their column's widest cell so the pipes line up in an
+    /// editor.  Off by default: compact tables (`| a | b |`) are the canonical
+    /// form, and padding makes one changed cell rewrite every row of its table.
+    pub align_tables: bool,
 }
 
 impl Default for FormatOptions {
@@ -52,6 +57,7 @@ impl Default for FormatOptions {
             width: DEFAULT_WIDTH,
             no_inline_config: false,
             reflow: false,
+            align_tables: false,
         }
     }
 }
@@ -75,6 +81,7 @@ impl From<&Config> for FormatOptions {
             width,
             no_inline_config: config.no_inline_config(),
             reflow: config.reflow() && config.rule_enabled("MD013"),
+            align_tables: config.align_tables(),
         }
     }
 }
@@ -115,7 +122,7 @@ fn format_markdown(input: &str, options: &FormatOptions) -> String {
         return String::new();
     }
 
-    let mut state = FormatterState::new(options.width);
+    let mut state = FormatterState::new(options);
     let suppressed = reflow_suppressed_lines(input, options);
     let line_starts = line_start_offsets(input);
     let (events, ranges): (Vec<Event<'_>>, Vec<Range<usize>>) =
@@ -512,6 +519,7 @@ struct FormatterState {
     block_reflow_suppressed: bool,
 
     // Table state
+    align_tables: bool,
     table_alignments: Vec<Alignment>,
     table_head_cells: Vec<String>,
     table_data_rows: Vec<Vec<String>>,
@@ -520,10 +528,10 @@ struct FormatterState {
 }
 
 impl FormatterState {
-    fn new(width: usize) -> Self {
+    fn new(options: &FormatOptions) -> Self {
         Self {
             out: String::new(),
-            width,
+            width: options.width,
             reflow_suppressed: false,
             block_reflow_suppressed: false,
             needs_blank: false,
@@ -550,6 +558,7 @@ impl FormatterState {
             next_text: String::new(),
             source_escaped: false,
             attached: false,
+            align_tables: options.align_tables,
             table_alignments: Vec::new(),
             table_head_cells: Vec::new(),
             table_data_rows: Vec::new(),
@@ -994,33 +1003,10 @@ impl FormatterState {
 
                 self.in_tight_item = false;
 
-                // Header row
-                self.open_line();
-                self.out.push_str("| ");
-                self.out.push_str(&head.join(" | "));
-                self.out.push_str(" |\n");
-
-                // Separator row
-                self.open_line();
-                self.out.push_str("| ");
-                let seps: Vec<&str> = aligns
-                    .iter()
-                    .map(|a| match a {
-                        Alignment::Left => ":---",
-                        Alignment::Right => "---:",
-                        Alignment::Center => ":---:",
-                        Alignment::None => "---",
-                    })
-                    .collect();
-                self.out.push_str(&seps.join(" | "));
-                self.out.push_str(" |\n");
-
-                // Data rows
-                for row in rows {
+                for line in render_table(&head, &rows, &aligns, self.align_tables) {
                     self.open_line();
-                    self.out.push_str("| ");
-                    self.out.push_str(&row.join(" | "));
-                    self.out.push_str(" |\n");
+                    self.out.push_str(&line);
+                    self.out.push('\n');
                 }
 
                 self.needs_blank = true;
@@ -1798,6 +1784,100 @@ fn needs_line_escape(line: &str, is_continuation: bool) -> bool {
     )
 }
 
+/// Hyphens in a compact separator cell, colons not counted: `---`, `:---`, `:---:`.
+const COMPACT_HYPHENS: usize = 3;
+
+/// Narrowest aligned column.  A centred separator needs `:-:`, and anything
+/// shorter is not recognisable as a delimiter row.
+const MIN_ALIGNED_WIDTH: usize = 3;
+
+/// The lines of a table, container prefixes aside: header, separator, then the
+/// data rows.  Compact tables join cells with single spaces; aligned ones pad
+/// every cell to its column's widest, so the pipes line up when the file is
+/// read in a monospace editor.
+fn render_table(
+    head: &[String],
+    rows: &[Vec<String>],
+    aligns: &[Alignment],
+    aligned: bool,
+) -> Vec<String> {
+    let widths = aligned.then(|| column_widths(head, rows, aligns.len()));
+    let alignment = |index: usize| aligns.get(index).copied().unwrap_or(Alignment::None);
+    let line = |cells: Vec<String>| format!("| {} |", cells.join(" | "));
+    let row_line = |cells: &[String]| {
+        line(
+            cells
+                .iter()
+                .enumerate()
+                .map(|(index, text)| match &widths {
+                    Some(widths) => pad_cell(text, widths[index], alignment(index)),
+                    None => text.clone(),
+                })
+                .collect(),
+        )
+    };
+    let separator = line(
+        (0..aligns.len())
+            .map(|index| {
+                let width = widths.as_ref().map(|widths| widths[index]);
+                separator_cell(alignment(index), width)
+            })
+            .collect(),
+    );
+
+    std::iter::once(row_line(head))
+        .chain(std::iter::once(separator))
+        .chain(rows.iter().map(|row| row_line(row)))
+        .collect()
+}
+
+/// Display width of each column: its widest cell, in terminal columns rather
+/// than characters so CJK text lines up.  A row longer than the header still
+/// gets a width, so indexing by cell position is always in range.
+fn column_widths(head: &[String], rows: &[Vec<String>], separator_cells: usize) -> Vec<usize> {
+    let columns = rows
+        .iter()
+        .map(Vec::len)
+        .chain([head.len(), separator_cells])
+        .fold(0, usize::max);
+    (0..columns)
+        .map(|index| {
+            std::iter::once(head)
+                .chain(rows.iter().map(Vec::as_slice))
+                .filter_map(|row| row.get(index))
+                .map(|cell| cell.width())
+                .fold(MIN_ALIGNED_WIDTH, usize::max)
+        })
+        .collect()
+}
+
+/// `text` padded to `width` columns on the side the column's alignment calls
+/// for: right-aligned columns pad on the left, centred ones split the padding
+/// with the odd space on the right.
+fn pad_cell(text: &str, width: usize, alignment: Alignment) -> String {
+    let padding = width.saturating_sub(text.width());
+    let (left, right) = match alignment {
+        Alignment::Right => (padding, 0),
+        Alignment::Center => (padding / 2, padding - padding / 2),
+        Alignment::Left | Alignment::None => (0, padding),
+    };
+    format!("{}{text}{}", " ".repeat(left), " ".repeat(right))
+}
+
+/// A delimiter-row cell: `width` columns wide, colons included, or the compact
+/// form when `width` is `None`.  Never narrower than `:-:`, because aligned
+/// widths start at [`MIN_ALIGNED_WIDTH`].
+fn separator_cell(alignment: Alignment, width: Option<usize>) -> String {
+    let (lead, trail) = match alignment {
+        Alignment::None => ("", ""),
+        Alignment::Left => (":", ""),
+        Alignment::Right => ("", ":"),
+        Alignment::Center => (":", ":"),
+    };
+    let hyphens = width.map_or(COMPACT_HYPHENS, |width| width - lead.len() - trail.len());
+    format!("{lead}{}{trail}", "-".repeat(hyphens))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2409,6 +2489,152 @@ mod tests {
                 | *em* | plain |
             "}
         );
+    }
+
+    /// Like `assert_formats_to`, with `align_tables` on: `expected` must be
+    /// what `input` formats to, and must itself be a fixed point.
+    fn assert_formats_to_aligned(input: &str, expected: &str) {
+        let options = FormatOptions {
+            align_tables: true,
+            ..FormatOptions::default()
+        };
+        let got = format_with(input, &options);
+        assert_eq!(
+            got, expected,
+            "aligned format(input) did not match expected.\nInput:\n{input}\nExpected:\n{expected}\nGot:\n{got}"
+        );
+        assert_eq!(
+            format_with(expected, &options),
+            expected,
+            "aligned format(expected) != expected.\nExpected:\n{expected}"
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_pads_cells_to_the_widest_in_the_column() {
+        assert_formats_to_aligned(
+            indoc! {"
+                | Name | Qty |
+                | --- | --- |
+                | apple | 3 |
+                | kiwi | 12 |
+            "},
+            indoc! {"
+                | Name  | Qty |
+                | ----- | --- |
+                | apple | 3   |
+                | kiwi  | 12  |
+            "},
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_is_never_narrower_than_three_columns() {
+        // `:-:` is the narrowest centred delimiter, so every column starts there.
+        assert_formats_to_aligned(
+            "| a | b |\n| --- | --- |\n| c | d |\n",
+            "| a   | b   |\n| --- | --- |\n| c   | d   |\n",
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_pads_on_the_side_the_column_aligns_to() {
+        assert_formats_to_aligned(
+            indoc! {"
+                | L | R | C | N |
+                |:--|--:|:-:|---|
+                | left | right | mid | none |
+                | a | b | c | d |
+            "},
+            indoc! {"
+                | L    |     R |  C  | N    |
+                | :--- | ----: | :-: | ---- |
+                | left | right | mid | none |
+                | a    |     b |  c  | d    |
+            "},
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_centres_with_the_odd_space_on_the_right() {
+        assert_formats_to_aligned(
+            "| C |\n|:-:|\n| abcd |\n| x |\n",
+            "|  C   |\n| :--: |\n| abcd |\n|  x   |\n",
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_measures_display_width_not_characters() {
+        // Each CJK character is two terminal columns wide.
+        assert_formats_to_aligned(
+            indoc! {"
+                | 名前 | n |
+                | --- | --- |
+                | 日本語 | 1 |
+                | ab | 22 |
+            "},
+            indoc! {"
+                | 名前   | n   |
+                | ------ | --- |
+                | 日本語 | 1   |
+                | ab     | 22  |
+            "},
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_counts_escapes_and_code_spans_as_written() {
+        // Alignment is for the raw text in the editor, so `\|` is two columns.
+        assert_formats_to_aligned(
+            "| a | b |\n| --- | --- |\n| x \\| y | `p \\| q` |\n",
+            "| a      | b        |\n| ------ | -------- |\n| x \\| y | `p \\| q` |\n",
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_without_outer_pipes() {
+        assert_formats_to_aligned(
+            "A | B\n--- | ---\nlonger | 2\n",
+            "| A      | B   |\n| ------ | --- |\n| longer | 2   |\n",
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_with_an_empty_cell() {
+        assert_formats_to_aligned(
+            "| a | b |\n| --- | --- |\n|  | y |\n| xx | |\n",
+            "| a   | b   |\n| --- | --- |\n|     | y   |\n| xx  |     |\n",
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_inside_containers_keeps_their_prefix() {
+        assert_formats_to_aligned(
+            "> | a | b |\n> | --- | --- |\n> | long cell | c |\n",
+            "> | a         | b   |\n> | --------- | --- |\n> | long cell | c   |\n",
+        );
+        assert_formats_to_aligned(
+            "- item\n\n  | a | b |\n  | --- | --- |\n  | long cell | c |\n",
+            "- item\n\n  | a         | b   |\n  | --------- | --- |\n  | long cell | c   |\n",
+        );
+    }
+
+    #[test]
+    fn test_aligned_table_with_a_short_row_is_stable() {
+        // A row with fewer cells than the header must neither panic nor
+        // drift between passes.
+        let options = FormatOptions {
+            align_tables: true,
+            ..FormatOptions::default()
+        };
+        let once = format_with("| a | b |\n| --- | --- |\n| wide |\n", &options);
+        assert_eq!(format_with(&once, &options), once);
+    }
+
+    #[test]
+    fn test_tables_stay_compact_unless_asked() {
+        let table = "| a | b |\n| --- | --- |\n| long cell | c |\n";
+        assert_formats_to_without_reflow(table, table);
     }
 
     #[test]

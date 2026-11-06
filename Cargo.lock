@@ -591,6 +591,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml",
+ "unicode-width",
  "url",
  "yaml_serde",
 ]
