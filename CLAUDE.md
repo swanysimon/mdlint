@@ -95,6 +95,12 @@ src/
   allowed immediately before inline HTML (escaping a tag at column 0 would turn it into literal text)
 - When a break would put text at column 0 that re-parses as a block element, the wrapper retreats to an earlier
   opportunity; `needs_line_escape`/`escape_line` stay as the fallback, so correctness never rests on the retreat
+- Table alignment is opt-in like reflow: top-level `align_tables`, overridden by `--align-tables`/`--no-align-tables`,
+  sets `FormatOptions::align_tables`. Unlike reflow it ignores MD013. `render_table` is a pure function from cells to
+  lines, so compact and aligned share one path. Widths are `unicode-width` display widths of the cell text as written
+  (escapes and markup included), with a three-column minimum so a centred delimiter fits as `:-:`. Compact separators
+  stay `:---`/`---:` (four wide) while aligned ones start at three; don't unify them, it would rewrite every existing
+  table
 - Container prefixes are per-line state: `open_line` writes only the stack entries the current line lacks, found by
   column, because an item marker may already have opened the line (`- > x` needs the `>`; `> - # x` must not gain a
   second one). Every block opener goes through it; writing a partial prefix (the blockquote markers alone) drops a

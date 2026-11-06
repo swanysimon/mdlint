@@ -20,6 +20,8 @@ Run `mdlint format` and stop thinking about it.
 - **Formatter first**: `mdlint format` rewrites files to a canonical style — no configuration required
 - **Reflows prose (opt-in)**: with `--reflow` or `reflow = true`, paragraphs are unwrapped and refilled to the
   configured line length, so where you happened to press Enter stops showing up in diffs
+- **Aligns tables (opt-in)**: with `--align-tables` or `align_tables = true`, table cells are padded so the pipes line
+  up in an editor
 - **Linter second**: `mdlint check` reports violations; fixable rules are auto-corrected by `mdlint format` or
   `mdlint check --fix`
 - **Fast**: written in Rust for performance
@@ -142,6 +144,12 @@ Tables are the one place where "left alone" needed a matching change to the lint
 so nothing in the tool can narrow one, and MD013 therefore does not check table widths unless you ask it to with
 `tables = true`.
 
+Table alignment is opt-in too: pass `--align-tables`, or set `align_tables = true` in `mdlint.toml` (`--no-align-tables`
+overrides the config for one run). Every cell is padded with spaces to the widest cell in its column, so the pipes line
+up when you read the file in an editor; by default tables stay compact (`| a | b |`). Padding follows the column's
+alignment marker: a right-aligned column pads on the left, a centred one on both sides. Widths are display widths, so
+CJK text lines up too. Unlike reflow, aligning does not depend on MD013.
+
 ```text
 Usage: mdlint format [OPTIONS] [FILES]...
 
@@ -151,6 +159,7 @@ Arguments:
 Options:
       --check          Check formatting without modifying files (exits with 1 if any file would change)
       --reflow         Reflow paragraphs to MD013's line_length. Use `--no-reflow` to disable
+      --align-tables   Pad table cells so the pipes line up. Use `--no-align-tables` to disable
       --color <COLOR>  Control colors in output [possible values: auto, always, never]
   -h, --help           Print help
 
@@ -310,8 +319,8 @@ the one nearest the working directory winning.
 
 Priority, highest to lowest:
 
-1. CLI flags — `--select`, `--ignore`, `--fix` / `--no-fix`, `--reflow` / `--no-reflow`, `--exclude`,
-   `--no-respect-ignore`
+1. CLI flags — `--select`, `--ignore`, `--fix` / `--no-fix`, `--reflow` / `--no-reflow`, `--align-tables` /
+   `--no-align-tables`, `--exclude`, `--no-respect-ignore`
 2. `--config <path>`, which **replaces discovery entirely**: no other config file is read, not even one in the working
    directory
 3. The config in the working directory
@@ -322,9 +331,9 @@ Priority, highest to lowest:
 
 How values from different configs combine:
 
-- **Scalars** — `default_enabled`, `fix`, `reflow`, `gitignore`, `no_inline_config`, `front_matter`: the nearest config
-  that *sets* the option wins. A config that omits an option leaves whatever an outer config set it to, rather than
-  resetting it to the built-in default.
+- **Scalars** — `default_enabled`, `fix`, `reflow`, `align_tables`, `gitignore`, `no_inline_config`, `front_matter`: the
+  nearest config that *sets* the option wins. A config that omits an option leaves whatever an outer config set it to,
+  rather than resetting it to the built-in default.
 - **Arrays** — `exclude`, `custom_rules`: accumulate, so every config in the chain contributes its entries. There is no
   way to remove an entry an outer config added.
 - **`[rules.MDxxx]`**: merged per rule code. The nearest config that configures a rule replaces that rule's whole
@@ -335,6 +344,7 @@ CLI flags then apply on top of the merged result:
 
 - `--fix` / `--no-fix` overrides `fix`.
 - `--reflow` / `--no-reflow` overrides `reflow`.
+- `--align-tables` / `--no-align-tables` overrides `align_tables`.
 - `--exclude` is added to `exclude` rather than replacing it.
 - `--no-respect-ignore` forces `.gitignore` off, and so does `gitignore = false` in any config; `.gitignore` is
   respected only when neither turns it off.
@@ -353,6 +363,7 @@ CLI flags then apply on top of the merged result:
 | `no_inline_config` | `false` | Ignore all `<!-- mdlint-disable -->` comments. |
 | `fix` | `true` | `mdlint check` automatically applies all fixable violations; equivalent to passing `--fix` on the CLI. |
 | `reflow` | `false` | `mdlint format` refills paragraphs to MD013's `line_length`; equivalent to passing `--reflow` on the CLI. |
+| `align_tables` | `false` | `mdlint format` pads table cells so the pipes line up; equivalent to passing `--align-tables` on the CLI. |
 | `front_matter` | auto | Front matter delimiter. Auto-detects `---` (YAML) and `+++` (TOML). Set to `"---"` to accept YAML only. |
 | `exclude` | `[]` | Paths/glob patterns excluded from discovery; merged with any `--exclude` CLI flags. |
 | `custom_rules` | `[]` | Paths to external rule modules (future feature). |

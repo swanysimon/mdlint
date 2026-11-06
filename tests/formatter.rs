@@ -592,6 +592,7 @@ fn no_inline_config_reflows_a_protected_paragraph_anyway() {
         width: 30,
         no_inline_config: true,
         reflow: true,
+        ..Default::default()
     };
     assert_eq!(
         formatter::format_with(input, &options),
@@ -989,6 +990,55 @@ fn format_no_reflow_flag_overrides_the_config() {
             "alpha bravo\ncharlie delta\n"
         ),
         "alpha bravo\ncharlie delta\n"
+    );
+}
+
+const COMPACT_TABLE: &str = "| a | b |\n| --- | --- |\n| long cell | c |\n";
+const ALIGNED_TABLE: &str = "| a         | b   |\n| --------- | --- |\n| long cell | c   |\n";
+
+#[test]
+fn format_leaves_tables_compact_by_default() {
+    assert_eq!(format_file_with("", &[], COMPACT_TABLE), COMPACT_TABLE);
+}
+
+#[test]
+fn format_align_tables_flag_pads_cells() {
+    assert_eq!(
+        format_file_with("", &["--align-tables"], COMPACT_TABLE),
+        ALIGNED_TABLE
+    );
+}
+
+#[test]
+fn format_align_tables_config_key_pads_cells() {
+    assert_eq!(
+        format_file_with("align_tables = true\n", &[], COMPACT_TABLE),
+        ALIGNED_TABLE
+    );
+}
+
+#[test]
+fn format_no_align_tables_flag_overrides_the_config() {
+    assert_eq!(
+        format_file_with(
+            "align_tables = true\n",
+            &["--no-align-tables"],
+            ALIGNED_TABLE
+        ),
+        COMPACT_TABLE
+    );
+}
+
+#[test]
+fn format_align_tables_does_not_depend_on_md013() {
+    // Unlike reflow, aligning is not governed by the line-length rule.
+    assert_eq!(
+        format_file_with(
+            "align_tables = true\n[rules.MD013]\nenabled = false\n",
+            &[],
+            COMPACT_TABLE
+        ),
+        ALIGNED_TABLE
     );
 }
 

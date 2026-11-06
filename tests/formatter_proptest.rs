@@ -3,7 +3,9 @@ use mdlint::formatter;
 use mdlint::formatter::{FormatOptions, format_with};
 use mdlint::lint::LintEngine;
 use proptest::prelude::*;
-use std::collections::HashMap;
+use pulldown_cmark::{Options, Parser};
+use std::collections::{HashMap, HashSet};
+use unicode_width::UnicodeWidthStr;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10_000))]
@@ -238,5 +240,86 @@ proptest! {
             violations.iter().all(|v| v.rule != "MD013"),
             "format() at width {width} left an MD013 violation `check` cannot fix: {violations:?}\noutput:\n{out}"
         );
+    }
+}
+
+/// A table cell: text that survives inside a pipe-delimited row, mixing in wide
+/// CJK characters, an escaped pipe and inline markup, since alignment has to hold
+/// up against every one of them. May be empty.
+fn table_cell() -> impl Strategy<Value = String> {
+    prop_oneof![
+        4 => "[a-z]{0,8}",
+        2 => "[一-龥]{1,4}",
+        1 => prop::sample::select(vec!["x \\| y", "`code`", "*em*", "**strong**", "a b c"])
+            .prop_map(str::to_owned),
+    ]
+}
+
+/// A well-formed table with one to four columns, every alignment marker, and
+/// every row as wide as the header, in the compact style the formatter emits.
+fn table() -> impl Strategy<Value = String> {
+    (1usize..5)
+        .prop_flat_map(|columns| {
+            (
+                prop::collection::vec(
+                    prop::sample::select(vec!["---", ":--", "--:", ":-:"]),
+                    columns,
+                ),
+                prop::collection::vec("[a-z]{1,6}", columns),
+                prop::collection::vec(prop::collection::vec(table_cell(), columns), 0..6),
+            )
+        })
+        .prop_map(|(markers, head, rows)| {
+            let line = |cells: Vec<String>| format!("| {} |\n", cells.join(" | "));
+            let markers = markers.into_iter().map(str::to_owned).collect();
+            std::iter::once(head)
+                .chain(std::iter::once(markers))
+                .chain(rows)
+                .map(line)
+                .collect()
+        })
+}
+
+fn aligned() -> FormatOptions {
+    FormatOptions {
+        align_tables: true,
+        ..Default::default()
+    }
+}
+
+/// Parser events as strings, for comparing two documents without borrowing from either.
+fn events(markdown: &str) -> Vec<String> {
+    Parser::new_ext(markdown, Options::ENABLE_TABLES)
+        .map(|event| format!("{event:?}"))
+        .collect()
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(2_000))]
+
+    /// Padding must not move between passes.
+    #[test]
+    fn aligned_tables_are_idempotent(table in table()) {
+        let once = format_with(&table, &aligned());
+        let twice = format_with(&once, &aligned());
+        prop_assert_eq!(&once, &twice, "not idempotent on input: {:?}", table);
+    }
+
+    /// The point of the option: every line of the table is the same width in a
+    /// monospace editor, so the pipes line up.
+    #[test]
+    fn aligned_tables_have_rows_of_equal_display_width(table in table()) {
+        let out = format_with(&table, &aligned());
+        let widths: HashSet<usize> = out.lines().map(UnicodeWidthStr::width).collect();
+        prop_assert_eq!(widths.len(), 1, "ragged table for input {:?}:\n{}", table, out);
+    }
+
+    /// Padding is whitespace around cells, which the parser discards: the
+    /// aligned and compact forms of a table must mean exactly the same thing.
+    #[test]
+    fn aligning_a_table_does_not_change_what_it_parses_to(table in table()) {
+        let compact = format_with(&table, &FormatOptions::default());
+        let padded = format_with(&table, &aligned());
+        prop_assert_eq!(events(&compact), events(&padded), "input: {:?}", table);
     }
 }

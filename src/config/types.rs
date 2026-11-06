@@ -42,6 +42,11 @@ pub struct Config {
     /// through [`Config::reflow`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reflow: Option<bool>,
+
+    /// Pad table cells so the pipes line up when running `mdlint format`; read it through
+    /// [`Config::align_tables`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub align_tables: Option<bool>,
 }
 
 /// Built-in defaults, used for every option no config in the chain sets.
@@ -69,6 +74,11 @@ impl Config {
     #[must_use]
     pub fn reflow(&self) -> bool {
         self.reflow.unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn align_tables(&self) -> bool {
+        self.align_tables.unwrap_or_default()
     }
 }
 

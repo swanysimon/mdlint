@@ -18,6 +18,7 @@ pub fn merge_configs(mut base: Config, override_cfg: Config) -> Config {
     base.gitignore = override_cfg.gitignore.or(base.gitignore);
     base.no_inline_config = override_cfg.no_inline_config.or(base.no_inline_config);
     base.reflow = override_cfg.reflow.or(base.reflow);
+    base.align_tables = override_cfg.align_tables.or(base.align_tables);
 
     base.rules.extend(override_cfg.rules);
 
@@ -84,6 +85,7 @@ mod tests {
         let base = Config {
             fix: Some(false),
             reflow: Some(true),
+            align_tables: Some(true),
             default_enabled: Some(false),
             gitignore: Some(false),
             no_inline_config: Some(true),
@@ -94,6 +96,7 @@ mod tests {
         let merged = merge_configs(base, Config::default());
         assert!(!merged.fix());
         assert!(merged.reflow());
+        assert!(merged.align_tables());
         assert!(!merged.default_enabled());
         assert!(!merged.gitignore());
         assert!(merged.no_inline_config());
@@ -108,6 +111,7 @@ mod tests {
             gitignore: Some(false),
             no_inline_config: Some(true),
             reflow: Some(true),
+            align_tables: Some(true),
             ..Default::default()
         };
 
@@ -115,6 +119,7 @@ mod tests {
             gitignore: Some(true),
             no_inline_config: Some(false),
             reflow: Some(false),
+            align_tables: Some(false),
             ..Default::default()
         };
 
@@ -122,6 +127,7 @@ mod tests {
         assert!(merged.gitignore());
         assert!(!merged.no_inline_config());
         assert!(!merged.reflow());
+        assert!(!merged.align_tables());
     }
 
     #[test]
