@@ -60,13 +60,16 @@ pip install markdownlint-rs
 # npm project dependency
 npm install --save-dev markdownlint-rs
 
+# Homebrew (macOS and Linux)
+brew install swanysimon/tap/mdlint
+
 # Docker (linux/amd64 and linux/arm64) - hosted on both DockerHub and GitHub Container Registry
 docker run --rm -v "$PWD:/workspace" ghcr.io/swanysimon/mdlint:latest check
 docker run --rm -v "$PWD:/workspace" simonswanson/mdlint:latest       format
 ```
 
 Pre-built binaries for Linux (x86_64/ARM64, glibc and musl), macOS (Intel/Apple Silicon), and Windows are available on
-the [releases page](https://github.com/swanysimon/mdlint/releases). A [Homebrew](https://brew.sh) formula is planned.
+the [releases page](https://github.com/swanysimon/mdlint/releases).
 
 ### pre-commit framework
 

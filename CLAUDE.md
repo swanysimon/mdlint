@@ -230,6 +230,27 @@ src/
   concurrent upload errors (HTTP 500) and reduces environment approval prompts to one per release instead of one per
   matrix element
 
+### Homebrew Distribution
+
+- Lives in a separate tap repo (`swanysimon/homebrew-tap`), scaffolded with `brew tap-new --github-packages` rather
+  than hand-rolled — that command generates the tap's own CI (`tests.yml`: `brew test-bot` on push/PR), its bottle
+  publish workflow (`publish.yml`: `brew pr-pull`), and a daily autobump workflow (`autobump.yml`: `brew bump` driven
+  by each formula's `livecheck` block), so none of that is mdlint-specific code to maintain
+- `Formula/mdlint.rb` builds from the GitHub release source tarball via `cargo install`, not from the per-platform
+  binaries `release-binaries.yml` already publishes — reusing those would mean maintaining a bump script across 4+
+  platform URLs by hand instead of the one `url`/`sha256` pair `brew bump-formula-pr` already knows how to update
+- `tests.yml`'s `--only-formulae` step (the one that actually builds, tests, and bottles the formula) only runs `if:
+  github.event_name == 'pull_request'` — a direct push to the tap's `main` only syntax-checks. A bottle only gets
+  produced the first time a real PR touches the formula (the next `autobump` version bump, or a manually opened one);
+  until then every install compiles from source, which `depends_on "rust" => :build` covers transparently
+- The generated `tests.yml` matrix is `macos-26` (GitHub-hosted, Apple Silicon only) plus one `ubuntu-latest` Linux
+  job — Intel Mac and Linux aarch64 installs always build from source since no bottle is ever produced for them. That's
+  fine for a personal tap; widen the matrix only if that install time becomes an actual complaint
+- `gh` extensions (e.g. `gh-workspace`) do not belong in the tap: `cli/gh-extension-precompile` already publishes
+  per-platform release assets in the exact naming convention `gh extension install`/`upgrade` consume, so a Homebrew
+  formula would be a redundant, worse second distribution path. The real discoverability lever there is the
+  `gh-extension` GitHub topic (surfaces in `gh extension browse`), not a tap entry
+
 ## Developer Guide
 
 ### Adding a linting rule
