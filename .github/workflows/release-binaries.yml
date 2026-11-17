@@ -31,7 +31,7 @@ jobs:
         include:
           # Linux x86_64
           - os: ubuntu-latest
-            container: quay.io/pypa/manylinux_2_28_x86_64@sha256:7e41b1c7fd64dfc69703a1124b43c404382973ee06ec5d764b85c34d2221fded
+            container: quay.io/pypa/manylinux_2_28_x86_64@sha256:d086f64cddcace250ef0f0073583c51b8298159303290a730c9f59bd91edfd2c
             target: x86_64-unknown-linux-gnu
             artifact_name: mdlint
             asset_name: mdlint-linux-x86_64
@@ -46,7 +46,7 @@ jobs:
 
           # Linux aarch64
           - os: ubuntu-24.04-arm
-            container: quay.io/pypa/manylinux_2_28_aarch64@sha256:54b271d9562a3686298880df05367909e949ed317e7b1b79b59c696d75f78676
+            container: quay.io/pypa/manylinux_2_28_aarch64@sha256:34a5e614a4eb26f73f8bf44cbbf2acf8011620453d03ea35a58537bb3cde44de
             target: aarch64-unknown-linux-gnu
             artifact_name: mdlint
             asset_name: mdlint-linux-aarch64
