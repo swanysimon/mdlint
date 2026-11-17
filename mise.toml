@@ -1,5 +1,5 @@
 [tools]
-prek = "0.5.5"
+prek = "0.5.7"
 
 [tasks.check]
 alias = ["ci", "checks"]
@@ -30,7 +30,7 @@ run = "cargo test"
 [tasks."format:toml"]
 description = "Format TOML files"
 run = "tombi format"
-tools = { tombi = "1.8.4" }
+tools = { tombi = "1.9.6" }
 
 [tasks."format:rust"]
 description = "Format Rust sources"
@@ -45,7 +45,7 @@ wait_for = ["format:rust"]
 description = "Validate TOML files"
 wait_for = ["format:toml"]
 run = "tombi check"
-tools = { tombi = "1.8.4" }
+tools = { tombi = "1.9.6" }
 
 [tasks."lint:rust"]
 description = "Clippy. Pass --fix to apply autofixes to the working tree"
@@ -79,7 +79,7 @@ tools = { shellcheck = "0.11.0" }
 [tasks.release]
 description = "Create a release"
 run = "cargo release"
-tools = { cargo-release = "v1.1.6" }
+tools = { cargo-release = "v1.1.7" }
 
 [tasks.bench]
 description = "Benchmark check and format over a pinned copy of the Rust book"

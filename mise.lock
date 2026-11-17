@@ -50,50 +50,50 @@ url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/3849249
 provenance = "github-attestations"
 
 [[tools.cargo-release]]
-version = "1.1.6"
+version = "1.1.7"
 backend = "github:crate-ci/cargo-release"
-specifiers = ["v1.1.6"]
+specifiers = ["v1.1.7"]
 
 [tools.cargo-release."platforms.linux-arm64"]
-checksum = "sha256:a74a3dc62204ed1c10e3da644fa6b5dc0abead13d1936e1a21f0decfaf26b983"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568871846"
+checksum = "sha256:5fe8e87ad62dcb5e517f1504aa79b81022599b19b0cadb066af07d0996b0b90a"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662701046"
 provenance = "github-attestations"
 
 [tools.cargo-release."platforms.linux-arm64-musl"]
-checksum = "sha256:a74a3dc62204ed1c10e3da644fa6b5dc0abead13d1936e1a21f0decfaf26b983"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568871846"
+checksum = "sha256:5fe8e87ad62dcb5e517f1504aa79b81022599b19b0cadb066af07d0996b0b90a"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662701046"
 provenance = "github-attestations"
 
 [tools.cargo-release."platforms.linux-x64"]
-checksum = "sha256:d82672b9f26b9a11f1b080eedeb74ffa3dd02d96ae9fb3cbc180e4a10d5417db"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568873165"
+checksum = "sha256:9e04ae8b068f52788ce301cabaf34c4b3f0c945793d02c88442b561073f6bdb1"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662700706"
 provenance = "github-attestations"
 
 [tools.cargo-release."platforms.linux-x64-musl"]
-checksum = "sha256:d82672b9f26b9a11f1b080eedeb74ffa3dd02d96ae9fb3cbc180e4a10d5417db"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568873165"
+checksum = "sha256:9e04ae8b068f52788ce301cabaf34c4b3f0c945793d02c88442b561073f6bdb1"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662700706"
 provenance = "github-attestations"
 
 [tools.cargo-release."platforms.macos-arm64"]
-checksum = "sha256:2f41e0d9f9538108f943f498af9f923cd6efd7e3ecdd69c7f78516bb29f32c53"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568874942"
+checksum = "sha256:39e1121c5e9671b0ff4703692b7ce2d9576c540118869091b7ad85a15187d129"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662705905"
 provenance = "github-attestations"
 
 [tools.cargo-release."platforms.macos-x64"]
-checksum = "sha256:f1a5544f7b9464bc308caac45ed0a10d4839b6a38d7f83af27cfb72e68efe501"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568875686"
+checksum = "sha256:9abd1bb84a581e982e4ae00a4c4413c14657b4cba8cd76b0eb003e00fe361a7a"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662704962"
 provenance = "github-attestations"
 
 [tools.cargo-release."platforms.windows-x64"]
-checksum = "sha256:511ac6eb265f137cf78c74f6488bcdad750e669b5dd63324cc5582ea5a59ab5e"
-url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.6/cargo-release-v1.1.6-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/568875956"
+checksum = "sha256:7b67996840ec6d2fd8e78c67281d8807950818869f6d09e0c9678897b48f9837"
+url = "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/cargo-release-v1.1.7-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/662704668"
 provenance = "github-attestations"
 
 [[tools.hadolint]]
@@ -191,50 +191,50 @@ url = "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v
 url_api = "https://api.github.com/repos/sharkdp/hyperfine/releases/assets/619834237"
 
 [[tools.prek]]
-version = "0.5.5"
+version = "0.5.7"
 backend = "aqua:j178/prek"
-specifiers = ["0.5.5"]
+specifiers = ["0.5.7"]
 
 [tools.prek."platforms.linux-arm64"]
-checksum = "sha256:420451a13aaf3de670dfe73b25e18dbca0d96bc3b153cc3924b9d01c3b7caa12"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684496"
+checksum = "sha256:98bdb31002ca42b61f4f6c746b2de351aee4e1f29c95f8dec8ec3b9a62929c1e"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929498"
 provenance = "github-attestations"
 
 [tools.prek."platforms.linux-arm64-musl"]
-checksum = "sha256:e7208e5d42daaa8d9167971e7d2d3388d80cce241d1cecea745a6c88d6b6368e"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684498"
+checksum = "sha256:022ddbaef649d83ab7e0cfde13400612b896b04cce338623205525560d47bcf6"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929502"
 provenance = "github-attestations"
 
 [tools.prek."platforms.linux-x64"]
-checksum = "sha256:5470e4aa0fc0ad9d3de7dfaf088fb746d59c2eda3b173c06418e7c8861a520eb"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684555"
+checksum = "sha256:e238e5a6b4e384e8d18f33d3c3b1a329be0e1237f77ac6e021e641ddd3a2bab6"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929556"
 provenance = "github-attestations"
 
 [tools.prek."platforms.linux-x64-musl"]
-checksum = "sha256:57948d4772f4eb58387ce4a6d619ecd2d8d7e9d765eed6a316f5b3f92c86d951"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684574"
+checksum = "sha256:25d6a0316125127aed3ad7010128884d7e7243c4ac06f084218b98dc20020ca9"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929599"
 provenance = "github-attestations"
 
 [tools.prek."platforms.macos-arm64"]
-checksum = "sha256:e4bc3132023b50020e62b073bc3147082828bf250d8b9282850c6f2bed5471b6"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684483"
+checksum = "sha256:800c5b9c8239045bbdf4201957dd4175135e216e838c40a6ec1904ff18ebaf2c"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929480"
 provenance = "github-attestations"
 
 [tools.prek."platforms.macos-x64"]
-checksum = "sha256:9ea09639374a34b6f0b7d2a2567c175221cd37e44004e9b1cf591f31f9dda1b3"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684529"
+checksum = "sha256:12b65c6685fc44ff9130c0bf5dcb01be69c0c81d9a0709553fd369c3b2010815"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929524"
 provenance = "github-attestations"
 
 [tools.prek."platforms.windows-x64"]
-checksum = "sha256:6e52e1723b1b753b977be632a150d5516862471b29c14ad8e7d71685f07769b4"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684549"
+checksum = "sha256:50ccc606e19965585807c0a8be99da82eb4237c7c9df2539e5a83704d1f16a36"
+url = "https://github.com/j178/prek/releases/download/v0.5.7/prek-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/660929530"
 provenance = "github-attestations"
 
 [[tools.shellcheck]]
@@ -278,48 +278,48 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056944"
 
 [[tools.tombi]]
-version = "1.8.4"
+version = "1.9.6"
 backend = "aqua:tombi-toml/tombi"
-specifiers = ["1.8.4"]
+specifiers = ["1.9.6"]
 
 [tools.tombi."platforms.linux-arm64"]
-checksum = "sha256:681003a505bfb40f79ec8e833dda0d5c03e5f43c4c362f494ee8d6652775c73a"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633725972"
+checksum = "sha256:e29f2af283d9c090c7da16468406ffa5b7183d06cefeae19da40ac6d70ffc42c"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901374"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.linux-arm64-musl"]
-checksum = "sha256:681003a505bfb40f79ec8e833dda0d5c03e5f43c4c362f494ee8d6652775c73a"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633725972"
+checksum = "sha256:e29f2af283d9c090c7da16468406ffa5b7183d06cefeae19da40ac6d70ffc42c"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901374"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.linux-x64"]
-checksum = "sha256:597e08f9fa336b365c011c94387997dd3d2dadd904cde5b7dc55033d29680e5e"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633726039"
+checksum = "sha256:a845f9275c83ee8ce408cc16fee11a7dbe5009214a4b92f2bbac5c0aa3afafe3"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901407"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.linux-x64-musl"]
-checksum = "sha256:597e08f9fa336b365c011c94387997dd3d2dadd904cde5b7dc55033d29680e5e"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633726039"
+checksum = "sha256:a845f9275c83ee8ce408cc16fee11a7dbe5009214a4b92f2bbac5c0aa3afafe3"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901407"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.macos-arm64"]
-checksum = "sha256:ec873e21e7165007d4ba785c817b2ffd26b3833396bdbf80cfe49540d45f08f8"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633726028"
+checksum = "sha256:e3e29db219a07e2e8534735a61c340f1bb3ec1bee845a4fcd6d72f59e0e9383e"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901370"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.macos-x64"]
-checksum = "sha256:fa3d7fca1853c27da005795d51fed0ec311de7d9e2a795bda5efc87191d21fb8"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633725988"
+checksum = "sha256:8f9b2e3ba04f2d2773b15211024233a89d6ba0e1732c6b9d0b5f98a06ab2bd75"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901373"
 provenance = "github-attestations"
 
 [tools.tombi."platforms.windows-x64"]
-checksum = "sha256:11809d18477d7ac952110dc3e8423533ff480915f780add1e589e1d27493b61e"
-url = "https://github.com/tombi-toml/tombi/releases/download/v1.8.4/tombi-cli-1.8.4-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/633726019"
+checksum = "sha256:6080696714182be2e35bd89e3bbe4f301f92fb2cb888088fd282c341a4f1e5c1"
+url = "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/tombi-toml/tombi/releases/assets/676901391"
 provenance = "github-attestations"
